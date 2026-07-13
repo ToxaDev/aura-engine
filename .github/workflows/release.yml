@@ -1,0 +1,118 @@
+name: Release
+
+# Pushing a tag like v1.0.0 builds the Windows binary on a clean runner,
+# packages it as a portable zip, and publishes a GitHub Release with the
+# artifact attached. Manual runs (workflow_dispatch) build the same zip and
+# upload it as a workflow artifact without creating a release.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Portable optimized build: x86-64-v3 = AVX2 + FMA (Intel Haswell 2013+,
+  # AMD Excavator 2015+). This deliberately overrides the repo-local
+  # `target-cpu=native` in .cargo/config.toml, which is right for private
+  # builds but would tie a distributed exe to the build machine's CPU.
+  RUSTFLAGS: "-C target-cpu=x86-64-v3"
+
+jobs:
+  build-release:
+    name: Build + publish Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app/src-tauri
+
+      - name: Build release binary
+        working-directory: desktop-app/src-tauri
+        run: cargo build --release --locked --bin aura-engine
+
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $tag = 'dev-' + (git rev-parse --short HEAD)
+          }
+          $name  = "aura-engine-$tag-windows-x64"
+          $stage = "stage/$name"
+          New-Item -ItemType Directory -Force "$stage/fir-optimizer/output" | Out-Null
+
+          Copy-Item desktop-app/src-tauri/target/release/aura-engine.exe "$stage/"
+          Copy-Item LICENSE "$stage/LICENSE.txt"
+
+          $readme = @(
+            'AuraEngine — high-fidelity offline audio upsampler',
+            'https://github.com/ToxaDev/aura-engine',
+            'Docs: https://toxadev.github.io/aura-engine/',
+            '',
+            'REQUIREMENTS',
+            '  * Windows 10/11 x64. CPU with AVX2 (any Intel/AMD from ~2013+).',
+            '  * ffmpeg on PATH (FLAC encoding):  winget install Gyan.FFmpeg',
+            '  * WebView2 runtime (preinstalled on Windows 11).',
+            '  * Optional: Vulkan-capable GPU for the accelerated DS path.',
+            '',
+            'FIR FILTERS (recommended)',
+            '  The million-tap FIR stages and Hybrid-Phase need pre-computed',
+            '  filter files. Download a ready-made filter pack from the',
+            '  Releases page (e.g. aura-filters-10M-all-rates.zip) and extract',
+            '  it here — the archive already contains fir-optimizer/output/.',
+            '  Alternatively generate them with Python (fir-optimizer/README.md)',
+            '  or point the AURA_FILTER_DIR environment variable at any folder',
+            '  containing the .npy files. Without filters the app still converts',
+            '  using the built-in high-quality sinc resampler (the post-FIR',
+            '  stage is skipped).',
+            '',
+            'USAGE',
+            '  Run aura-engine.exe and drop audio files onto the window.',
+            '  Output FLAC appears next to the source file. The console window',
+            '  is the engine''s audit log — it is supposed to be there.',
+            '',
+            'LICENSE',
+            '  PolyForm Noncommercial 1.0.0 — free for noncommercial use.',
+            '  Commercial licensing: contact the author via GitHub.'
+          )
+          Set-Content -Path "$stage/README.txt" -Value $readme -Encoding utf8
+
+          Set-Content -Path "$stage/fir-optimizer/output/PUT-FILTERS-HERE.txt" -Encoding utf8 -Value @(
+            'Place the generated FIR filter .npy files in this folder.',
+            'See https://github.com/ToxaDev/aura-engine/blob/master/fir-optimizer/README.md'
+          )
+
+          Compress-Archive -Path "$stage" -DestinationPath "$name.zip"
+          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path "$name.zip.sha256" -Value "$hash  $name.zip" -Encoding ascii
+
+          echo "ASSET=$name.zip" >> $env:GITHUB_ENV
+          echo "ASSET_SHA=$name.zip.sha256" >> $env:GITHUB_ENV
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET_SHA }}
+          generate_release_notes: true
+
+      - name: Upload artifact (manual run, no release)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET }}
+          path: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET_SHA }}

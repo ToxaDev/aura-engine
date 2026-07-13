@@ -1,0 +1,44 @@
+[package]
+name = "aura-engine"
+version = "1.0.0"
+description = "Aura Engine — high-fidelity offline audio upsampler (million-tap FIR, Hybrid-Phase, GPU DS-precision convolution)"
+authors = ["ToxaDev"]
+license = "PolyForm-Noncommercial-1.0.0"
+repository = "https://github.com/ToxaDev/aura-engine"
+edition = "2021"
+rust-version = "1.60"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+# GLSL → SPIR-V compilation is delegated to an external glslangValidator
+# binary in build.rs (we tried shaderc-rs, but its native build chain
+# triggers MSVC long-path / SPIRV-Tools compile errors on Windows).
+# build.rs looks for the binary via env var GLSLANG_VALIDATOR or known paths.
+
+[dependencies]
+tauri = { version = "1.5", features = ["api-all"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rustfft = "6.1" # Extreme performance 64-bit convolution matrices
+rand = { version = "0.8", features = ["small_rng"] } # Required for generating noise shaping dither
+lazy_static = "1.4" # Global state management for audio streams
+rubato = "0.15" # High-quality async sinc resampling
+rayon = "1.8" # Parallel DSP filter initialization only
+winapi = { version = "0.3", features = ["processthreadsapi", "winbase", "timeapi", "avrt", "errhandlingapi"] } # Thread priority + timer resolution + MMCSS + error handling for glitch-free audio
+wgpu = { version = "0.19", features = ["spirv"] } # WebGPU bindings + SPIR-V passthrough for DS-precision GPU path
+bytemuck = { version = "1.14", features = ["derive"] } # Zero-cost casting between GPU buffers and Rust types
+pollster = "0.3" # Synchronous block_on for async wgpu functions
+symphonia = { version = "0.5", features = ["all"] } # Audio file decoding (FLAC, WAV, MP3, OGG)
+tokio = { version = "1.29.1", features = ["full"] }
+sysinfo = "0.29.5"
+chrono = { version = "0.4", default-features = false, features = ["clock"] } # Local-time timestamps for log lines
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+
+# DSP hot loops (partitioned OLS Kahan-MAC, DS pack/unpack) live behind
+# crate boundaries (rustfft, bytemuck); without fat LTO the AVX2/FMA codegen
+# enabled via .cargo/config.toml target-cpu=native cannot inline across them.
+[profile.release]
+lto = "fat"
+codegen-units = 1

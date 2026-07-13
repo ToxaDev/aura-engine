@@ -1,0 +1,137 @@
+<h2>Aura Converter</h2>
+        <div class="specs" id="convSpecsLine">FIR [Kaiser] 64-bit &bull; 4M Taps &bull; 384 KHz &bull; FLAC</div>
+
+        <!-- FS Multiplier Slider -->
+        <div class="prop-block">
+          <div class="tap-slider-container" style="margin-bottom: 16px;">
+            <div class="tap-slider-header">
+              <label for="convFsSlider">FS Multiplier</label>
+              <span class="tap-value" id="convFsDisplay">FS8</span>
+            </div>
+            <input type="range" id="convFsSlider" min="0" max="3" step="1" value="2">
+            <div class="tap-marks" style="margin-top: 6px;">
+              <span>FS2</span><span>FS4</span><span>FS8</span><span>FS16</span>
+            </div>
+            <div style="text-align: right; margin-top: 4px;">
+              <span id="convFsHz" style="font-size: 0.68em; color: rgba(196,181,253,0.7); letter-spacing: 0.5px;">352.8 / 384 kHz</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tap Slider -->
+        <div class="prop-block">
+          <div class="tap-slider-container" style="margin-bottom: 24px;">
+            <div class="tap-slider-header">
+              <label for="convTapSlider">Filter Resolution</label>
+              <span class="tap-value" id="convTapDisplay">4.0M Taps</span>
+            </div>
+            <input type="range" id="convTapSlider" min="0" max="3" step="1" value="3">
+          </div>
+          <!-- Custom Filter Row (converter) -->
+          <div class="custom-filter-row">
+            <button id="convLoadFilterBtn" class="custom-filter-btn" title="Load .npy filter">📂 Custom Filter (.npy)</button>
+            <button id="convClearFilterBtn" class="custom-filter-clear">✕ Clear</button>
+          </div>
+          <div id="convFilterInfo" class="custom-filter-info"></div>
+        </div>
+
+        <!-- Window -->
+        <div class="prop-block" style="display: flex; gap: 10px;">
+          <div style="flex: 1;">
+            <label for="convWindow">Window</label>
+            <select id="convWindow" style="padding: 8px; font-size: 0.9em;">
+              <option value="4" selected>Kaiser</option>
+              <option value="3">Nuttall</option>
+              <option value="2">Blackman</option>
+              <option value="1">Hann</option>
+              <option value="0">Hamming</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- GPU Architecture Toggle -->
+        <div style="margin-top: 10px; margin-bottom: 2px;">
+          <label for="convGpuCheck" id="convGpuBlock" style="cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.4); background: linear-gradient(90deg, rgba(15,23,42,0.8) 0%, rgba(30,58,138,0.4) 50%, rgba(15,23,42,0.8) 100%), repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(56,189,248,0.05) 10px, rgba(56,189,248,0.05) 20px); box-shadow: inset 0 0 15px rgba(56,189,248,0.1); position: relative; overflow: hidden; transition: all 0.3s ease;">
+            <div id="convGpuStrip" style="position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #38bdf8; box-shadow: 0 0 8px #38bdf8; transition: all 0.3s ease;"></div>
+            <input type="checkbox" id="convGpuCheck" checked style="flex-shrink: 0; accent-color: #38bdf8; z-index: 1;">
+            <span id="convGpuText" style="text-transform:uppercase; color: #38bdf8; font-weight: 700; letter-spacing: 1px; text-shadow: 0 0 6px rgba(56,189,248,0.6); flex: 1; z-index: 1; user-select: none; transition: all 0.3s ease;">Hardware GPU Acceleration</span>
+            <span id="convGpuBadge" style="font-size: 0.7em; color: #7dd3fc; margin-left: auto; border: 1px solid rgba(56,189,248,0.3); padding: 2px 6px; border-radius: 4px; background: rgba(56,189,248,0.1); z-index: 1; font-weight: bold; letter-spacing: 0.5px; transition: all 0.3s ease;">VULKAN COMPUTE</span>
+          </label>
+        </div>
+
+        <!-- Apodizing + Headroom -->
+        <div class="prop-block" style="display: flex; gap: 10px; margin-top: 8px;">
+          <div style="flex: 1;">
+            <label for="convApodizing" title="Suppresses pre-ringing artifacts from CD mastering ADC. Only applied to 44.1/48kHz sources.">Apodizing</label>
+            <select id="convApodizing" style="padding: 8px; font-size: 0.9em;">
+              <option value="0">Off</option>
+              <option value="1" selected>Gentle (20kHz)</option>
+              <option value="2">Moderate (19kHz)</option>
+              <option value="3">Strong (18kHz)</option>
+            </select>
+          </div>
+          <div style="flex: 1;">
+            <label for="convHeadroom" title="Reduces signal level to prevent inter-sample peak clipping in DACs">Headroom</label>
+            <select id="convHeadroom" style="padding: 8px; font-size: 0.9em;">
+              <option value="0" selected>Off (0 dB)</option>
+              <option value="-0.5">-0.5 dB</option>
+              <option value="-1.0">-1.0 dB</option>
+              <option value="-3.0">-3.0 dB</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Advanced DSP -->
+        <div class="conv-section-title">Advanced DSP</div>
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85em;">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(14, 165, 233, 0.15);">
+            <input type="checkbox" id="convAdaptiveApodizer">
+            <label for="convAdaptiveApodizer" style="cursor: pointer; text-transform:none; color: #34d399; font-weight: 500; text-shadow: 0 0 5px rgba(52,211,153,0.3); flex: 1;" title="Per-file source forensics: detects ADC/SRC pre-ringing and measures its exact frequency, unmasks fake hi-res (upsampled masters) in any container rate — including mirror-image aliasing from bad resamplers — and auto-sets the optimal cutoff. Leaves clean and minimum-phase sources untouched; falls back to the static preset when nothing is detected.">Adaptive Apodizer</label>
+            <span style="font-size: 0.7em; color: #475569;">auto cutoff</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(14, 165, 233, 0.15);">
+            <input type="checkbox" id="convHybridPhase">
+            <label for="convHybridPhase" style="cursor: pointer; text-transform:none; color: #a78bfa; font-weight: 500; text-shadow: 0 0 5px rgba(167,139,250,0.3); flex: 1;" title="Dynamic phase morphing: linear phase for sustained sections, minimum phase for transients, with smooth cos² crossfade. Requires 2× processing time.">Hybrid-Phase Blending</label>
+            <span style="font-size: 0.7em; color: #475569;">2× time</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(14, 165, 233, 0.15);">
+            <input type="checkbox" id="convFirResampling">
+            <label for="convFirResampling" style="cursor: pointer; text-transform:none; color: #fbbf24; font-weight: 500; text-shadow: 0 0 5px rgba(251,191,36,0.3); flex: 1;" title="Integrated polyphase resampling: your FIR filter IS the resampler — no intermediate library resampler in the chain. The whole conversion is one exact convolution of the original samples with the 128-bit-designed filter. Integer ratios only (FS2/4/8/16 within the same rate family).">Polyphase FIR Resampling</label>
+            <span style="font-size: 0.7em; color: #475569;">direct path</span>
+          </div>
+        </div>
+
+        <!-- Smart Drop Zone: file list inside, overlays for empty/hover states -->
+        <div class="smart-drop-zone" id="dropZone">
+          <!-- Empty state: visible when no files queued -->
+          <div class="dz-empty" id="dzEmpty">
+            <div class="dz-empty-icon">🎵</div>
+            <div class="dz-empty-text">Drop audio files here</div>
+            <div class="dz-empty-hint">or click to browse · WAV, FLAC, MP3, OGG, AAC</div>
+          </div>
+          <!-- Drag hover overlay: semi-transparent so file list stays visible -->
+          <div class="dz-hover" id="dzHover">
+            <div class="dz-hover-icon">⬇</div>
+            <div class="dz-hover-text">Add to queue</div>
+            <div class="dz-hover-sub">Drop files here</div>
+          </div>
+          <!-- File list lives INSIDE the drop zone -->
+          <div class="dz-file-list" id="fileQueue"></div>
+          <!-- Hold-to-Cancel button: 50% opacity by default, 2s hold to confirm -->
+          <button class="dz-cancel-btn" id="dzCancelBtn" tabindex="-1">
+            <div class="dz-cancel-fill" id="dzCancelFill"></div>
+            <span class="dz-cancel-label">Hold to Cancel</span>
+          </button>
+        </div>
+
+        <!-- Progress -->
+        <div class="conv-progress-wrap" id="convProgressWrap">
+          <div class="conv-progress-bar">
+            <div class="conv-progress-fill" id="convProgressFill"></div>
+          </div>
+          <div class="conv-progress-text">
+            <span id="convProgressPct">0%</span>
+            <span id="convProgressFiles">0/0</span>
+          </div>
+        </div>
+        <div class="conv-status" id="convStatus"></div>

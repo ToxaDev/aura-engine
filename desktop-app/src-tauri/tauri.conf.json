@@ -1,0 +1,36 @@
+{
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devPath": "../src",
+    "distDir": "../src",
+    "withGlobalTauri": true
+  },
+  "package": {
+    "productName": "Aura Engine",
+    "version": "1.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": true
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.aura.engine"
+    },
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "title": "Aura Engine",
+        "width": 440,
+        "height": 900,
+
+        "resizable": false,
+        "fullscreen": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+# Rust build artifacts
+/desktop-app/src-tauri/target
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Python virtual environments
+/fir-optimizer/venv
+/fir-optimizer/.venv
+
+# Generated filter blobs (large binary .npy — regenerate via fir-optimizer/optimize.py)
+/fir-optimizer/output
+/fir-optimizer/verify_results
+
+# Node / npm
+node_modules/
+
+# Editor / local tooling
+.vscode/
+.idea/

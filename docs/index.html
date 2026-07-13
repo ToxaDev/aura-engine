@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuraEngine — The Signal Path</title>
+<meta name="description" content="How AuraEngine renders 44.1 kHz audio at up to 768 kHz: every DSP stage, its parameters, and why it exists.">
+<style>
+  :root {
+    --bg: #070b14;
+    --bg-panel: #0d1322;
+    --bg-card: #111a2e;
+    --border: #1e2a44;
+    --border-soft: #16203a;
+    --text: #d7e1f2;
+    --text-dim: #8a99b8;
+    --text-faint: #5d6b8a;
+    --teal: #2dd4bf;
+    --teal-dim: rgba(45, 212, 191, 0.12);
+    --purple: #a78bfa;
+    --purple-dim: rgba(167, 139, 250, 0.12);
+    --amber: #fbbf24;
+    --amber-dim: rgba(251, 191, 36, 0.10);
+    --sky: #38bdf8;
+    --sky-dim: rgba(56, 189, 248, 0.10);
+    --green: #4ade80;
+    --green-dim: rgba(74, 222, 128, 0.10);
+    --mono: "Cascadia Code", "JetBrains Mono", Consolas, "SF Mono", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background:
+      radial-gradient(1200px 500px at 50% -10%, rgba(45, 212, 191, 0.07), transparent 60%),
+      radial-gradient(900px 500px at 85% 20%, rgba(167, 139, 250, 0.05), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ── Hero ─────────────────────────────────────────── */
+  header { text-align: center; padding: 88px 0 40px; }
+  .logo-word {
+    font-size: clamp(2.2rem, 6vw, 3.4rem);
+    font-weight: 200;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #e8f0ff;
+  }
+  .logo-word b { font-weight: 600; color: var(--teal); }
+  .tagline { margin-top: 14px; color: var(--text-dim); font-size: 1.06rem; }
+  .specs-line {
+    display: inline-block; margin-top: 26px; padding: 8px 18px;
+    border: 1px solid var(--border); border-radius: 999px;
+    font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.06em;
+    color: var(--teal); background: var(--bg-panel);
+    box-shadow: 0 0 24px rgba(45, 212, 191, 0.08);
+  }
+  .hero-note { margin-top: 26px; color: var(--text-faint); font-size: 0.9rem; }
+  .hero-note a { color: var(--text-dim); }
+
+  nav.toc {
+    margin: 44px auto 0; display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+  }
+  nav.toc a {
+    padding: 6px 14px; border: 1px solid var(--border-soft); border-radius: 999px;
+    color: var(--text-dim); text-decoration: none; font-size: 0.85rem;
+    transition: border-color .2s, color .2s;
+  }
+  nav.toc a:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* ── Sections ─────────────────────────────────────── */
+  section { margin-top: 88px; }
+  h2 {
+    font-size: 1.5rem; font-weight: 550; letter-spacing: 0.02em; margin-bottom: 8px;
+  }
+  h2 .idx { color: var(--teal); font-family: var(--mono); font-weight: 400; margin-right: 10px; font-size: 1.1rem; }
+  .section-sub { color: var(--text-dim); max-width: 72ch; margin-bottom: 34px; }
+  .section-sub code, p code, li code, td code {
+    font-family: var(--mono); font-size: 0.86em; color: #bfe8e0;
+    background: rgba(45, 212, 191, 0.07); border: 1px solid rgba(45, 212, 191, 0.14);
+    padding: 1px 6px; border-radius: 5px; white-space: nowrap;
+  }
+
+  /* ── Pipeline stages ──────────────────────────────── */
+  .pipeline { position: relative; }
+  .pipeline::before {
+    content: ""; position: absolute; left: 27px; top: 18px; bottom: 18px; width: 2px;
+    background: linear-gradient(180deg, var(--teal), var(--purple) 55%, var(--sky));
+    opacity: 0.35;
+  }
+  .stage {
+    position: relative; display: flex; gap: 22px; padding: 16px 0;
+  }
+  .stage-dot {
+    flex: 0 0 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-card); border: 1px solid var(--border);
+    font-family: var(--mono); font-size: 0.95rem; color: var(--teal);
+    z-index: 1; margin-top: 4px;
+    box-shadow: 0 0 0 6px var(--bg);
+  }
+  .stage-card {
+    flex: 1; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px 24px;
+    transition: border-color .2s;
+  }
+  .stage-card:hover { border-color: #2b3d63; }
+  .stage-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+  .stage-name { font-size: 1.08rem; font-weight: 600; color: #eaf1ff; }
+  .stage-file {
+    font-family: var(--mono); font-size: 0.72rem; color: var(--text-faint);
+    border: 1px solid var(--border-soft); padding: 2px 8px; border-radius: 5px;
+  }
+  .stage-what { margin-top: 10px; color: var(--text-dim); font-size: 0.95rem; }
+  .stage-why { margin-top: 10px; font-size: 0.92rem; color: var(--text); }
+  .stage-why b { color: var(--teal); font-weight: 600; }
+  .chips { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.02em;
+    padding: 3px 10px; border-radius: 999px;
+    background: var(--teal-dim); color: var(--teal); border: 1px solid rgba(45,212,191,0.25);
+  }
+  .chip.purple { background: var(--purple-dim); color: var(--purple); border-color: rgba(167,139,250,0.3); }
+  .chip.amber  { background: var(--amber-dim);  color: var(--amber);  border-color: rgba(251,191,36,0.28); }
+  .chip.sky    { background: var(--sky-dim);    color: var(--sky);    border-color: rgba(56,189,248,0.28); }
+  .chip.green  { background: var(--green-dim);  color: var(--green);  border-color: rgba(74,222,128,0.28); }
+
+  .stage.optional .stage-card { border-style: dashed; }
+  .opt-tag {
+    font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-faint); border: 1px dashed var(--border);
+    padding: 2px 8px; border-radius: 5px;
+  }
+
+  /* ── Fork (two paths) ─────────────────────────────── */
+  .fork { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 8px 0 8px 78px; }
+  @media (max-width: 720px) { .fork { grid-template-columns: 1fr; margin-left: 0; } }
+  .path-card {
+    border-radius: 14px; padding: 20px 22px; border: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+  .path-card.standard { border-top: 2px solid var(--teal); }
+  .path-card.polyphase { border-top: 2px solid var(--amber); }
+  .path-title { font-weight: 650; font-size: 1rem; }
+  .path-title small { display: block; font-weight: 400; color: var(--text-faint); font-size: 0.78rem; margin-top: 2px; }
+  .path-card ul { margin: 12px 0 0 18px; color: var(--text-dim); font-size: 0.9rem; }
+  .path-card li { margin: 6px 0; }
+  .path-card li::marker { color: var(--text-faint); }
+
+  /* ── Panels / asides ──────────────────────────────── */
+  .panel {
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 28px 30px; margin-top: 26px;
+  }
+  .panel h3 { font-size: 1.05rem; margin-bottom: 10px; color: #eaf1ff; }
+  .panel p { color: var(--text-dim); font-size: 0.95rem; }
+  .panel p + p { margin-top: 10px; }
+  .panel.teal   { border-left: 3px solid var(--teal); }
+  .panel.purple { border-left: 3px solid var(--purple); }
+  .panel.sky    { border-left: 3px solid var(--sky); }
+  .panel.green  { border-left: 3px solid var(--green); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+
+  /* ── Tables ───────────────────────────────────────── */
+  .tablewrap { overflow-x: auto; margin-top: 20px; border: 1px solid var(--border); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 560px; }
+  th {
+    text-align: left; padding: 12px 16px; color: var(--text-faint);
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--border); background: var(--bg-panel);
+  }
+  td { padding: 11px 16px; border-bottom: 1px solid var(--border-soft); color: var(--text-dim); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { color: var(--text); white-space: nowrap; }
+
+  /* ── Law cards ────────────────────────────────────── */
+  .laws { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 24px; }
+  .law {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px;
+  }
+  .law .no { font-family: var(--mono); color: var(--teal); font-size: 0.78rem; }
+  .law h4 { margin: 6px 0 8px; font-size: 0.98rem; color: #eaf1ff; }
+  .law p { font-size: 0.87rem; color: var(--text-dim); }
+
+  footer {
+    margin-top: 100px; padding-top: 28px; border-top: 1px solid var(--border-soft);
+    color: var(--text-faint); font-size: 0.85rem; text-align: center;
+  }
+  footer a { color: var(--text-dim); }
+  a { color: var(--teal); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="logo-word">Aura<b>Engine</b></div>
+  <div class="tagline">What actually happens to your audio — every stage, every parameter, and why.</div>
+  <div class="specs-line">FIR [KAISER] 64-BIT&ensp;·&ensp;30.0M TAPS&ensp;·&ensp;FS8 (352.8K/384K)&ensp;·&ensp;FLAC 24-BIT&ensp;·&ensp;VERIFIED</div>
+  <div class="hero-note">
+    An offline upsampler is only worth trusting if its signal path is fully documented.<br>
+    This page is that documentation. Source: <a href="https://github.com/ToxaDev/aura-engine">github.com/ToxaDev/aura-engine</a>
+  </div>
+  <nav class="toc">
+    <a href="#philosophy">Philosophy</a>
+    <a href="#hybrid">★ Hybrid-Phase</a>
+    <a href="#path">The Signal Path</a>
+    <a href="#paths">Two Paths</a>
+    <a href="#gpu">GPU Precision</a>
+    <a href="#filters">Filter Design</a>
+    <a href="#laws">The Laws</a>
+    <a href="#trust">Verification</a>
+  </nav>
+</header>
+
+<!-- ═══════════════ PHILOSOPHY ═══════════════ -->
+<section id="philosophy">
+  <h2><span class="idx">00</span>Why offline, why million-tap</h2>
+  <p class="section-sub">
+    Every DAC upsamples. It has to — reconstructing an analog waveform from
+    44,100 samples per second requires an interpolation filter. But a DAC chip
+    does it in real time with a filter of a few hundred to a few thousand taps.
+    AuraEngine removes the real-time constraint entirely: it renders the track
+    offline through FIR filters of <b>1 to 30 million taps</b>, designed in
+    128-bit arithmetic, applied in end-to-end 64-bit float. The DAC then
+    receives a 352.8/384/705.6/768&nbsp;kHz waveform that is already
+    reconstructed — its own filter has almost nothing left to do.
+  </p>
+  <div style="text-align:center; margin: 34px 0 10px;">
+    <video src="media/aura-demo.mp4" width="300" autoplay muted loop playsinline
+           style="border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 0 40px rgba(45,212,191,0.10);">
+    </video>
+    <div style="color: var(--text-faint); font-size: 0.8rem; margin-top: 8px;">
+      A real batch conversion, 4× speed — Hybrid-Phase + Adaptive Apodizer + GPU, every file verified.
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="panel teal">
+      <h3>Nothing is hidden</h3>
+      <p>The engine logs every decision — which filter file it resolved, how many
+      hybrid-phase switches it made, whether true-peak protection acted — and
+      re-decodes every output file to prove it matches the internal math within
+      ±2&nbsp;LSB. Files that fail are renamed <code>_UNVERIFIED</code>.</p>
+    </div>
+    <div class="panel teal">
+      <h3>Nothing is louder or quieter</h3>
+      <p>Every filter is normalized to exactly unity DC gain
+      (<code>sum(h) == 1.0</code>). The only two gain changes possible are the
+      headroom you choose and the −0.5&nbsp;dBTP true-peak ceiling — both
+      documented, both visible in the log.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ HYBRID-PHASE ═══════════════ -->
+<section id="hybrid">
+  <h2><span class="idx">01</span>The signature: Hybrid-Phase</h2>
+  <p class="section-sub">
+    <b>Invented for this project.</b> Every FIR filter forces a trade: linear
+    phase keeps the stereo image coherent but pre-rings before every attack;
+    minimum phase hits clean but warps inter-channel timing. Fixed
+    "intermediate-phase" compromise filters carry a little of both flaws,
+    everywhere, all the time. AuraEngine refuses the trade — it renders the
+    track <b>twice in full</b> and switches between the two renders
+    per-transient.
+  </p>
+  <div style="text-align:center; margin: 6px 0 20px;">
+    <video src="media/hybrid-phase.mp4" width="780" autoplay muted loop playsinline
+           style="max-width:100%; border-radius: 16px; border: 1px solid var(--border); box-shadow: 0 0 44px rgba(167,139,250,0.13);"></video>
+    <div style="color: var(--text-faint); font-size: 0.8rem; margin-top: 8px;">
+      Slow motion ×20 — the HPSS detector sees the hit coming, the engine switches at a zero
+      crossing, the attack lands with no pre-ringing while the sustain keeps linear-phase imaging.
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="panel purple">
+      <h3>Stereo-linked by construction</h3>
+      <p>One switch plan is computed from the mid signal and applied to both
+      channels at the same sample. The channels can never de-phase against
+      each other — the image stays put while the attacks stay clean.</p>
+    </div>
+    <div class="panel purple">
+      <h3>Engineered to be inaudible</h3>
+      <p>Switches fire only at zero crossings, through a 32-sample
+      raised-cosine micro-fade (~0.09&nbsp;ms at 352.8&nbsp;kHz), with a
+      20&nbsp;ms anti-chatter hold. The two renders are aligned sample-exact
+      via band-weighted group delay (200–6000&nbsp;Hz) before blending.
+      Verification: <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/06-hybrid-phase-proof.md">doc&nbsp;06</a>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ SIGNAL PATH ═══════════════ -->
+<section id="path">
+  <h2><span class="idx">02</span>The signal path</h2>
+  <p class="section-sub">
+    One file, start to finish. Stages marked <em>optional</em> are user
+    toggles; everything else always runs. The entire CPU sample path is
+    64-bit float — there is no f32 truncation anywhere between decode and
+    dither.
+  </p>
+
+  <div class="pipeline">
+
+    <div class="stage">
+      <div class="stage-dot">1</div>
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="stage-name">Decode</span>
+          <span class="stage-file">converter/decode.rs · Symphonia</span>
+        </div>
+        <p class="stage-what">FLAC, WAV, MP3, OGG, AAC/M4A are decoded by the pure-Rust
+        Symphonia library. Integer PCM is extracted into <code>i32</code> buffers —
+        not <code>f32</code>, whose 23-bit mantissa would silently destroy the 24th bit
+        of studio masters — then promoted losslessly to <code>f64</code> (÷2³¹).
+        MP3/AAC encoder padding is trimmed using gapless metadata.</p>
+        <p class="stage-why"><b>Why it matters:</b> the chain starts bit-exact. A 24-bit
+        FLAC enters the engine with all 24 bits intact.</p>
+        <div class="chips"><span class="chip">lossless i32 → f64</span><span class="chip">gapless trim</span><span class="chip">no ffmpeg on input</span></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-dot">2</div>
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="stage-name">DC block</span>
+          <span class="stage-file">pipeline/prepare.rs</span>
+        </div>
+        <p class="stage-what">Per-channel mean removal (default) or an optional 2&nbsp;Hz
+        single-pole IIR high-pass with the exact closed-form pole
+        <code>r = e^(−2π·2/fs)</code>.</p>
+        <p class="stage-why"><b>Why it matters:</b> a fraction of a millivolt of DC offset
+        would make a 30M-tap filter ring at infrasonic frequencies and poison the
+        true-peak measurement.</p>
+        <div class="chips"><span class="chip">static mean</span><span class="chip">or 2 Hz IIR HPF</span></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-dot">3</div>
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="stage-name">Headroom</span>
+          <span class="stage-file">pipeline/prepare.rs</span>
+        </div>
+        <p class="stage-what">Optional pre-DSP attenuation: 0 / −0.5 / −1.0 / −3.0&nbsp;dB,
+        applied as a single linear gain before any convolution.</p>
+        <p class="stage-why"><b>Why it matters:</b> minimum-phase filtering concentrates
+        energy in time. Giving the convolution stage headroom <em>before</em> it runs
+        prevents intersample overshoot from ever needing correction later.</p>
+        <div class="chips"><span class="chip">pre-DSP by design</span></div>
+      </div>
+    </div>
+
+    <div class="stage optional">
+      <div class="stage-dot">4</div>
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="stage-name">Adaptive Apodizer v3 — source forensics</span>
+          <span class="stage-file">converter/apodize.rs</span>
+          <span class="opt-tag">optional · any source rate</span>
+        </div>
+        <p class="stage-what">Masters carry the fingerprints of every filter that ever
+        touched them. The v3 analyzer reads those fingerprints instead of guessing: a
+        <em>time-domain</em> detector isolates the near-Nyquist band, finds the strongest
+        attacks across the track and looks for high-frequency energy rising
+        <em>before</em> them — the signature of a linear-phase brick wall — then
+        <b>measures the ring's exact frequency</b> (per-burst FFT, median across attacks)
+        and places a corrective minimum-phase Kaiser lowpass just below the measured
+        edge, with depth chosen by severity (β=24 strong / β=14 mild). A Welch
+        spectral-cliff detector <b>unmasks fake hi-res</b> — upsampled 44.1/48&nbsp;kHz
+        masters inside 88.2k+ containers are treated against their <em>original</em>
+        Nyquist — and a mirror-image alias probe catches bad upstream resamplers whose
+        spectral images defeat every other test. A cliff with no pre-ring means the
+        source filter was minimum-phase or already apodized: diagnosed in the log,
+        audio untouched. Static presets (Gentle 20&nbsp;kHz / Moderate 19&nbsp;kHz /
+        Strong 18&nbsp;kHz) are available too.</p>
+        <p class="stage-why"><b>Why it matters:</b> upsampling scales flaws along with
+        music. Healing the source's pre-ring first gives the big FIR a clean canvas —
+        and tracks that don't need it pass through untouched.</p>
+        <div class="chips"><span class="chip green">AA tag</span><span class="chip">measured ring cutoff</span><span class="chip">fake-hi-res unmasking</span><span class="chip">mirror-alias probe</span><span class="chip">min-phase · zero pre-ring</span></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-dot">5</div>
+      <div class="stage-card" style="border-color:#2b3d63;">
+        <div class="stage-head">
+          <span class="stage-name">Upsampling — two paths</span>
+          <span class="stage-file">converter/process.rs</span>
+        </div>
+        <p class="stage-what">The engine has two resampling architectures, selected by the
+        <b>Polyphase FIR Resampling</b> toggle. Both end at the same output stage.</p>
+      </div>
+    </div>
+
+    <div class="fork">
+      <div class="path-card standard">
+        <div class="path-title">Standard path <small>any ratio · Rubato + FIR post-filter</small></div>
+        <ul>
+          <li>Rubato <code>SincFixedIn&lt;f64&gt;</code> upsamples first: 512-tap sinc,
+              512× oversampling, cubic interpolation, ≈−180&nbsp;dB stopband.</li>
+          <li>The million-tap FIR then runs at the <em>output</em> rate as a
+              spectral-shaping post-filter — partitioned overlap-save, block 32768,
+              Kahan-compensated frequency-domain MAC, parallelized with Rayon.</li>
+          <li>Filter blob missing? The post-filter is skipped with a logged warning —
+              Rubato alone is still a first-class resampler.</li>
+        </ul>
+      </div>
+      <div class="path-card polyphase">
+        <div class="path-title">Polyphase FIR path <small>integer ratios · the filter IS the resampler</small></div>
+        <ul>
+          <li>The same million-tap filter is decomposed into L sub-filters
+              (<code>h_k[m] = h[m·L+k]</code>) that run <em>at the source rate</em>, in
+              parallel on all CPU cores.</li>
+          <li>Anti-imaging cutoff sits exactly at source Nyquist:
+              <code>fc = src_rate / (2·out_rate)</code>.</li>
+          <li>Output length is exactly <code>input × L</code> — no resampler padding at
+              all. Non-integer targets snap down (44.1&nbsp;kHz × FS8 → 352.8&nbsp;kHz).</li>
+          <li>Filter blob missing? Hard error — this path refuses to degrade silently.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="stage optional">
+      <div class="stage-dot">6</div>
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="stage-name">Hybrid-Phase engine</span>
+          <span class="stage-file">hybrid_phase.rs · hpss_native.rs · pipeline/hybrid_mixer.rs</span>
+          <span class="opt-tag">optional · ~2× time</span>
+        </div>
+        <p class="stage-what">Linear-phase filters preserve the stereo field but pre-ring
+        before transients; minimum-phase filters hit hard but smear inter-channel phase.
+        AuraEngine runs <em>both</em> convolutions in full, then a native-Rust HPSS
+        (harmonic/percussive separation) onset detector builds a transient envelope:
+        STFT with time/frequency median masks, 8-band spectral flux, adaptive gate,
+        envelope follower with lookahead. During sustained material you hear the
+        linear-phase branch; a split second before each detected attack the engine
+        switches to the minimum-phase branch — at a zero crossing, with a ~0.08&nbsp;ms
+        raised-cosine micro-fade and a 20&nbsp;ms anti-chatter hold.</p>
+        <p class="stage-why"><b>Why it matters:</b> the switch is <b>stereo-linked</b> —
+        one switching plan computed from the mid signal, applied to both channels at
+        the same sample. Channels never de-phase against each other, so the image
+        stays rock solid while attacks stay clean. The minimum-phase branch is aligned
+        using band-weighted group delay (200–6000&nbsp;Hz) so both branches sit
+        sample-exact at the perceptual core of the music.</p>
+        <div class="chips"><span class="chip purple">HP tag</span><span class="chip purple">stereo-linked switch</span><span class="chip purple">zero-crossing + micro-fade</span><span class="chip purple">HPSS onset envelope</span></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-dot">7</div>
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="stage-name">True-peak limiter</span>
+          <span class="stage-file">converter/dsp/true_peak.rs</span>
+        </div>
+        <p class="stage-what">4× oversampled intersample-peak scan using an 8-tap
+        Lanczos-4 polyphase sinc interpolator (reflective edge padding, every sample
+        inspected). If the reconstructed waveform would exceed <b>−0.5&nbsp;dBTP</b>,
+        one single linear gain brings the whole file under the ceiling. Quieter
+        material is left bit-exact — no gain is applied at all.</p>
+        <p class="stage-why"><b>Why it matters:</b> loudness-war masters routinely hide
+        +1…+3&nbsp;dB intersample peaks. Without this stage they would clip in the
+        DAC's reconstruction filter — as harshness on every loud passage.</p>
+        <div class="chips"><span class="chip">ITU-R BS.1770-style</span><span class="chip">−0.5 dBTP ceiling</span><span class="chip">bit-exact when quiet</span></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-dot">8</div>
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="stage-name">Dither &amp; noise shaping</span>
+          <span class="stage-file">converter/dsp/dither.rs</span>
+        </div>
+        <p class="stage-what">24-bit TPDF dither with two <em>independent</em> random
+        streams — one per channel, so the dither floor cannot correlate between L and R.
+        At output rates ≤48&nbsp;kHz a 9th-order Wannamaker psychoacoustic noise shaper
+        pushes the quantization noise where hearing is least sensitive; at hi-res rates
+        pure TPDF is used (the noise floor already sits far above audibility limits in
+        frequency). Samples are clamped to ±(1−LSB) after quantization.</p>
+        <p class="stage-why"><b>Why it matters:</b> proper dither converts quantization
+        distortion into benign noise — reverb tails and room decay stay intact instead
+        of dissolving into correlated grit.</p>
+        <div class="chips"><span class="chip">TPDF 24-bit</span><span class="chip">per-channel RNG</span><span class="chip">Wannamaker-9 ≤48 kHz</span></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-dot">9</div>
+      <div class="stage-card">
+        <div class="stage-head">
+          <span class="stage-name">FLAC encode</span>
+          <span class="stage-file">converter/encode.rs · ffmpeg</span>
+        </div>
+        <p class="stage-what">The f64 buffer is streamed to ffmpeg over a pipe and encoded
+        as 24-bit FLAC (<code>-sample_fmt s32 -bits_per_raw_sample 24</code>,
+        compression level 8). Cancelled or failed encodes delete the partial file.</p>
+        <div class="chips"><span class="chip">24-bit FLAC</span><span class="chip">output next to source</span></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-dot">✓</div>
+      <div class="stage-card" style="border-color: rgba(74,222,128,0.35);">
+        <div class="stage-head">
+          <span class="stage-name">Bit-perfect verification</span>
+          <span class="stage-file">converter/utils/verify.rs</span>
+        </div>
+        <p class="stage-what">The file just written is decoded back and compared
+        sample-by-sample against the DSP buffer, with a ±2&nbsp;LSB tolerance at 24-bit.
+        Pass → <b style="color:var(--green)">✓ VERIFIED</b> badge. Fail → the file is
+        renamed <code>_UNVERIFIED.flac</code> and flagged in the UI.</p>
+        <p class="stage-why"><b>Why it matters:</b> this closes the loop. You don't have
+        to trust the pipeline — the pipeline checks itself, on every single file.</p>
+        <div class="chips"><span class="chip green">every file, every time</span><span class="chip green">±2 LSB</span></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ═══════════════ TWO PATHS SUMMARY ═══════════════ -->
+<section id="paths">
+  <h2><span class="idx">03</span>Choosing a path</h2>
+  <p class="section-sub">Both paths share every preparation and output stage. The
+  difference is who does the sample-rate conversion.</p>
+  <div class="tablewrap">
+    <table>
+      <tr><th></th><th>Standard (default)</th><th>Polyphase FIR</th></tr>
+      <tr><td>Resampler</td><td>Rubato 512-tap sinc, then FIR post-filter at output rate</td><td>The FIR itself, split into L sub-filters at source rate</td></tr>
+      <tr><td>Ratios</td><td>Any (44.1 → 384 kHz works directly)</td><td>Integer only; snaps down otherwise (44.1×FS8 → 352.8 kHz)</td></tr>
+      <tr><td>Output length</td><td>~0.4 s trailing resampler pad</td><td>Exactly input × L, zero padding</td></tr>
+      <tr><td>Compute</td><td>One big convolution at output rate</td><td>L convolutions at source rate, parallel on all cores</td></tr>
+      <tr><td>Missing filter blob</td><td>Post-filter skipped, logged</td><td>Hard error — no silent downgrade</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ GPU ═══════════════ -->
+<section id="gpu">
+  <h2><span class="idx">04</span>GPU acceleration without precision loss</h2>
+  <p class="section-sub">
+    The standard objection to GPU audio is that consumer GPUs compute in f32 —
+    a ~−150&nbsp;dB noise floor that a 30M-tap convolution would happily amplify.
+    AuraEngine's answer is <b>double-single (DS) arithmetic</b>.
+  </p>
+  <div class="panel sky">
+    <h3>Double-single, enforced at the SPIR-V level</h3>
+    <p>Every complex value on the GPU is a pair of f32s — a high word and an
+    error-correction low word — giving ≈48 effective mantissa bits. The catch:
+    DS math only works if the compiler doesn't "optimize" the correction terms
+    away. WGSL has no way to forbid that, so the compute shaders are written in
+    GLSL with the <code>precise</code> qualifier, compiled to SPIR-V with
+    <code>NoContraction</code> decorations (which Vulkan drivers are required to
+    honour), and loaded through wgpu's <code>SPIRV_SHADER_PASSTHROUGH</code> so no
+    shader translator can touch the operation tree.</p>
+    <p>Measured result: the GPU pipeline nulls against the f64 CPU reference at
+    ≈<b>−260&nbsp;dB</b> — about 110&nbsp;dB below the 24-bit noise floor. A
+    dedicated preflight test (<code>ds_preflight.rs</code>) can prove on any given
+    driver that the two-sum survives compilation.</p>
+    <p>Adapters without SPIR-V passthrough (e.g. DX12-only) automatically fall
+    back to the CPU convolver — the f64 reference implementation, always
+    available.</p>
+  </div>
+  <div class="tablewrap">
+    <table>
+      <tr><th></th><th>CPU convolver</th><th>GPU convolver</th></tr>
+      <tr><td>Precision</td><td>f64 + Kahan-compensated MAC</td><td>DS f32 pairs (~48-bit mantissa)</td></tr>
+      <tr><td>Algorithm</td><td>Partitioned overlap-save, FFT 65536</td><td>Partitioned OLA, radix-2 FFT in DS</td></tr>
+      <tr><td>Block size</td><td>32768 samples</td><td>256k–2M samples (scales with filter)</td></tr>
+      <tr><td>Latency (trimmed exactly)</td><td>2 × block</td><td>1 × block</td></tr>
+      <tr><td>Requirement</td><td>—</td><td>Vulkan + <code>SPIRV_SHADER_PASSTHROUGH</code></td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════ FILTER DESIGN ═══════════════ -->
+<section id="filters">
+  <h2><span class="idx">05</span>Filter design: 128-bit offline, f64 at runtime</h2>
+  <p class="section-sub">
+    The converter deliberately cannot generate filters at runtime. Coefficients
+    come from <code>fir-optimizer</code>, a Python design suite that builds each
+    Kaiser-windowed (β=14) sinc prototype in 128-bit arithmetic
+    (<code>mpmath</code>, 38 significant digits), normalizes DC gain with
+    extended-precision summation, and ships the result as f64 <code>.npy</code>
+    blobs.
+  </p>
+  <div class="grid2">
+    <div class="panel teal">
+      <h3>A filter per ratio — never rescaled</h3>
+      <p>The matrix covers every conversion the app can perform: 4 tap sizes
+      (1M/5M/10M/30M) × 8 output rates × 2 phase variants = 64 blobs
+      (≈10&nbsp;GB). Each is designed for its exact ratio — passband to
+      source-Nyquist−2&nbsp;kHz, stopband from source Nyquist — so the runtime
+      never stretches a filter to a rate it wasn't designed for.</p>
+    </div>
+    <div class="panel purple">
+      <h3>Minimum-phase, done right</h3>
+      <p>The minimum-phase variants are derived by cepstral folding with ≥16×
+      zero-padded FFTs (no time-aliasing), tail-faded with a Hann window, and
+      re-normalized to unity DC gain afterwards. Impulse peak lands at sample
+      zero: mathematically zero pre-ringing.</p>
+    </div>
+  </div>
+  <div class="panel">
+    <h3>Measured, not promised</h3>
+    <p>The production 30M-tap blob measures: stopband ≤&nbsp;<b>−220.9&nbsp;dB</b>
+    (manifesto requirement: −140&nbsp;dB), passband ripple
+    ±<b>0.09&nbsp;nano-dB</b>, unity-gain error <b>1.1×10⁻¹⁵</b>, transition
+    width <b>0.05&nbsp;Hz</b>. Full plots, methodology and the reproduction
+    script: <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/15-measurements.md">docs/15-measurements.md</a>.
+    Every blob ships with a JSON metadata sidecar, and the runtime logs exactly
+    which file it resolved for each conversion.</p>
+  </div>
+</section>
+
+<!-- ═══════════════ LAWS ═══════════════ -->
+<section id="laws">
+  <h2><span class="idx">06</span>The laws of the DSP core</h2>
+  <p class="section-sub">
+    From <a href="https://github.com/ToxaDev/aura-engine/blob/master/DSP_MANIFESTO.md">DSP_MANIFESTO.md</a> — the axioms every
+    commit is audited against. Violating one degrades the device class; that is
+    the review bar for this codebase.
+  </p>
+  <div class="laws">
+    <div class="law"><span class="no">§1.1</span><h4>Unity DC gain</h4><p>No filter may change the track's loudness. <code>sum(h) == 1.0</code>, verified in unit tests for every filter mode.</p></div>
+    <div class="law"><span class="no">§1.2</span><h4>Headroom before convolution</h4><p>User headroom is applied to PCM strictly before the convolution engine — never after.</p></div>
+    <div class="law"><span class="no">§1.3</span><h4>True-peak at the very end</h4><p>The intersample scanner sits immediately before quantization, after every processing stage.</p></div>
+    <div class="law"><span class="no">§2.1</span><h4>No time-aliasing</h4><p>Cepstral minimum-phase conversion uses ≥16× zero-padded FFTs so computation tails never wrap around.</p></div>
+    <div class="law"><span class="no">§3.1</span><h4>Zero pre-ringing</h4><p>Minimum-phase impulses peak at sample [0] with mathematical zeros before it.</p></div>
+    <div class="law"><span class="no">§3.2</span><h4>Stopband ≥ −140 dB, no ripple</h4><p>Kaiser β=14 or better. Measured: ≈−196 dB at 1M+ taps.</p></div>
+    <div class="law"><span class="no">§4.1</span><h4>f64 end to end</h4><p>Any f32 truncation in the sample path is a blocker-class bug. GPU DS arithmetic exists to satisfy this law on f32 hardware.</p></div>
+    <div class="law"><span class="no">§4.2</span><h4>FFT convolution only</h4><p>Overlap-add/save partitioned convolution, block sizes tuned to cache and VRAM.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════ TRUST ═══════════════ -->
+<section id="trust">
+  <h2><span class="idx">07</span>Verification &amp; the audit trail</h2>
+  <div class="grid2">
+    <div class="panel green">
+      <h3>Per-file proof</h3>
+      <p>Every output FLAC is re-decoded and compared against the internal f64
+      buffer (±2&nbsp;LSB at 24-bit). The UI shows <b>✓ VERIFIED</b> only when
+      the file on disk provably contains the math the log describes.</p>
+    </div>
+    <div class="panel green">
+      <h3>Per-build proof</h3>
+      <p>25 unit tests pin the invariants: convolver latency is exactly 2 blocks
+      (CPU) / 1 block (GPU), unity gain through the OLA engine, bit-exact
+      polyphase reconstruction, stereo-linked switching, true-peak and dither
+      behaviour. CI runs them on every push.</p>
+    </div>
+  </div>
+  <div class="panel">
+    <h3>The console is the product</h3>
+    <p>AuraEngine keeps a console window open next to the UI on purpose. It
+    prints the full DSP trace: which <code>.npy</code> was resolved, ADC-ringing
+    analysis verdicts, hybrid-phase coverage statistics, true-peak decisions,
+    verification results. If you audit audio software for a living, start
+    there — then read the
+    <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/09-audio-auditor-guide.md">auditor's guide</a>.</p>
+  </div>
+</section>
+
+<footer>
+  <p>AuraEngine · PolyForm Noncommercial 1.0.0 (free for noncommercial use) ·
+    <a href="https://github.com/ToxaDev/aura-engine">GitHub</a> ·
+    <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/README.md">docs index</a> ·
+    <a href="https://github.com/ToxaDev/aura-engine/blob/master/DSP_MANIFESTO.md">DSP manifesto</a></p>
+  <p style="margin-top:8px;">Developed and tested on Windows 11. Built with Rust, Tauri, rustfft, rubato, Symphonia, wgpu and FFmpeg.</p>
+</footer>
+
+</div>
+</body>
+</html>
