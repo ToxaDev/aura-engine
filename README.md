@@ -276,6 +276,7 @@ full gallery with methodology in **[docs/15-measurements.md](docs/15-measurement
 |---|---|
 | [The Signal Path (website)](https://toxadev.github.io/aura-engine/) | The full signal path, visually — every stage with its parameters and rationale |
 | [docs/15-measurements.md](docs/15-measurements.md) | Measured frequency/impulse responses of the production filters + how to reproduce them |
+| [docs/16-filter-length-and-rate.md](docs/16-filter-length-and-rate.md) | What a tap count means, at which rate — and why 30M taps is not a 10-minute window |
 | [docs/01-architecture.md](docs/01-architecture.md) | Data flow, module map, technology stack |
 | [docs/05-converter-pipeline.md](docs/05-converter-pipeline.md) | Both processing paths, stage by stage |
 | [docs/06-hybrid-phase-proof.md](docs/06-hybrid-phase-proof.md) | Hybrid-Phase engine: detection, switching, verification |
@@ -287,6 +288,13 @@ full gallery with methodology in **[docs/15-measurements.md](docs/15-measurement
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 
 ## FAQ
+
+**30 million taps ÷ 48 kHz = 10 minutes. Is the filter really that long?**
+No — a tap count here is defined at the **output** rate, never at the source
+rate. The 30M blob for 44.1 kHz × 8 runs at 352.8 kHz, so its kernel is 85 s
+(39 s at 768 kHz), and 99.76 % of its energy lies within ±1 ms of the centre.
+Full arithmetic, per-rate table and measured tail decay:
+**[docs/16-filter-length-and-rate.md](docs/16-filter-length-and-rate.md)**.
 
 **Why offline instead of real-time?**
 A 30M-tap convolution at 768 kHz cannot run in real time on consumer

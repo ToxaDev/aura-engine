@@ -27,6 +27,7 @@ Technical documentation for the AuraEngine offline converter (`desktop-app/`).
 | 13 | [Pipeline Hardening (2026-07)](13-pipeline-hardening-2026-07.md) | The correctness/quality/perf changes made in the 2026-07 audit pass. |
 | 14 | [Adaptive Apodizer v3 — Source Forensics](14-adaptive-apodizer-v3.md) | Spectral-cliff detector, ring-frequency measurement, fake-hi-res unmasking, mirror-image alias probe, field calibration. |
 | 15 | [Measurements](15-measurements.md) | Frequency/impulse responses measured from the production filter blobs, with reproduction script. |
+| 16 | [Filter Length & Rate](16-filter-length-and-rate.md) | What a tap count means and at which rate it is defined; kernel span per preset, group delay, measured energy concentration. |
 
 - [DSP Manifesto](../DSP_MANIFESTO.md) — the project's laws on phase, clipping and precision.
 
