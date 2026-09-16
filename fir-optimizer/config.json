@@ -1,0 +1,11 @@
+{
+    "fs_source": 48000,
+    "fs_target": 384000,
+    "num_taps": 1000000,
+    "freq_params": {
+        "f_passband_hz": 20000,
+        "f_stopband_hz": 24000,
+        "target_stop_db": -150
+    },
+    "output_dir": "./output"
+}
