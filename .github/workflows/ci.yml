@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+  # The repository builds with `target-cpu=native`, which is right for a
+  # machine you own and wrong for a hosted runner fleet: the cache below is
+  # filled on whichever CPU drew the job, and restored onto whichever draws
+  # the next one. A proc macro compiled for instructions the second runner
+  # does not have takes rustc down with STATUS_ILLEGAL_INSTRUCTION, which is
+  # what happened on 2026-09-20 and reads like a compiler bug rather than a
+  # cache problem. `release.yml` has pinned a portable baseline from the
+  # start, for portability of the binary; this pins the same one so that what
+  # CI caches can be handed to any runner.
+  RUSTFLAGS: -C target-cpu=x86-64-v3
+
+jobs:
+  build:
+    name: cargo check + test (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-app/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app/src-tauri
+
+      - name: cargo check
+        run: cargo check --locked
+
+      - name: cargo test
+        run: cargo test --locked --release

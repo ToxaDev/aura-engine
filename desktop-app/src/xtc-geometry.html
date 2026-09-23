@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>XTC · listening geometry</title>
+<!--
+  The XTC listening-geometry window.
+
+  A window rather than a dialog inside the converter. The first attempt was a
+  modal over the rack and it did not survive contact: the app window is narrow,
+  so a two-column dialog left the labels about ninety pixels and they wrapped one
+  word to a line. Four measurements, a plan of the triangle and the angle they
+  imply want room, and a window is where room is.
+
+  TWO WAYS IN, and that is the second thing this window learned the hard way.
+  The filter needs the perpendicular depth from the speakers to the ears, and the
+  form originally asked only for the two straight-line distances, from which the
+  depth is derived. But nobody describes a room that way: asked about his setup
+  the owner twice said "160 by 75" — width and depth — and typed the depth into a
+  field wanting a diagonal. Those figures are impossible as diagonals (750 + 750
+  does not reach across 1600) so the form refused them, correctly and uselessly.
+  So the depth way in is now first-class and the default, and a figure that only
+  makes sense as a depth is recognised and explained rather than just rejected.
+
+  Self-contained. The one thing it imports is xtc-geom.js,
+  because what counts as a valid triangle must be the arithmetic the rack uses.
+
+  It writes nothing. On Save it emits `xtc:geometry` and closes; the converter
+  window stores it. One author for the settings blob, no race.
+-->
+<style>
+  :root{
+    --ink:#e2e8f0; --dim:#b6c2d2; --mute:#64748b; --line:rgba(148,163,184,.14);
+    --accent:#7dd3fc; --xtc:#2dd4bf;
+    --good:#2dd4bf; --marginal:#facc15; --poor:#f87171;
+    --mono: ui-monospace,'Cascadia Mono','Segoe UI Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; color:var(--ink); font:14px 'SF Pro Display','Segoe UI',Tahoma,Arial,sans-serif;
+    background:radial-gradient(circle at 50% 0%,#0b192c 0%,#04070d 100%);
+    -webkit-font-smoothing:antialiased; display:flex; flex-direction:column;
+  }
+  header{
+    display:flex; align-items:center; gap:10px; flex:none;
+    padding:11px 20px; border-bottom:1px solid rgba(45,212,191,.18);
+    background:rgba(8,14,26,.92);
+  }
+  header .tok{
+    font-family:var(--mono); font-size:.72rem; font-weight:700; letter-spacing:.8px;
+    padding:2px 7px; border-radius:5px; color:var(--xtc);
+    border:1px solid color-mix(in srgb,var(--xtc) 40%,transparent);
+    background:color-mix(in srgb,var(--xtc) 12%,transparent);
+  }
+  header .t{flex:1; font-size:.78rem; letter-spacing:1.2px; text-transform:uppercase; color:var(--xtc)}
+
+  main{flex:1; overflow-y:auto; padding:20px 24px 8px}
+  .intro{font-size:.85rem; line-height:1.65; color:var(--dim); margin:0 0 4px; max-width:78ch}
+  .intro b{color:var(--ink); font-weight:600}
+
+  .cols{display:grid; grid-template-columns:minmax(300px,1fr) minmax(300px,360px); gap:26px; margin-top:18px}
+  @media (max-width:719px){ .cols{grid-template-columns:1fr; gap:20px} }
+
+  h2{
+    margin:0 0 10px; font-size:.68rem; letter-spacing:1.3px; text-transform:uppercase;
+    color:var(--accent); font-weight:600;
+  }
+
+  /* the two ways of describing the same seat */
+  .modes{display:flex; gap:0; margin-bottom:7px; border:1px solid var(--line); border-radius:7px; overflow:hidden}
+  .modes button{
+    flex:1; font:inherit; font-size:.76rem; padding:6px 8px; cursor:pointer;
+    color:var(--mute); background:none; border:0; border-right:1px solid var(--line);
+  }
+  .modes button:last-child{border-right:0}
+  .modes button.on{color:#052e2b; background:var(--xtc); font-weight:600}
+  .modes button:not(.on):hover{color:var(--ink); background:rgba(56,189,248,.07)}
+  .mode-blurb{font-size:.72rem; line-height:1.5; color:var(--mute); margin:0 0 8px}
+
+  .f{
+    display:grid; grid-template-columns:1fr auto; align-items:center; gap:14px;
+    padding:9px 0; border-bottom:1px solid rgba(148,163,184,.08);
+  }
+  .f:last-of-type{border-bottom:0}
+  .f .nm{font-size:.86rem; color:var(--ink); white-space:nowrap}
+  .f .hint{display:block; font-size:.72rem; color:var(--mute); margin-top:2px; white-space:normal}
+  .f .box{display:flex; align-items:center; gap:6px; flex:none}
+  .f input{
+    width:96px; padding:7px 9px; text-align:right;
+    font-family:var(--mono); font-size:.85rem; font-variant-numeric:tabular-nums;
+    color:var(--ink); background:rgba(2,6,14,.85);
+    border:1px solid rgba(56,189,248,.2); border-radius:6px;
+  }
+  .f input:focus{outline:none; border-color:color-mix(in srgb,var(--xtc) 60%,transparent)}
+  .f input.bad{border-color:var(--poor)}
+  .f .u{font-family:var(--mono); font-size:.72rem; color:var(--mute); width:22px}
+
+  /* the same seat expressed the other way, always on screen so the two numbers
+     can never be silently confused again */
+  .mirror{
+    margin-top:11px; padding:8px 10px; border-radius:7px;
+    background:rgba(56,189,248,.05); border:1px solid rgba(56,189,248,.13);
+    font-size:.75rem; line-height:1.55; color:var(--dim);
+  }
+  .mirror b{font-family:var(--mono); color:var(--accent); font-weight:600}
+
+  .plan{border:1px solid rgba(148,163,184,.13); border-radius:10px; background:rgba(2,6,14,.55); padding:10px}
+  .plan svg{display:block; width:100%; height:auto}
+  .readout{display:flex; align-items:baseline; gap:9px; margin-top:14px}
+  .readout .deg{
+    font-family:var(--mono); font-size:2rem; font-weight:700; line-height:1;
+    font-variant-numeric:tabular-nums; color:var(--mute);
+  }
+  .readout .deg.info{color:var(--accent)}
+  .readout .cap{font-size:.64rem; letter-spacing:1px; text-transform:uppercase; color:var(--mute)}
+  .verdict{font-size:.8rem; line-height:1.55; color:var(--dim); margin-top:6px; min-height:2.4em}
+
+  .note{font-size:.8rem; line-height:1.6; margin-top:14px; color:var(--dim)}
+  .note.good{color:#5eead4} .note.marginal{color:#fde047} .note.poor{color:#fca5a5}
+  .err{font-size:.82rem; line-height:1.55; color:var(--poor); margin-top:10px}
+  .fixit{
+    margin-top:9px; padding:9px 11px; border-radius:7px;
+    background:rgba(250,204,21,.07); border:1px solid rgba(250,204,21,.28);
+    font-size:.78rem; line-height:1.6; color:#fde047;
+  }
+  .fixit b{font-family:var(--mono); font-weight:600}
+  .fixit button{
+    display:block; margin-top:8px; font:inherit; font-size:.76rem; padding:5px 12px;
+    border-radius:5px; cursor:pointer; color:#1c1917; background:#facc15;
+    border:1px solid #facc15; font-weight:600;
+  }
+
+  .scale{margin-top:14px; border-top:1px solid var(--line); padding-top:12px;
+         font-size:.76rem; line-height:1.6; color:var(--mute)}
+  .scale table{width:100%; border-collapse:collapse; font-family:var(--mono);
+               font-size:.72rem; font-variant-numeric:tabular-nums; margin-top:6px}
+  .scale td{padding:2px 6px; border-bottom:1px solid rgba(148,163,184,.07)}
+  .scale td:first-child{color:var(--dim); white-space:nowrap; width:5.5em}
+
+  footer{
+    flex:none; display:flex; justify-content:space-between; align-items:center; gap:12px;
+    padding:12px 24px; border-top:1px solid var(--line); background:rgba(8,14,26,.9);
+  }
+  .foot-hint{font-size:.74rem; color:var(--mute)}
+  .btns{display:flex; gap:9px}
+  button{font:inherit}
+  .act{
+    font-size:.82rem; padding:7px 16px; border-radius:6px; cursor:pointer; letter-spacing:.4px;
+    transition:background .16s, box-shadow .16s, border-color .16s;
+  }
+  .save{color:#052e2b; background:var(--xtc); border:1px solid var(--xtc); font-weight:600}
+  .save:hover:not(:disabled){box-shadow:0 0 16px color-mix(in srgb,var(--xtc) 45%,transparent)}
+  .save:disabled{opacity:.32; cursor:default}
+  .ghost{color:var(--dim); background:none; border:1px solid rgba(148,163,184,.26)}
+  .ghost:hover{color:var(--ink); border-color:rgba(148,163,184,.5)}
+</style>
+</head>
+<body>
+  <header>
+    <span class="tok">XTC</span>
+    <span class="t">Listening geometry</span>
+  </header>
+
+  <main>
+    <p class="intro">
+      Measure the real triangle with a tape measure. The filter is built from these
+      numbers and is correct <b>only for the seat you measured to</b> — and only over
+      speakers, never headphones.
+    </p>
+
+    <div class="cols">
+      <section>
+        <h2>Measurements</h2>
+        <div class="modes" id="modes">
+          <button type="button" data-mode="depth">Width and depth</button>
+          <button type="button" data-mode="direct">Straight to each speaker</button>
+        </div>
+        <p class="mode-blurb" id="modeBlurb"></p>
+        <div id="fields"></div>
+        <div class="mirror" id="mirror"></div>
+        <div class="err" id="err"></div>
+        <div class="fixit" id="fixit" style="display:none"></div>
+        <div class="note" id="asym"></div>
+      </section>
+
+      <section>
+        <h2>What that makes</h2>
+        <div class="plan">
+          <svg id="plan" viewBox="0 0 360 250" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div class="readout">
+          <span class="deg" id="deg">—</span>
+          <span class="cap">span angle</span>
+        </div>
+        <div class="verdict" id="verdict"></div>
+
+        <div class="scale">
+          <b>What actually limits this</b> is not the angle — measured across spans from
+          10° to 150°, the cancellation stays between −18 and −26 dB. It is where your
+          head is.
+          <table>
+            <tr><td>centred</td><td>−19 to −26 dB</td></tr>
+            <tr><td>+20 mm</td><td>−8 to −15 dB</td></tr>
+            <tr><td>+50 mm</td><td>−8 to −11 dB</td></tr>
+            <tr><td>+100 mm</td><td>−5 to −13 dB</td></tr>
+          </table>
+          <div id="moveNote" style="margin-top:8px"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <span class="foot-hint">Nothing is saved until you press Save.</span>
+    <span class="btns">
+      <button type="button" class="act ghost" id="cancel">Cancel</button>
+      <button type="button" class="act save" id="save" disabled>Save geometry</button>
+    </span>
+  </footer>
+
+<script type="module">
+import {
+    LIMITS, MODES, isGeometryValid, spanAngleDeg, angleVerdict,
+    asymmetryMm, asymmetryVerdict, headPosition, MOVEMENT_NOTE,
+    directFromDepth, triangleFromDepth, depthReading,
+} from './js/xtc-geom.js';
+
+const $ = id => document.getElementById(id);
+let mode = 'depth';
+const vals = {};                        // every field ever shown, by key
+
+// ── opening values: read the converter's settings, never write them ───
+(function initial() {
+    let saved = null;
+    try {
+        const s = JSON.parse(localStorage.getItem('auraSettings') || '{}');
+        if (s.xtcGeometry) saved = s.xtcGeometry;
+    } catch (e) { /* a corrupt blob is the same as a first run */ }
+
+    for (const k of Object.keys(LIMITS)) vals[k] = LIMITS[k].def;
+    if (saved) {
+        for (const k of ['span', 'distL', 'distR', 'headW']) {
+            const v = Number(saved[k]);
+            if (Number.isFinite(v) && v > 0) vals[k] = v;
+        }
+        const pos = headPosition(vals);
+        if (pos) vals.depth = Math.round(pos.y);
+        // Come back the way it was entered, so the figures on screen are the ones
+        // that were typed rather than a translation of them.
+        if (saved.mode === 'direct' || saved.mode === 'depth') mode = saved.mode;
+        else if (Math.abs(vals.distL - vals.distR) > 1) mode = 'direct';
+    }
+})();
+
+function buildFields() {
+    const m = MODES[mode];
+    $('modeBlurb').textContent = m.blurb;
+    $('modes').querySelectorAll('button').forEach(b =>
+        b.classList.toggle('on', b.dataset.mode === mode));
+    $('fields').innerHTML = m.fields.map(k => {
+        const l = LIMITS[k];
+        return `<label class="f">
+                  <span class="nm">${l.label}<span class="hint">${l.hint} · ${l.min}–${l.max} mm</span></span>
+                  <span class="box">
+                    <input type="number" id="f_${k}" min="${l.min}" max="${l.max}" step="1"
+                           inputmode="numeric" autocomplete="off" value="${vals[k]}"><span class="u">mm</span>
+                  </span>
+                </label>`;
+    }).join('');
+    m.fields.forEach(k => $('f_' + k).addEventListener('input', () => {
+        const el = $('f_' + k);
+        vals[k] = el.value === '' ? NaN : Number(el.value);
+        refresh();
+    }));
+}
+
+/// The stored triangle, whichever way it was entered.
+function triangle() {
+    if (mode === 'depth') return triangleFromDepth(vals.span, vals.depth, vals.headW);
+    return { span: vals.span, distL: vals.distL, distR: vals.distR, headW: vals.headW };
+}
+
+// ── the plan ──────────────────────────────────────────────────────────
+function drawPlan(g, deg) {
+    const svg = $('plan');
+    const W = 360, H = 250;
+    const pos = (deg == null) ? null : headPosition(g);
+    if (!pos) {
+        svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="12"
+                               fill="#475569">no triangle yet</text>`;
+        return;
+    }
+    const xL = -g.span / 2, xR = g.span / 2;
+    const pad = 30;
+    const minX = Math.min(xL, pos.x) - 130, maxX = Math.max(xR, pos.x) + 130;
+    const minY = -110, maxY = pos.y + 150;
+    const s = Math.min((W - 2 * pad) / (maxX - minX), (H - 2 * pad) / (maxY - minY));
+    const px = v => pad + (v - minX) * s;
+    // Speakers at the top, listener below them, the way a room is drawn looking
+    // down at it.
+    const py = v => pad + (v - minY) * s;
+    const hue = '#2dd4bf';
+    const spk = (x) => `<rect x="${px(x) - 6}" y="${py(0) - 9}" width="12" height="18" rx="2"
+                              fill="#38bdf8" opacity=".85"/>`;
+    svg.innerHTML =
+        `<line x1="${px(xL)}" y1="${py(0)}" x2="${px(xR)}" y2="${py(0)}"
+               stroke="#38bdf8" stroke-width="1" opacity=".25" stroke-dasharray="4 4"/>`
+      + `<line x1="${px(0)}" y1="${py(0)}" x2="${px(0)}" y2="${py(pos.y)}"
+               stroke="#475569" stroke-width="1" opacity=".45" stroke-dasharray="2 5"/>`
+      + `<line x1="${px(xL)}" y1="${py(0)}" x2="${px(pos.x)}" y2="${py(pos.y)}" stroke="${hue}" stroke-width="1.4" opacity=".7"/>`
+      + `<line x1="${px(xR)}" y1="${py(0)}" x2="${px(pos.x)}" y2="${py(pos.y)}" stroke="${hue}" stroke-width="1.4" opacity=".7"/>`
+      + spk(xL) + spk(xR)
+      + `<text x="${px(xL)}" y="${py(0) - 15}" text-anchor="middle" font-size="10" fill="#64748b">L</text>`
+      + `<text x="${px(xR)}" y="${py(0) - 15}" text-anchor="middle" font-size="10" fill="#64748b">R</text>`
+      + `<text x="${px(0)}" y="${py(0) - 15}" text-anchor="middle" font-size="10"
+               font-family="ui-monospace,Consolas,monospace" fill="#64748b">${Math.round(g.span)} mm</text>`
+      + `<text x="${px(0) + 6}" y="${py(pos.y / 2)}" font-size="9"
+               font-family="ui-monospace,Consolas,monospace" fill="#64748b">${Math.round(pos.y)} deep</text>`
+      + `<circle cx="${px(pos.x)}" cy="${py(pos.y)}" r="9" fill="rgba(2,6,14,.9)" stroke="${hue}" stroke-width="1.6"/>`
+      + `<circle cx="${px(pos.x) - 9}" cy="${py(pos.y)}" r="2.2" fill="${hue}"/>`
+      + `<circle cx="${px(pos.x) + 9}" cy="${py(pos.y)}" r="2.2" fill="${hue}"/>`
+      + `<text x="${px(pos.x)}" y="${py(pos.y) + 26}" text-anchor="middle" font-size="11"
+               font-family="ui-monospace,Consolas,monospace" fill="${hue}">${deg.toFixed(1)}°</text>`;
+}
+
+// ── everything the numbers imply, on every keystroke ──────────────────
+function refresh() {
+    const g = triangle();
+    const valid = isGeometryValid(g);
+    const deg = spanAngleDeg(g);
+    const pos = headPosition(g);
+
+    MODES[mode].fields.forEach(k => {
+        const lim = LIMITS[k], v = vals[k];
+        $('f_' + k).classList.toggle('bad', Number.isFinite(v) && (v < lim.min || v > lim.max));
+    });
+
+    // The same seat said the other way, always visible.
+    const mirror = $('mirror');
+    if (valid.ok && pos) {
+        mirror.innerHTML = mode === 'depth'
+            ? `That is <b>${Math.round(directFromDepth(g.span, vals.depth))} mm</b> in a straight line from each speaker to your head.`
+            : `That puts you <b>${Math.round(pos.y)} mm</b> back from the line joining the speakers.`;
+        mirror.style.display = '';
+    } else {
+        mirror.style.display = 'none';
+    }
+
+    $('deg').textContent = deg == null ? '—' : deg.toFixed(1) + '°';
+    $('deg').className = 'deg' + (deg == null ? '' : ' info');
+    $('verdict').textContent = deg == null ? '' : angleVerdict(deg).text;
+
+    const asym = $('asym');
+    if (valid.ok && Number.isFinite(g.distL) && Number.isFinite(g.distR)) {
+        const v = asymmetryVerdict(asymmetryMm(g));
+        asym.textContent = v.text;
+        asym.className = 'note ' + v.key;
+    } else { asym.textContent = ''; asym.className = 'note'; }
+
+    drawPlan(g, deg);
+    $('err').textContent = valid.ok ? '' : valid.why;
+
+    // The one mistake this form invites: a depth typed into a diagonal.
+    // Recognise it and offer the reading, rather than only refusing.
+    const fix = $('fixit');
+    const alt = (mode === 'direct' && !valid.ok) ? depthReading(g) : null;
+    if (alt) {
+        fix.innerHTML =
+            `Those look like <b>depths</b>, not diagonals. If ${Math.round(alt.depth)} mm is how far `
+          + `back you sit from the line between the speakers, the straight line to each one is `
+          + `<b>${Math.round(alt.direct)} mm</b>.`;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = `Switch to width and depth (${Math.round(alt.depth)} mm back)`;
+        b.addEventListener('click', () => {
+            vals.depth = Math.round(alt.depth);
+            mode = 'depth';
+            buildFields();
+            refresh();
+        });
+        fix.appendChild(b);
+        fix.style.display = '';
+    } else {
+        fix.style.display = 'none';
+    }
+
+    $('save').disabled = !valid.ok;
+}
+
+$('modes').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-mode]');
+    if (!b || b.dataset.mode === mode) return;
+    // Carry the seat across rather than resetting it: switching the way of
+    // describing a room must not change the room.
+    const g = triangle();
+    const pos = headPosition(g);
+    if (isGeometryValid(g).ok && pos) {
+        if (b.dataset.mode === 'depth') {
+            vals.depth = Math.round(pos.y);
+        } else {
+            vals.distL = Math.round(g.distL);
+            vals.distR = Math.round(g.distR);
+        }
+    }
+    mode = b.dataset.mode;
+    buildFields();
+    refresh();
+});
+
+$('moveNote').textContent = MOVEMENT_NOTE;
+buildFields();
+refresh();
+
+// ── out ───────────────────────────────────────────────────────────────
+const T = () => window.__TAURI__;
+function close() { try { T().window.appWindow.close(); } catch (e) { /* not in Tauri */ } }
+
+$('cancel').addEventListener('click', close);
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
+    if (e.key === 'Enter' && !$('save').disabled) $('save').click();
+});
+$('save').addEventListener('click', () => {
+    const g = triangle();
+    if (!isGeometryValid(g).ok) return;
+    try {
+        T().event.emit('xtc:geometry', { ...g, mode });
+    } catch (e) {
+        $('err').textContent = 'Could not hand the geometry back to the converter: ' + e;
+        return;
+    }
+    close();
+});
+</script>
+</body>
+</html>

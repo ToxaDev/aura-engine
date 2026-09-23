@@ -1,0 +1,167 @@
+name: Release
+
+# Pushing a tag like v1.0.0 builds the Windows binary on a clean runner,
+# packages it as a portable zip, and publishes a GitHub Release with the
+# artifact attached. Manual runs (workflow_dispatch) build the same zip and
+# upload it as a workflow artifact without creating a release.
+#
+# A tag can arrive here more than once — rewriting history moves every tag, and
+# force-pushing them re-fires this workflow on releases that are already public.
+# The `guard` job stops that: a tag whose release already carries assets is left
+# exactly as it was published.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Portable optimized build: x86-64-v3 = AVX2 + FMA (Intel Haswell 2013+,
+  # AMD Excavator 2015+). This deliberately overrides the repo-local
+  # `target-cpu=native` in .cargo/config.toml, which is right for private
+  # builds but would tie a distributed exe to the build machine's CPU.
+  RUSTFLAGS: "-C target-cpu=x86-64-v3"
+
+jobs:
+  guard:
+    name: Check the tag is not already published
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.check.outputs.publish }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ "${{ github.event_name }}" != "push" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"   # manual runs never publish anyway
+            exit 0
+          fi
+          count=$(gh release view "$TAG" --repo "$REPO" --json assets --jq '.assets | length' 2>/dev/null || echo 0)
+          if [ "${count:-0}" -gt 0 ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG already has $count assets - refusing to rebuild and overwrite a published release."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-release:
+    name: Build + publish Windows x64
+    needs: guard
+    if: needs.guard.outputs.publish == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app/src-tauri
+
+      - name: Build release binary
+        working-directory: desktop-app/src-tauri
+        run: cargo build --release --locked --bin aura-engine
+
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $tag = 'dev-' + (git rev-parse --short HEAD)
+          }
+          $name  = "aura-engine-$tag-windows-x64"
+          $stage = "stage/$name"
+          New-Item -ItemType Directory -Force "$stage/fir-optimizer/output" | Out-Null
+
+          Copy-Item desktop-app/src-tauri/target/release/aura-engine.exe "$stage/"
+          Copy-Item LICENSE "$stage/LICENSE.txt"
+
+          $readme = @(
+            'AuraEngine — high-fidelity offline audio upsampler',
+            'https://github.com/ToxaDev/aura-engine',
+            'Docs: https://toxadev.github.io/aura-engine/',
+            '',
+            'REQUIREMENTS',
+            '  * Windows 10/11 x64. CPU with AVX2 (any Intel/AMD from ~2013+).',
+            '  * WebView2 runtime (preinstalled on Windows 11, and on Windows 10',
+            '    through Edge). Nothing else: decoding and FLAC encoding are both',
+            '    built in, and no external tool is called during a conversion.',
+            '  * Optional: Vulkan-capable GPU for the accelerated DS path.',
+            '',
+            'FIR FILTERS (required — this zip has none)',
+            '  This is the app on its own. The million-tap FIR stages and',
+            '  Hybrid-Phase need pre-computed filter files, and there are none',
+            '  in here.',
+            '',
+            '  If you did not specifically want the bare app, take a BUNDLE from',
+            '  the Releases page instead: same app, with its filters already in',
+            '  it, nothing to set up. Otherwise download a filter pack (e.g.',
+            '  aura-filters-10M-all-rates.zip) and extract it here — the archive',
+            '  already contains the fir-optimizer/output/ folder. Or generate',
+            '  them with Python (fir-optimizer/README.md), or point the',
+            '  AURA_FILTER_DIR environment variable at a folder that has them.',
+            '',
+            '  The app adapts to whatever it finds: it opens on the largest tap',
+            '  count present at FS8, and strikes through the slider positions it',
+            '  has no filter for. Selecting one anyway names the download that',
+            '  would add it.',
+            '',
+            '  Without a filter matching your tap count and FS multiplier the',
+            '  conversion stops and names the file it wanted. It will NOT fall',
+            '  back to an ordinary resampler while the interface still claims',
+            '  the filter you selected.',
+            '',
+            'USAGE',
+            '  Run aura-engine.exe and drop audio files onto the window.',
+            '  Output FLAC appears next to the source file. The console window',
+            '  is the engine''s audit log — it is supposed to be there.',
+            '',
+            'LICENSE',
+            '  PolyForm Noncommercial 1.0.0 — free for noncommercial use.',
+            '  Commercial licensing: auraengine.dev@gmail.com',
+            '',
+            'CONTACT',
+            '  Something broken     https://github.com/ToxaDev/aura-engine/issues',
+            '  Questions and ideas  https://github.com/ToxaDev/aura-engine/discussions',
+            '  Anything private     auraengine.dev@gmail.com'
+          )
+          Set-Content -Path "$stage/README.txt" -Value $readme -Encoding utf8
+
+          Set-Content -Path "$stage/fir-optimizer/output/PUT-FILTERS-HERE.txt" -Encoding utf8 -Value @(
+            'Place the generated FIR filter .npy files in this folder.',
+            'See https://github.com/ToxaDev/aura-engine/blob/master/fir-optimizer/README.md'
+          )
+
+          Compress-Archive -Path "$stage" -DestinationPath "$name.zip"
+          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path "$name.zip.sha256" -Value "$hash  $name.zip" -Encoding ascii
+
+          echo "ASSET=$name.zip" >> $env:GITHUB_ENV
+          echo "ASSET_SHA=$name.zip.sha256" >> $env:GITHUB_ENV
+
+      - name: Publish GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET_SHA }}
+          generate_release_notes: true
+
+      - name: Upload artifact (manual run, no release)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET }}
+          path: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET_SHA }}

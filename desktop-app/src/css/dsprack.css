@@ -1,0 +1,287 @@
+/* ══════════════════════════════════════════════════════════════════════
+   Advanced DSP rack — one lit row per stage instead of a column of
+   checkboxes, grouped into the three zones the pipeline runs in.
+
+   Loaded by dsprack.js into <head> AFTER style.css, so the few rules that
+   restate a selector from it win on order alone. Its own file rather than
+   more of style.css: the rack is one self-contained control and this is
+   everything it needs.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* One hue per stage, spaced round the wheel so no two read as siblings:
+     PFR is a true yellow rather than amber, which would sit too close to
+     ISP's orange, and aHP is fuchsia rather than a second violet beside HP. */
+  --lab-aa:   #34d399;
+  --lab-hp:   #a78bfa;
+  --lab-pfr:  #facc15;
+  --lab-dc:   #fb7185;
+  --lab-isp:  #fb923c;
+  --lab-tfs:  #a3e635;
+  --lab-ahp:  #e879f9;
+  --lab-ahr:  #f472b6;
+  /* Teal was the one gap left on the wheel: far enough from emerald's green
+     and from sky's blue to read as its own stage rather than a sibling. */
+  --lab-xtc:  #2dd4bf;
+  --lab-sub:  #60a5fa;
+
+  --lab-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
+
+}
+
+/* ── the field: two stage plates to a row, an odd one spanning ───────── */
+.lab-field {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  margin-bottom: 4px;
+}
+.lab-field > .lab-sec { grid-column: 1 / -1; }
+
+/* ── a stage: a titled plate, one line per step of the pipeline ────────
+   Eleven readable lines in one column is 130px taller than this panel is
+   allowed to be, so two stages sit side by side. The stage boundary is the
+   column boundary, which is why the pairing does not muddle the order: each
+   column is one whole stage, read top to bottom. */
+.lab-zone {
+  min-width: 0;            /* or a long name would push the column wider */
+  border-radius: 9px; padding: 5px 8px 7px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, .40), rgba(15, 23, 42, .24));
+  border: 1px solid rgba(56, 189, 248, .09);
+}
+.lab-zone.span { grid-column: 1 / -1; }
+
+.lab-zone-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; cursor: help; }
+.lab-zone-n {
+  font-family: var(--lab-mono); font-size: 0.44rem; font-weight: 700;
+  color: #0b1220; background: #7dd3fc; border-radius: 3px; padding: 0 4px 1px;
+}
+.lab-zone-t {
+  font-family: var(--lab-mono); font-size: 0.46rem; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: #7dd3fc;
+}
+.lab-row { display: block; }
+
+.lab-sec {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: 12px 0 10px;
+}
+.lab-sec-t {
+  font-size: 0.8em; color: #7dd3fc; text-transform: uppercase; letter-spacing: 1px;
+}
+.lab-hidden { display: none; }
+
+/* ── one step of the pipeline: colour bar, code, name, state ──────────
+   Off is a quiet line; on is lit along its own hue. The state column carries
+   the whole of what the wiring diagram used to draw: an arrow to what a stage
+   depends on, a cross to the stage that is blocking it right now. */
+.lab-badge {
+  --h: #38bdf8;
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; min-width: 0; padding: 3px 5px; border-radius: 5px;
+  background: none; border: 1px solid transparent; cursor: pointer;
+  text-align: left; transition: background .18s, border-color .18s;
+}
+.lab-badge + .lab-badge { margin-top: 2px; }
+.lab-badge .bar {
+  width: 3px; height: 14px; flex: none; border-radius: 2px;
+  background: color-mix(in srgb, var(--h) 24%, transparent);
+  transition: background .18s, box-shadow .18s;
+}
+.lab-badge .tok {
+  font-family: var(--lab-mono); font-size: 0.5rem; font-weight: 700;
+  width: 27px; flex: none; letter-spacing: .3px;
+  color: color-mix(in srgb, var(--h) 52%, #0f172a);
+}
+.lab-badge .nm {
+  flex: 1 1 auto; min-width: 0; font-size: 0.62rem; color: #5b6b80;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lab-badge .st {
+  flex: none; font-family: var(--lab-mono); font-size: 0.46rem;
+  letter-spacing: .4px; color: #4d5f75;
+}
+.lab-badge .st.blocked { color: #f87171; }
+
+.lab-badge:hover { background: rgba(56, 189, 248, .06); }
+.lab-badge:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 1px; }
+
+.lab-badge.on {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--h) 14%, transparent), transparent 75%);
+  border-color: color-mix(in srgb, var(--h) 24%, transparent);
+}
+.lab-badge.on .bar { background: var(--h); box-shadow: 0 0 7px var(--h); }
+.lab-badge.on .tok { color: var(--h); }
+.lab-badge.on .nm { color: #e2e8f0; }
+.lab-badge.on .st { color: color-mix(in srgb, var(--h) 65%, #475569); }
+
+/* a stage that cannot come up right now because its conflict is on */
+.lab-badge.blocked .nm { color: #3f4d63; }
+
+/* the marker on a stage that is only up because something else pulled it up */
+.lab-badge .dep {
+  width: 5px; height: 5px; flex: none; border-radius: 50%;
+  background: var(--h); opacity: 0; transition: opacity .2s;
+  box-shadow: 0 0 6px var(--h);
+}
+.lab-badge.auto .dep { opacity: .95; }
+
+.lab-field.locked { opacity: .35; pointer-events: none; }
+
+/* Only ever visible when a rule is broken. A standing "all good" line is
+   noise in a product panel; a red one is the regression showing itself. */
+.lab-inv {
+  font-family: var(--lab-mono); font-size: 0.62rem; letter-spacing: .4px;
+  color: #f87171; margin: 2px 0 6px; display: none;
+}
+.lab-inv.bad { display: block; }
+
+/* ── tooltip ────────────────────────────────────────────────────────── */
+#labTip {
+  position: fixed; z-index: 9000; max-width: 290px; pointer-events: none;
+  opacity: 0; transform: translateY(4px);
+  transition: opacity .14s, transform .14s;
+  background: rgba(4, 9, 18, 0.97); border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 8px; padding: 8px 10px; font-size: 0.72rem; line-height: 1.5;
+  color: #cbd5e1; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.7);
+}
+#labTip.show { opacity: 1; transform: translateY(0); }
+#labTip b {
+  display: block; font-family: var(--lab-mono); font-size: 0.72rem;
+  letter-spacing: .6px; margin-bottom: 4px;
+}
+#labTip .hint {
+  display: block; margin-top: 6px; color: #475569; font-size: 0.66rem; font-style: italic;
+}
+
+/* ── right-click menu ───────────────────────────────────────────────── */
+#labMenu {
+  position: fixed; z-index: 9100; display: none; min-width: 168px;
+  background: rgba(6, 12, 22, 0.98); border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 8px; padding: 5px; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.75);
+}
+#labMenu button {
+  display: flex; width: 100%; gap: 9px; align-items: center;
+  background: none; border: 0; color: #cbd5e1;
+  font-size: 0.75rem; padding: 7px 10px; border-radius: 5px;
+  cursor: pointer; text-align: left;
+}
+#labMenu button:hover { background: rgba(56, 189, 248, 0.15); color: #e0f2fe; }
+#labMenu hr { border: 0; border-top: 1px solid rgba(148, 163, 184, 0.14); margin: 4px 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   The queue row, on two lines: the file on top, the chain underneath.
+   ══════════════════════════════════════════════════════════════════════ */
+.file-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 8px 7px;
+}
+.fi-head { display: flex; align-items: center; gap: 7px; }
+.badge-container { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+
+/* A row is now two lines instead of one, so the fixed drop zone would show
+   half as many files. The panel gave the height back when the separate
+   LABORATORY section went away, so take it here. */
+.smart-drop-zone { height: 268px; }
+.dz-file-list { max-height: 262px; }
+
+/* Deliberately the quiet style the app already used for its AA lamp — 15%
+   fill, 30% border, a 5px glow at 20%. The big lit-button treatment stays on
+   the panel, where it means "you switched this on"; here it only means "this
+   ran", and eleven of those shouting at once would drown the file name. */
+.cb {
+  --h: #38bdf8;
+  font-family: var(--lab-mono); font-size: 0.6rem; font-weight: 600;
+  letter-spacing: 0.4px; padding: 1px 4px; border-radius: 4px;
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  background: rgba(100, 116, 139, 0.08);
+  color: #5b6779; opacity: 0.8; cursor: default;
+  pointer-events: auto;          /* the row lets events through; these must not */
+  transition: color .3s, border-color .3s, box-shadow .3s, background .3s, opacity .3s;
+}
+.cb.fired {
+  color: var(--h);
+  background: color-mix(in srgb, var(--h) 15%, transparent);
+  border-color: color-mix(in srgb, var(--h) 30%, transparent);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--h) 20%, transparent);
+  opacity: 1;
+}
+/* lamp off — the stage was reached and decided against; the tooltip says why */
+.cb.skipped {
+  color: #64748b; background: rgba(100, 116, 139, 0.10);
+  border: 1px dashed rgba(100, 116, 139, 0.35);
+  font-weight: 500; opacity: 0.75; box-shadow: none;
+}
+.cb.failed {
+  color: #f87171; background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  opacity: 1; box-shadow: 0 0 5px rgba(239, 68, 68, 0.2);
+}
+.cb.term { margin-left: 2px; }
+.cbsep {
+  width: 1px; height: 11px; flex: none; margin: 0 2px;
+  background: rgba(148, 163, 184, 0.18);
+}
+
+/* ── the LAB mark in the heading, set like a ™ ──────────────────────── */
+.lab-mark {
+  font-family: var(--lab-mono); font-size: 0.34em; font-weight: 700; letter-spacing: 2px;
+  color: #67e8f9; border: 1px solid rgba(103, 232, 249, 0.55); border-radius: 4px;
+  padding: 1px 4px; vertical-align: super; margin-left: 5px;
+  background: rgba(103, 232, 249, 0.08);
+  box-shadow: 0 0 10px rgba(103, 232, 249, 0.35), inset 0 0 6px rgba(103, 232, 249, 0.15);
+  text-shadow: 0 0 6px rgba(103, 232, 249, 0.8);
+  animation: labMarkPulse 3.4s ease-in-out infinite;
+}
+@keyframes labMarkPulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(103, 232, 249, 0.3), inset 0 0 6px rgba(103, 232, 249, 0.12); }
+  50%      { box-shadow: 0 0 16px rgba(103, 232, 249, 0.55), inset 0 0 8px rgba(103, 232, 249, 0.22); }
+}
+
+/* The sparks on the flow line are SMIL, which CSS cannot switch off — so
+   dsprack.js reads the same query and simply does not create them. The line
+   itself stays; only the motion goes. */
+@media (prefers-reduced-motion: reduce) {
+  .lab-badge, .lab-mark, #labTip { animation: none !important; transition-duration: .01ms !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   XTC — the gear on the badge.
+
+   The only stage in the rack that needs numbers from outside the file, so
+   the only one carrying an affordance of its own. The gear sits inside the
+   badge button; the click handler in dsprack.js reads it before deciding
+   whether the click was a toggle or a request to open the geometry window.
+
+   The dialog that used to live here is now xtc-geometry.html, a window with
+   its own stylesheet — a modal over a panel this narrow crushed its labels to
+   one word per line.
+   ══════════════════════════════════════════════════════════════════════ */
+.lab-badge .gear {
+  flex: none; width: 13px; height: 13px; line-height: 13px; text-align: center;
+  border-radius: 3px; font-size: 0.55rem; color: #4d5f75;
+  transition: color .18s, background .18s;
+}
+.lab-badge .gear:hover { color: var(--h); background: color-mix(in srgb, var(--h) 18%, transparent); }
+.lab-badge.on .gear { color: color-mix(in srgb, var(--h) 70%, #475569); }
+/* A stage still waiting for its numbers reads as unfinished, not as broken. */
+.lab-badge .st.unset { color: #eab308; }
+
+/* DL — the number on the badge.
+
+   The de-limiter needs one figure the file cannot supply: how many dB of
+   limiting to undo. It is a chip rather than a dialog because it is one
+   number with five useful values, and because it has to be reachable while
+   listening. Clicking it cycles; the click handler reads it before deciding
+   the click was a toggle, exactly as it does for XTC's gear. */
+.lab-badge .amt {
+  flex: none; padding: 0 4px; border-radius: 3px; font-size: 0.55rem;
+  font-family: var(--lab-mono); color: #4d5f75;
+  border: 1px solid color-mix(in srgb, var(--h) 22%, transparent);
+  transition: color .18s, background .18s, border-color .18s;
+}
+.lab-badge .amt:hover {
+  color: var(--h); background: color-mix(in srgb, var(--h) 18%, transparent);
+  border-color: color-mix(in srgb, var(--h) 45%, transparent);
+}
+.lab-badge.on .amt { color: color-mix(in srgb, var(--h) 78%, #94a3b8); }
