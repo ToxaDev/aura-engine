@@ -1,0 +1,99 @@
+/* The rack's settings at a glance (js/rackstrip.js): a strip of five cells
+   under the heading — each its name over its value — and, over Advanced DSP,
+   the pane of the cell pressed, with the same controls as ever. */
+
+.rk-strip {
+  display: flex; align-items: stretch;
+  margin: 0 0 4px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.45), rgba(15, 23, 42, 0.28));
+  border: 1px solid rgba(56, 189, 248, 0.16);
+}
+.rk-cell {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 6px 4px 7px;
+  border: 0; background: transparent; color: inherit; font: inherit;
+  cursor: pointer; position: relative;
+  transition: background 0.15s;
+}
+.rk-cell + .rk-cell { border-left: 1px solid rgba(56, 189, 248, 0.1); }
+.rk-cell:first-child { border-radius: 8px 0 0 8px; }
+.rk-cell:last-child { border-radius: 0 8px 8px 0; }
+.rk-cell:hover { background: rgba(56, 189, 248, 0.07); }
+.rk-cell:focus-visible { outline: 2px solid #7dd3fc; outline-offset: -2px; }
+.rk-cell.open { background: rgba(56, 189, 248, 0.13); }
+.rk-cell.open::after {
+  content: ''; position: absolute; left: 8px; right: 8px; bottom: 0; height: 2px; border-radius: 2px;
+  background: #38bdf8; box-shadow: 0 0 6px #38bdf8;
+}
+.rk-lbl {
+  font-family: var(--lab-mono, ui-monospace, Consolas, monospace);
+  font-size: 0.46rem; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase;
+  color: rgba(125, 211, 252, 0.78); white-space: nowrap;
+}
+.rk-val { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.rk-v {
+  font-size: 0.8rem; font-weight: 500; letter-spacing: 0.4px;
+  color: #c4b5fd; text-shadow: 0 0 8px rgba(167, 139, 250, 0.45);
+}
+.rk-u { font-size: 0.62rem; color: rgba(196, 181, 253, 0.62); margin-left: 3px; }
+.rk-u:empty { display: none; }
+.rk-cell.lit .rk-v { color: #38bdf8; text-shadow: 0 0 6px rgba(56, 189, 248, 0.6); }
+.rk-cell.dim .rk-v { color: #64748b; text-shadow: none; }
+.rk-cell.aa .rk-v { color: #34d399; text-shadow: 0 0 6px rgba(52, 211, 153, 0.45); }
+.rk-cell.custom .rk-v { color: #6ee7b7; text-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
+.rk-cell.bad .rk-v { color: #fca5a5; text-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+/* No filter on disk for this FS and length: the notice under the strip says
+   which download has it. */
+.rk-cell.warn .rk-v { color: #fcd34d; text-shadow: 0 0 6px rgba(251, 191, 36, 0.4); }
+.rk-cell.warn .rk-v::before { content: '⚠ '; }
+
+/* ── the pane: under the strip, over Advanced DSP ── */
+.rk-pop {
+  position: absolute; z-index: 40; left: 9px; right: 9px;
+  padding: 10px 12px 12px; box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.38);
+  background: rgba(10, 17, 32, 0.985);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(124, 58, 237, 0.12);
+}
+.rk-pop[hidden] { display: none; }
+.rk-pop::before {
+  content: ''; position: absolute; top: -6px; left: var(--rk-caret, 50%);
+  width: 10px; height: 10px; transform: translateX(-50%) rotate(45deg);
+  background: rgba(10, 17, 32, 0.985);
+  border-left: 1px solid rgba(56, 189, 248, 0.38); border-top: 1px solid rgba(56, 189, 248, 0.38);
+}
+.rk-pane { display: none; }
+.rk-pop[data-cell="fs"] .rk-pane[data-cell="fs"],
+.rk-pop[data-cell="taps"] .rk-pane[data-cell="taps"],
+.rk-pop[data-cell="apod"] .rk-pane[data-cell="apod"],
+.rk-pop[data-cell="hr"] .rk-pane[data-cell="hr"] { display: block; }
+.rk-pane .prop-block { margin: 0; }
+.rk-pane .tap-slider-container { margin-top: 0; }
+.rk-pane .custom-filter-row { margin-top: 10px; }
+.rk-native { display: none; }
+.rk-pane-h { display: block; margin-bottom: 6px; }
+
+/* A select's choices, as the player's menu lists its own. */
+.rk-opts { display: flex; flex-direction: column; gap: 1px; }
+.rk-opt {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 6px 8px; border: 0; border-radius: 6px; background: transparent;
+  color: #cbd5e1; font-size: 0.74rem; text-align: left; cursor: pointer;
+}
+.rk-opt:hover { background: rgba(56, 189, 248, 0.14); color: #f0f9ff; }
+.rk-opt:focus-visible { outline: 2px solid #7dd3fc; outline-offset: -2px; }
+.rk-tk { width: 12px; color: #7dd3fc; visibility: hidden; }
+.rk-opt.on { color: #e0f2fe; }
+.rk-opt.on .rk-tk { visibility: visible; }
+.rk-as { margin-left: auto; color: #64748b; font-size: 0.66rem; }
+.rk-opts.off .rk-opt { opacity: 0.45; cursor: not-allowed; }
+.rk-opts.off .rk-opt:hover { background: transparent; color: #cbd5e1; }
+.rk-why {
+  margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(148, 163, 184, 0.12);
+  color: #64748b; font-size: 0.66rem; line-height: 1.45;
+}
+.rk-why[hidden] { display: none; }
+.rk-why-aa { color: #6ee7b7; }

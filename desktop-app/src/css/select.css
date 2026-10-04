@@ -1,0 +1,54 @@
+/* Every list that drops down in the app (the radio's search, the output
+   device, the analyzer, the scenes' studio), in the app's colours: a dark
+   panel, the rows' text and their highlight as elsewhere. WebView2 draws the
+   list in the page (a customizable select, appearance: base-select); where
+   that is not had, the system's own list in its dark scheme, the rows in the
+   app's colours. Linked last on each page, after the lists' own styles. */
+
+select { color-scheme: dark; }
+select option { background-color: #0b1220; color: #e2e8f0; }
+
+@supports (appearance: base-select) {
+  select, ::picker(select) { appearance: base-select; }
+
+  /* The button keeps each list's own look and size: base-select would make
+     it at least 24 px tall, and its text, now in the page's font, a line as
+     tall as the controls' font had. A long choice is cut, not spilt. */
+  select { min-block-size: 0; line-height: 1.15; overflow: hidden; white-space: nowrap; }
+  select::picker-icon { color: #64748b; font-size: 0.8em; transition: rotate 0.15s ease; }
+  select:open::picker-icon { rotate: 180deg; }
+
+  ::picker(select) {
+    /* Down from the list when it fits there, else up. */
+    position-try-order: normal;
+    margin-block: 3px;
+    padding: 4px;
+    max-width: calc(100vw - 16px);
+    max-height: min(360px, 70vh);
+    overflow-y: auto;
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 8px;
+    background: #0b1220;
+    color: #cbd5e1;
+    box-shadow: 0 12px 32px rgba(2, 6, 23, 0.75);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  }
+
+  select option {
+    min-block-size: 0;
+    padding: 4px 10px 4px 6px;
+    border-radius: 5px;
+    background-color: transparent;
+    color: #cbd5e1;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  select option:hover,
+  select option:focus-visible { background-color: rgba(56, 189, 248, 0.16); color: #e0f2fe; outline: none; }
+  select option:checked { color: #7dd3fc; }
+  select option::checkmark { color: #38bdf8; }
+}

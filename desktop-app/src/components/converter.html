@@ -1,0 +1,165 @@
+<div class="app-head-bar">
+  <div class="app-version" id="appVersion"></div>
+  <div class="win-btns">
+    <button class="win-btn win-btn-min" id="winBtnMin" title="Minimize">Minimize</button>
+    <button class="win-btn win-btn-close" id="winBtnClose" title="Close">Close</button>
+  </div>
+</div>
+<h2>Aura Converter</h2>
+        <div class="specs" id="convSpecsLine"><span class="specs-line">FIR [Kaiser] 64-bit &bull; 30M Taps</span><span class="specs-line">FS8 (352.8k/384k) &bull; FLAC</span></div>
+
+        <!-- The settings every file is rendered with, at a glance
+             (js/rackstrip.js): FS Multiplier, Resolution, GPU, Apodizing,
+             Headroom, each a cell with its name and its value. A cell opens
+             its control under the strip; GPU switches on a click. -->
+        <div class="rk-strip" id="rkStrip"></div>
+        <!-- Says so when the current tap count / FS multiplier has no filter
+             on disk, and offers the exact download that fixes it. Under the
+             strip, so it is seen with the controls put away. -->
+        <div id="convFilterAvail" class="filter-avail"></div>
+        <!-- Shown only when the pre-flight finds no usable GPU, so the
+             answer outlives the dialog that delivered it. -->
+        <div id="convGpuNote" style="display: none; margin-top: 6px; padding: 6px 10px; font-size: 0.75em; line-height: 1.4; color: #fca5a5; border-left: 2px solid rgba(248,113,113,0.5); background: rgba(127,29,29,0.15);"></div>
+
+        <!-- The controls behind the cells: the same elements with the same ids
+             as ever, so the settings, the conversion and the player read them
+             as they always did. One pane at a time, under the strip and over
+             Advanced DSP. -->
+        <div class="rk-pop" id="rkPop" hidden>
+          <div class="rk-pane" data-cell="fs">
+            <div class="prop-block">
+              <div class="tap-slider-container">
+                <div class="tap-slider-header">
+                  <label for="convFsSlider">FS Multiplier</label>
+                  <span class="tap-value" id="convFsDisplay">FS8</span>
+                </div>
+                <input type="range" id="convFsSlider" min="0" max="3" step="1" value="2">
+                <div class="tap-marks" id="convFsMarks" style="margin-top: 4px;">
+                  <span data-fs="2">FS2</span><span data-fs="4">FS4</span><span data-fs="8">FS8</span><span data-fs="16">FS16</span>
+                </div>
+                <div style="text-align: right; margin-top: 2px;">
+                  <span id="convFsHz" style="font-size: 0.68em; color: rgba(196,181,253,0.7); letter-spacing: 0.5px;">352.8 / 384 kHz</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="rk-pane" data-cell="taps">
+            <div class="prop-block">
+              <div class="tap-slider-container">
+                <div class="tap-slider-header">
+                  <label for="convTapSlider">Filter Resolution</label>
+                  <span class="tap-value" id="convTapDisplay">30.0M Taps</span>
+                </div>
+                <input type="range" id="convTapSlider" min="0" max="4" step="1" value="4">
+                <!-- Dimmed marks are tap counts this installation has no blobs for.
+                     The slider still reaches them, so the pack that would fill the
+                     gap can be named and offered. -->
+                <div class="tap-marks" id="convTapMarks" style="margin-top: 4px;">
+                  <span data-taps="5000">5k</span><span data-taps="1000000">1M</span><span data-taps="5000000">5M</span><span data-taps="10000000">10M</span><span data-taps="30000000">30M</span>
+                </div>
+              </div>
+              <!-- Custom Filter Row (converter) -->
+              <div class="custom-filter-row">
+                <button id="convLoadFilterBtn" class="custom-filter-btn" title="Load .npy filter"><svg width="12" height="10" viewBox="0 0 14 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 3h4l1.5-2H13a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/></svg> Custom Filter (.npy)</button>
+                <button id="convClearFilterBtn" class="custom-filter-clear"><svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="1.5" y1="1.5" x2="8.5" y2="8.5"/><line x1="8.5" y1="1.5" x2="1.5" y2="8.5"/></svg> Clear</button>
+              </div>
+              <div id="convFilterInfo" class="custom-filter-info"></div>
+            </div>
+          </div>
+          <!-- Apodizing and Headroom: the selects keep the value; their
+               choices are listed in the pane (rackstrip.js). -->
+          <div class="rk-pane" data-cell="apod">
+            <label class="rk-pane-h" for="convApodizing">Apodizing</label>
+            <select id="convApodizing" class="rk-native">
+              <option value="0">Off</option>
+              <option value="1" selected>Gentle (20kHz)</option>
+              <option value="2">Moderate (19kHz)</option>
+              <option value="3">Strong (18kHz)</option>
+            </select>
+            <div class="rk-opts" data-for="convApodizing"></div>
+            <div class="rk-why rk-why-aa"></div>
+            <div class="rk-why">Suppresses pre-ringing artifacts from CD mastering ADC. Only applied to 44.1/48kHz sources.</div>
+          </div>
+          <div class="rk-pane" data-cell="hr">
+            <label class="rk-pane-h" for="convHeadroom">Headroom</label>
+            <select id="convHeadroom" class="rk-native">
+              <option value="0">Off (−0.5 dBTP)</option>
+              <option value="-0.5" selected>-0.5 dB</option>
+              <option value="-1.0">-1.0 dB</option>
+              <option value="-3.0">-3.0 dB</option>
+            </select>
+            <div class="rk-opts" data-for="convHeadroom"></div>
+            <div class="rk-why">The ceiling for the output's true peak. A file whose peaks come out above it is turned down until the loudest one sits there — or, with Intersample Peak Correction on, only those peaks are held, when they are few and within 6 dB. Quieter files are not raised. Off keeps the shipped −0.5 dBTP.</div>
+          </div>
+        </div>
+
+        <!-- ── Advanced DSP ────────────────────────────────────────────────
+             Three zones — Source, Conversion, Output — and inside each the
+             stages in the order the pipeline runs them. The zones and their
+             rows are built by js/dsprack.js out of DSP_CHAIN, so the badges
+             always stand in pipeline order and the order is written once.
+
+             The badges are the interface; the checkboxes are still here,
+             hidden, keeping their ids so settings.js, converter.js and every
+             existing change listener go on working untouched. -->
+        <div class="lab-field" id="labField">
+          <div class="lab-sec">
+            <span class="lab-sec-t">Advanced DSP</span>
+          </div>
+          <!-- zones are built by js/dsprack.js -->
+        </div>
+        <!-- Only ever visible when a dependency or conflict rule is broken. -->
+        <div class="lab-inv" id="labInv"></div>
+
+        <!-- What a fresh install opens on. Everything the engine can decide
+             for itself is on; the three that need a decision from the listener
+             are off. Hybrid-Phase and Continuous Alpha because TFS occupies
+             the same slot and is the better default, and they cost 2× the
+             time; XTC because it cannot come up at all until a listening
+             triangle has been measured. -->
+        <div class="lab-hidden">
+          <!-- GPU: its cell in the strip switches this (rackstrip.js). -->
+          <input type="checkbox" id="convGpuCheck" checked>
+          <input type="checkbox" id="convLabDeclip" checked>
+          <input type="checkbox" id="convLabIsp" checked>
+          <input type="checkbox" id="convSubsonic" checked>
+          <input type="hidden" id="convSubsonicHz" value="15">
+          <input type="checkbox" id="convLabHeadroom" checked>
+          <input type="checkbox" id="convAdaptiveApodizer" checked>
+          <input type="checkbox" id="convFirResampling" checked>
+          <input type="checkbox" id="convHybridPhase">
+          <input type="checkbox" id="convLabAlpha">
+          <input type="checkbox" id="convLabTfs" checked>
+          <input type="checkbox" id="convLabXtc">
+          <input type="checkbox" id="convAlbumLevel" checked>
+        </div>
+
+        <!-- Smart Drop Zone: file list inside, an overlay for the empty state.
+             Files dragged over it part the rows where they will land. -->
+        <div class="smart-drop-zone" id="dropZone">
+          <!-- Empty state: visible when no files queued -->
+          <div class="dz-empty" id="dzEmpty">
+            <div class="dz-empty-icon">🎵</div>
+            <div class="dz-empty-text">Drop audio files here</div>
+            <div class="dz-empty-hint">or click to browse · WAV, FLAC, MP3, OGG, AAC</div>
+          </div>
+          <!-- File list lives INSIDE the drop zone -->
+          <div class="dz-file-list" id="fileQueue"></div>
+          <!-- Hold-to-Cancel button: 50% opacity by default, 2s hold to confirm -->
+          <button class="dz-cancel-btn" id="dzCancelBtn" tabindex="-1">
+            <div class="dz-cancel-fill" id="dzCancelFill"></div>
+            <span class="dz-cancel-label">Hold to Cancel</span>
+          </button>
+        </div>
+
+        <!-- Progress -->
+        <div class="conv-progress-wrap" id="convProgressWrap">
+          <div class="conv-progress-bar">
+            <div class="conv-progress-fill" id="convProgressFill"></div>
+          </div>
+          <div class="conv-progress-text">
+            <span id="convProgressPct">0%</span>
+            <span id="convProgressFiles">0/0</span>
+          </div>
+        </div>
+        <div class="conv-status" id="convStatus" style="display:none"></div>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Engine</title>
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- The rack's settings folded into one strip (js/rackstrip.js). -->
+  <link rel="stylesheet" href="css/rack.css">
+  <!-- The transport strip over the list (player.js) and the list itself
+       (dropzone.js), each in its own sheet. -->
+  <link rel="stylesheet" href="css/player.css">
+  <link rel="stylesheet" href="css/list.css">
+  <!-- The radio in the list's place: its tabs and stations (js/radio.js). -->
+  <link rel="stylesheet" href="css/radio.css">
+  <!-- In-app update overlay. -->
+  <link rel="stylesheet" href="css/update.css">
+  <!-- Listening mode: the rack folded away, the player and the list take
+       the window (js/listening.js). -->
+  <link rel="stylesheet" href="css/listening.css">
+  <!-- The analyzer's button, readout and row menu in this window. -->
+  <link rel="stylesheet" href="css/analyzer-entry.css">
+  <!-- The newcomer's tour and the ? under the version (js/tour.js). -->
+  <link rel="stylesheet" href="css/tour.css">
+  <!-- The lists that drop down, in the app's colours: last, over the selects' own styles. -->
+  <link rel="stylesheet" href="css/select.css">
+  <!-- Boot guard. A classic script, so it runs even when the module graph
+       below cannot: a syntax error in any module, a failed import or an
+       exception during start-up would otherwise leave a window that looks
+       alive and does nothing. It says what broke, on the page and in the
+       console log. -->
+  <script>
+  (function () {
+    // Block page reload, navigation shortcuts and the back/forward mouse
+    // buttons — a WebView is not a browser tab and these must not reload or
+    // navigate away from the app page. The WebView default context menu is
+    // also suppressed everywhere except actual text-input elements; the
+    // rack's own JS context menu on badges is NOT the WebView menu and
+    // continues to work (it builds a custom DOM overlay).
+    // This guard runs as an inline classic script, before any module, so it
+    // is active even when a module fails to load.
+    window.addEventListener('keydown', function (e) {
+      var k = e.keyCode || e.which;
+      var ctrl = e.ctrlKey || e.metaKey;
+      // F5, Ctrl+R, Shift+F5, Ctrl+F5, Ctrl+Shift+R, BrowserRefresh key
+      if (k === 116 || (ctrl && k === 82) || e.key === 'BrowserRefresh') {
+        e.preventDefault(); return;
+      }
+      // Alt+Left, Alt+Right (back/forward in browser history)
+      if (e.altKey && (k === 37 || k === 39)) { e.preventDefault(); return; }
+      // BrowserBack / BrowserForward keys
+      if (e.key === 'BrowserBack' || e.key === 'BrowserForward') { e.preventDefault(); return; }
+    }, true);
+
+    // Mouse back (button 3) and forward (button 4)
+    window.addEventListener('mousedown', function (e) {
+      if (e.button === 3 || e.button === 4) e.preventDefault();
+    }, true);
+
+    // Suppress the WebView default context menu (it offers Refresh, Back,
+    // Save as…) everywhere except text fields, where copy and paste belong.
+    // Only the default action is cancelled, not the event: the rack's own
+    // menu on its badges is built by its own listener, which still runs.
+    window.addEventListener('contextmenu', function (e) {
+      var t = e.target;
+      var tag = (t && t.tagName) || '';
+      if (tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+      if (tag === 'INPUT') {
+        var tp = (t.type || '').toLowerCase();
+        if (!tp || tp === 'text' || tp === 'number' || tp === 'search' || tp === 'email' || tp === 'url') return;
+      }
+      e.preventDefault();
+    }, true);
+
+    var shown = {};
+    function report(msg) {
+      if (!msg || shown[msg]) return;
+      shown[msg] = true;
+      try { window.__TAURI__.tauri.invoke('player_ui_log', { level: 'error', message: msg }).catch(function () {}); } catch (e) {}
+      // Once the page is up, the console log is enough; the box on the page
+      // is for what stops it from coming up at all.
+      if (window.__auraBooted) return;
+      var put = function () {
+        var box = document.getElementById('bootError');
+        if (!box) {
+          box = document.createElement('div');
+          box.id = 'bootError';
+          box.className = 'boot-error';
+          document.body.appendChild(box);
+        }
+        var line = document.createElement('div');
+        line.textContent = msg;
+        box.appendChild(line);
+      };
+      if (document.body) put(); else document.addEventListener('DOMContentLoaded', put);
+    }
+    window.__auraReport = report;
+    window.addEventListener('error', function (e) {
+      var t = e.target;
+      // A track without a cover answers 404 for it: that is not an error.
+      if (t && t.id === 'plArt') return;
+      if (t && t !== window && (t.src || t.href)) { report('Failed to load ' + (t.src || t.href)); return; }
+      report((e.message || 'Script error') + (e.filename ? ' — ' + e.filename.split('/').pop() + ':' + e.lineno : ''));
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e.reason;
+      report('Unhandled: ' + (r && r.message ? r.message : String(r)));
+    });
+    // Slow is not broken: if start-up finishes after all, the notice goes.
+    var SLOW = 'The interface did not finish starting — see the messages above, or the console window.';
+    setTimeout(function () {
+      if (window.__auraBooted) return;
+      report(SLOW);
+      var t = setInterval(function () {
+        if (!window.__auraBooted) return;
+        clearInterval(t);
+        var box = document.getElementById('bootError');
+        if (!box) return;
+        [].slice.call(box.children).forEach(function (l) { if (l.textContent === SLOW) box.removeChild(l); });
+        if (!box.children.length) box.parentNode.removeChild(box);
+      }, 500);
+    }, 8000);
+  })();
+  </script>
+
+</head>
+<body>
+
+      <!-- ╔══════════════════════════════════════╗ -->
+      <!-- ║        PANEL 2: CONVERTER            ║ -->
+      <!-- ╚══════════════════════════════════════╝ -->
+      <div class="slide-panel" id="converterPanel"></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

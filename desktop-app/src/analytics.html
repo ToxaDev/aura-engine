@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AuraEngine Analyzer</title>
+  <link rel="stylesheet" href="css/analytics.css" />
+  <!-- The analyzer's own tour and its ? in the title bar. -->
+  <link rel="stylesheet" href="css/tour.css" />
+  <!-- The lists that drop down, in the app's colours. -->
+  <link rel="stylesheet" href="css/select.css" />
+</head>
+<body>
+  <!-- Root panel (decorations:false, transparent:true → panel draws own chrome) -->
+  <div class="an-panel" id="anRoot">
+
+    <!-- ── Title bar ─────────────────────────────────────────────────── -->
+    <div id="anTitleBar">
+      <span class="an-title-text" id="anTitleText"><span class="an-t-app">AuraEngine Analyzer</span></span>
+      <div class="an-win-btns">
+        <!-- Minimize -->
+        <button class="an-win-btn an-win-btn--min" id="anMinBtn"
+          data-tip="Minimize">
+          <svg width="8" height="2" viewBox="0 0 8 2" fill="none"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+            <line x1="0.5" y1="1" x2="7.5" y2="1"/>
+          </svg>
+        </button>
+        <!-- Maximize / restore (a double click on the title bar does the same) -->
+        <button class="an-win-btn an-win-btn--max" id="anMaxBtn"
+          data-tip="Maximize">
+        </button>
+        <!-- Close -->
+        <button class="an-win-btn an-win-btn--close" id="anCloseBtn"
+          data-tip="Close">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" aria-hidden="true">
+            <line x1="1" y1="1" x2="7" y2="7"/>
+            <line x1="7" y1="1" x2="1" y2="7"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── HP banner (shown when HP/αHP active and O not yet measured) ── -->
+    <div id="anHpBanner" class="an-hidden" role="alert">
+      Hybrid-Phase is active — O values update as track plays.
+    </div>
+
+    <!-- ── Chain strip ────────────────────────────────────────────────── -->
+    <div id="anChainWrap">
+      <span id="anChainLabel">Chain</span>
+      <div id="anChainStrip" role="list" aria-label="Active DSP stages">
+        <!-- Chips injected by window.js -->
+      </div>
+    </div>
+    <!-- The whole-track analysis still running: a thin gold line under the chain, its percentage riding at the fill's end -->
+    <div id="anProgress" class="an-progress--idle"><i id="anProgressFill"></i><span id="anProgressPct"></span></div>
+
+    <!-- ── Toolbar ────────────────────────────────────────────────────── -->
+    <div id="anToolbar">
+      <!-- Snapshot -->
+      <button class="an-btn" id="anSnapBtn" data-tip="Freeze the O curve the spectrum shows now, to compare with later (key S). Up to eight; Ctrl+Z removes the last.">
+        <svg width="12" height="10" viewBox="0 0 14 12" fill="none"
+          stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true">
+          <rect x="1" y="3" width="12" height="8" rx="1.5"/>
+          <circle cx="7" cy="7" r="2.2"/>
+          <path d="M5 3V2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1"/>
+        </svg>
+        <span class="an-btn-label">Snapshot</span>
+      </button>
+
+      <div class="an-spacer"></div>
+
+      <!-- B toggle -->
+      <button class="an-btn" id="anBToggle"
+        data-tip="B on the spectrum: the source after its stages, before the filter (key B)">
+        B
+      </button>
+
+      <!-- Export -->
+      <button class="an-btn" id="anExportMenuBtn"
+        data-tip="Export: forum text, a picture of the window or the graph, CSV, TSV">
+        <svg width="12" height="10" viewBox="0 0 14 12" fill="none"
+          stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true">
+          <path d="M7 1v7M4 5l3 3 3-3"/>
+          <path d="M2 9v2h10V9"/>
+        </svg>
+        <span class="an-btn-label">Export ▾</span>
+      </button>
+    </div>
+
+    <!-- ── Body: the numbers on the left, the graphs on the right, a
+         splitter between them (window.js); one column when narrow. ──── -->
+    <div id="anBody">
+    <div id="anLeft">
+
+    <!-- ── Metrics section (always visible) ──────────────────────────── -->
+    <div class="an-section" id="anMetricsSection">
+      <div class="an-section-head">
+        <span class="an-section-title">Metrics</span>
+      </div>
+      <div id="anMetricsTable">
+        <!-- Populated by metrics-table.js -->
+      </div>
+    </div>
+
+    <!-- ── Copyable-card strip ────────────────────────────────────────── -->
+    <div id="anCardStrip">
+      <button class="an-card-btn" id="anCardFooTp" data-tip="Copy the foo_truepeak-style report (source and output) to the clipboard">
+        <span class="an-btn-label">foo_truepeak</span>
+      </button>
+      <button class="an-card-btn" id="anCardFooDr" data-tip="Copy the foo_dr_meter-style report (source and output) to the clipboard">
+        <span class="an-btn-label">foo_dr</span>
+      </button>
+      <button class="an-card-btn" id="anCardLab" data-tip="Copy the LAB REPORT lines (the ASR post format) to the clipboard">
+        <span class="an-btn-label">lab report</span>
+      </button>
+
+      <div class="an-spacer"></div>
+
+      <button class="an-card-btn" id="anCopyAll" data-tip="Copy all three reports to the clipboard (Ctrl+C with nothing selected)">
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none"
+          stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true">
+          <rect x="4" y="4" width="7" height="7" rx="1"/>
+          <path d="M1 8V2a1 1 0 0 1 1-1h6"/>
+        </svg>
+        <span class="an-btn-label">Copy all</span>
+      </button>
+      <button class="an-card-btn" id="anSavePng"
+        data-tip="Save a picture of this window as it looks now (PNG), with a line of what was measured (Ctrl+Shift+S)">
+        <svg width="10" height="10" viewBox="0 0 12 12" fill="none"
+          stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true">
+          <rect x="1" y="2" width="10" height="8" rx="1"/>
+          <circle cx="4" cy="5" r="1.2"/>
+          <path d="M1 8.5l3-3 2 2 2-2.5 3 3"/>
+        </svg>
+        <span class="an-btn-label">PNG</span>
+      </button>
+    </div>
+
+    </div><!-- /#anLeft -->
+    <div id="anSplit" role="separator" aria-orientation="vertical"></div>
+
+    <!-- ── Panel scroll area ──────────────────────────────────────────── -->
+    <div id="anPanels">
+
+      <!-- Spectrum panel (open by default) -->
+      <div class="an-section an-panel-collapsible an-panel--expanded" id="anSpectrumSection">
+        <div class="an-section-head" role="button" aria-expanded="true" aria-controls="anSpectrumBody">
+          <span class="an-section-title">Spectrum</span>
+          <svg class="an-panel-chevron" width="10" height="7" viewBox="0 0 10 7" fill="none"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"><polyline points="1,1 5,6 9,1"/></svg>
+        </div>
+        <div class="an-panel-body" id="anSpectrumBody">
+          <div class="canvas-panel-wrap" id="anSpectrumPanel">
+            <!-- layer-strip injected by layers.js -->
+            <div class="an-canvas-wrap" id="anSpectrumCanvasWrap">
+              <!-- canvases injected by spectrum-view.js -->
+            </div>
+          </div>
+          <div class="an-cursor-legend" id="anSpectrumCursorLegend">
+            <!-- cursor values injected at runtime -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Loudness History panel (open at ≥960px; collapsed below) -->
+      <div class="an-section an-panel-collapsible an-panel--expanded" id="anLoudnessSection">
+        <div class="an-section-head" role="button" aria-expanded="true" aria-controls="anLoudnessBody">
+          <span class="an-section-title">Loudness History</span>
+          <svg class="an-panel-chevron" width="10" height="7" viewBox="0 0 10 7" fill="none"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"><polyline points="1,1 5,6 9,1"/></svg>
+        </div>
+        <div class="an-panel-body" id="anLoudnessBody">
+          <div class="canvas-panel-wrap" id="anLoudnessPanel">
+            <div class="an-canvas-wrap" id="anLoudnessCanvasWrap">
+              <!-- injected by loudness-view.js -->
+            </div>
+          </div>
+          <div class="an-cursor-legend" id="anLoudnessCursorLegend"></div>
+        </div>
+      </div>
+
+      <!-- Spectrogram panel (collapsed by default) -->
+      <div class="an-section an-panel-collapsible" id="anSpectrogramSection">
+        <div class="an-section-head" role="button" aria-expanded="false" aria-controls="anSpectrogramBody">
+          <span class="an-section-title">Spectrogram</span>
+          <svg class="an-panel-chevron" width="10" height="7" viewBox="0 0 10 7" fill="none"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"><polyline points="1,1 5,6 9,1"/></svg>
+        </div>
+        <div class="an-panel-body" id="anSpectrogramBody">
+          <div class="canvas-panel-wrap" id="anSpectrogramPanel">
+            <div class="an-canvas-wrap" id="anSpectrogramCanvasWrap">
+              <!-- injected by spectrogram-view.js -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Waveform panel (collapsed by default) -->
+      <div class="an-section an-panel-collapsible" id="anWaveformSection">
+        <div class="an-section-head" role="button" aria-expanded="false" aria-controls="anWaveformBody">
+          <span class="an-section-title">Waveform</span>
+          <svg class="an-panel-chevron" width="10" height="7" viewBox="0 0 10 7" fill="none"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"><polyline points="1,1 5,6 9,1"/></svg>
+        </div>
+        <div class="an-panel-body" id="anWaveformBody">
+          <div class="canvas-panel-wrap" id="anWaveformPanel">
+            <div class="an-canvas-wrap" id="anWaveformCanvasWrap">
+              <!-- injected by waveform-view.js -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Histogram panel (collapsed by default) -->
+      <div class="an-section an-panel-collapsible" id="anHistogramSection">
+        <div class="an-section-head" role="button" aria-expanded="false" aria-controls="anHistogramBody">
+          <span class="an-section-title">Histogram</span>
+          <svg class="an-panel-chevron" width="10" height="7" viewBox="0 0 10 7" fill="none"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"><polyline points="1,1 5,6 9,1"/></svg>
+        </div>
+        <div class="an-panel-body" id="anHistogramBody">
+          <div class="canvas-panel-wrap" id="anHistogramPanel">
+            <div class="an-canvas-wrap" id="anHistogramCanvasWrap">
+              <!-- injected by histogram-view.js -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stereo panel (collapsed by default) -->
+      <div class="an-section an-panel-collapsible" id="anStereoSection">
+        <div class="an-section-head" role="button" aria-expanded="false" aria-controls="anStereoBody">
+          <span class="an-section-title">Stereo</span>
+          <svg class="an-panel-chevron" width="10" height="7" viewBox="0 0 10 7" fill="none"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"><polyline points="1,1 5,6 9,1"/></svg>
+        </div>
+        <div class="an-panel-body" id="anStereoBody">
+          <div class="canvas-panel-wrap" id="anStereoPanel">
+            <div class="an-canvas-wrap" id="anStereoCanvasWrap">
+              <!-- injected by stereo-view.js -->
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- A stream's songs (its tab only while one plays): songs-view.js -->
+      <div class="an-section an-panel-collapsible" id="anSongsSection">
+        <div class="an-section-head" role="button" aria-expanded="false" aria-controls="anSongsBody">
+          <span class="an-section-title">Songs</span>
+          <svg class="an-panel-chevron" width="10" height="7" viewBox="0 0 10 7" fill="none"
+            stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+            aria-hidden="true"><polyline points="1,1 5,6 9,1"/></svg>
+        </div>
+        <div class="an-panel-body" id="anSongsBody">
+          <div class="an-songs" id="anSongs"></div>
+        </div>
+      </div>
+
+    </div><!-- /#anPanels -->
+    </div><!-- /#anBody -->
+
+    <!-- ── Status bar ─────────────────────────────────────────────────── -->
+    <div id="anStatusBar">
+      <div id="anPlayheadWrap">
+        <div id="anPlayheadFill"></div>
+      </div>
+      <span id="anDurationText">--:-- / --:--</span>
+      <span id="anCoverageText"></span>
+      <button id="anExportBtn" data-tip="Save a picture of this window (PNG)">
+        <svg width="12" height="10" viewBox="0 0 14 12" fill="none"
+          stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"
+          aria-hidden="true">
+          <rect x="1" y="2" width="12" height="9" rx="1"/>
+          <circle cx="5" cy="6" r="1.5"/>
+          <path d="M1 9l3-3.5 2.5 2.5 3-4 4 5"/>
+        </svg>
+      </button>
+    </div>
+
+  </div><!-- /.an-panel -->
+
+  <!-- Tooltip element (driven by window.js; timing in js/tip-timing.js) -->
+  <div id="labTip" role="tooltip"><span class="hint"></span></div>
+
+  <!-- Entry point: window.js owns the per-window logic -->
+  <script type="module" src="js/analytics/window.js"></script>
+  <!-- The tour of this window (its ? in the title bar) -->
+  <script type="module" src="js/analytics/tour-analyzer.js"></script>
+
+</body>
+</html>

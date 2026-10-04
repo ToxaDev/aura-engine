@@ -1,0 +1,639 @@
+/* ═══ Listening mode ═════════════════════════════════════════════════════
+   One DOM, two layouts. body.mode-listening folds the rack away (it keeps
+   working, hidden — the sound does not change), lifts the player under the
+   heading and grows it, and gives the list the rest of the window in whole
+   rows. js/listening.js owns the class, the numbers (--lm-player-h,
+   --lm-cover, --lm-rows) and the animation between the two. */
+
+/* ── the strip that switches the mode (both layouts) ─────────────────── */
+
+/* The player is the flap's positioning box and its own stacking context:
+   the flap, the spectrum and, while animating, the moving shell stay
+   inside it. Six pixels more at the top in the studio, so the flap's
+   13 px keep off the transport and the title. */
+#plBar { position: relative; z-index: 0; padding-top: 14px; }
+
+/* A button, so a click on it never starts a window drag (main.js).
+
+   A flap: the player's whole top edge, corners included. At rest it is the
+   edge itself and only the arrow shows, a little below the edge. With the
+   pointer within a few pixels of it (listening.js sets lm-near-top) the
+   flap shows grey, parted from the case by a dark gap; over it, it lights.
+   It never moves. The hit zone is the flap and its gap (13 px), above the
+   transport. */
+.pl-mode-strip {
+  position: absolute; top: -1px; left: -1px; right: -1px;
+  height: 14px;
+  margin: 0; padding: 0; border: 0;
+  background: transparent;
+  cursor: pointer;
+  z-index: 3;
+}
+.pl-mode-strip::before,
+.pl-mode-strip::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, background 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+/* the gap under the flap, where it parts from the case */
+.pl-mode-strip::before {
+  top: 11px; height: 2px;
+  left: 6px; right: 6px;
+  border-radius: 1px;
+  background: rgba(0, 0, 0, 0.8);
+  box-shadow: 0 1px 0 rgba(148, 163, 184, 0.10);
+}
+/* the flap: the case's top edge and corners, its outline the case's own */
+.pl-mode-strip::after {
+  top: 0; height: 11px;
+  box-sizing: border-box;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-bottom: 0;
+  border-radius: 12px 12px 3px 3px / 11px 11px 3px 3px;
+  background: linear-gradient(180deg, rgba(51, 65, 85, 0.98), rgba(26, 36, 55, 0.98));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+#plBar.lm-near-top .pl-mode-strip::before,
+#plBar.lm-near-top .pl-mode-strip::after,
+.pl-mode-strip:hover::before,
+.pl-mode-strip:hover::after,
+.pl-mode-strip:focus-visible::before,
+.pl-mode-strip:focus-visible::after { opacity: 1; }
+/* over it: the flap lights, in place — softly (Anton 26.09: "a little less
+   bright"; was border .8, #0e7490→#0c4a6e, a 10 px glow at .45) */
+.pl-mode-strip:hover::after,
+.pl-mode-strip:focus-visible::after {
+  border-color: rgba(186, 230, 253, 0.55);
+  background: linear-gradient(180deg, rgba(14, 96, 122, 0.96), rgba(12, 64, 96, 0.96));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.75), 0 0 6px rgba(56, 189, 248, 0.26);
+}
+.pl-mode-strip:focus { outline: none; }
+/* the arrow: always there, a hint that the edge does something; at rest a
+   little below the edge, inside the flap once it shows */
+.pl-mode-strip svg {
+  position: absolute; left: 50%; top: 6px;
+  width: 11px; height: 7px;
+  transform: translateX(-50%);
+  color: rgba(125, 211, 252, 0.5);
+  pointer-events: none;
+  z-index: 1;
+  transition: color 0.15s, top 0.15s;
+}
+#plBar.lm-near-top .pl-mode-strip svg,
+.pl-mode-strip:hover svg,
+.pl-mode-strip:focus-visible svg { top: 2px; }
+#plBar.lm-near-top .pl-mode-strip svg { color: rgba(203, 213, 225, 0.9); }
+.pl-mode-strip:hover svg,
+.pl-mode-strip:focus-visible svg { color: #e0f2fe; }
+body.mode-listening .pl-mode-strip svg { transform: translateX(-50%) rotate(180deg); }
+
+/* The tags line exists for the big player only. */
+.pl-tags { display: none; }
+
+/* Studio-only fragments of shared texts (the list's empty hint). */
+body.mode-listening .lm-studio-only { display: none; }
+
+/* ── what folds away ──────────────────────────────────────────────────── */
+
+/* An allow-list, not a list of blocks: the lab replaces converter.html with
+   its own copy (older markup, extra rows), and everything that is not the
+   heading, the player or the list goes, whatever it is. ONE line: a line
+   break inside the :not() chain would be a descendant combinator. */
+body.mode-listening #converterPanel > :not(.app-head-bar):not(#appVersion):not(h2):not(.specs):not(#plBar):not(#plListHead):not(#dropZone):not(.lm-ghost) { display: none !important; }
+
+/* Conversion is the studio's: no C on the rows, no Convert all, no Hold to
+   Cancel (converter.js shows it with an inline display). M stays. */
+body.mode-listening .pl-conv,
+body.mode-listening #plConvertAll,
+body.mode-listening #dzCancelBtn { display: none !important; }
+
+/* ── the panel: a column over the whole window ───────────────────────── */
+
+body.mode-listening #converterPanel {
+  display: flex;
+  flex-direction: column;
+  /* fitWindowToContent may leave an inline overflow on a short screen;
+     this layout always fits. */
+  overflow: hidden !important;
+  --pl-visible-rows: var(--lm-rows, 6);
+}
+body.mode-listening #converterPanel > * { flex-shrink: 0; }
+/* On the way back the list keeps its rows until the animation ends. */
+body.lm-keeprows #converterPanel { --pl-visible-rows: var(--lm-rows, 6); }
+
+/* ── the big player: the same nodes, laid out by a grid ──────────────── */
+
+body.mode-listening #plBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  /* The first row is the gap over the text; the tab hangs over it. The
+     text's row keeps the height the cover square had (--lm-cover). */
+  grid-template-rows: 14px var(--lm-cover, 216px) minmax(12px, 1fr) auto auto auto auto;
+  grid-template-areas:
+    "strip"
+    "meta"
+    "band"
+    "seek"
+    "trans"
+    "dev"
+    "stat";
+  row-gap: 0;
+  height: var(--lm-player-h, 420px);
+  box-sizing: border-box;
+  margin-top: 0;
+  padding: 0 12px 8px;
+}
+/* No square in the big player (Anton 26.09). A cover lies under the text
+   like a picture under glass: the player's whole width, from its top edge
+   down to the seek bar, darkened, fading to nothing by the seek bar; the
+   bars rise over it. No cover, or nothing loaded: nothing there at all. */
+body.mode-listening #plBar .pl-art-wrap:has(#plArt:not([src])),
+body.mode-listening #plBar .pl-art-wrap.pl-art-hidden,
+body.mode-listening #plBar .pl-art-wrap.pl-art-no-cover,
+body.mode-listening #plBar.lm-no-track .pl-art-wrap { display: none; }
+
+body.mode-listening #plBar .pl-top,
+body.mode-listening #plBar .pl-left-slot { display: contents; }
+
+/* Everything that sits over the spectrum. In the studio .pl-left-slot
+   (z-index 1) keeps the transport above it; as display:contents it has no
+   box, so each cell carries its own. */
+body.mode-listening #plBar .pl-now,
+body.mode-listening #plBar .pl-time-col,
+body.mode-listening #plBar .pl-transport,
+body.mode-listening #plBar .pl-seek,
+body.mode-listening #plBar .pl-dev,
+body.mode-listening #plBar .pl-status { position: relative; z-index: 1; }
+
+/* cover: under everything (the player is its own stacking context) — the
+   bars and the text paint over it. Out to the player's border: the grid's
+   12 px side padding is taken back. */
+body.mode-listening #plBar .pl-art-wrap {
+  grid-row: 1 / 4;
+  grid-column: 1 / -1;
+  position: relative;
+  inset: auto;
+  z-index: -1;
+  margin: 0 -12px;
+  width: auto;
+  height: auto;
+  opacity: 1;
+  display: block;
+  overflow: hidden;
+  border-radius: 11px 11px 0 0;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.85) 40%, rgba(0, 0, 0, 0.35) 72%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.85) 40%, rgba(0, 0, 0, 0.35) 72%, transparent 100%);
+}
+/* A background: filling the width, cropped where it must be; at its own
+   brightness (Anton 27.09) — the text over it carries a shadow instead. */
+body.mode-listening #plBar .pl-art {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  box-sizing: border-box;
+  object-fit: cover;
+  object-position: 50% 40%;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+body.mode-listening #plBar .pl-art-init { display: none !important; }
+
+/* The waves (waves.js): where a cover would lie, when there is none —
+   the same box, under the bars and the text. The canvas is absolutely
+   placed, so the grid's rows do not size to it. Its edges fade in the
+   canvas itself (waves.js): no CSS mask over a canvas that changes every
+   frame. */
+.pl-waves-wrap, .pl-waves-btn { display: none; }
+body.mode-listening #plBar .pl-waves-wrap {
+  display: block;
+  grid-row: 1 / 4;
+  grid-column: 1 / -1;
+  position: relative;
+  z-index: -1;
+  margin: 0 -12px;
+  min-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+body.mode-listening #plBar .pl-waves {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  display: block;
+}
+/* Album (the automatic look): a cover is on, so no waves. An effect chosen
+   by hand (waves.js puts lm-look-effect on the player): the waves on every
+   track, and no cover. The switch is always there. */
+body.mode-listening #plBar:not(.lm-no-track):not(.lm-look-effect):has(.pl-art-wrap:not(.pl-art-hidden):not(.pl-art-no-cover) #plArt[src]) .pl-waves-wrap,
+body.mode-listening #plBar.lm-look-effect .pl-art-wrap,
+body.mode-listening #plBar.lm-look-off .pl-waves-wrap { display: none; }
+
+/* The look switch: a small square at the player's right, beside the bars'
+   switch in the corner; the look's name shows beside it for a moment after
+   a click. The row of these switches (full screen at its left end) hangs a
+   fixed 6 px over the seek bar, not at the foot of the text: there a title
+   on two lines or a long device name ran under it (Anton 3.10). Over the
+   bar lie the band (12 px at the least) and the bar's own 12 px margin, so
+   the 18 px row never reaches the text, however long it is. */
+body.mode-listening #plBar .pl-waves-btn {
+  grid-area: seek;
+  align-self: start;
+  justify-self: end;
+  position: relative;
+  z-index: 2;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; padding: 0;
+  /* From the seek row's top: its 12 px margin, less the 6 px gap and the
+     row's own 18 px. */
+  margin-top: -12px;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: rgba(15, 23, 42, 0.55);
+  color: #7dd3fc;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.2s, background 0.15s;
+}
+body.mode-listening #plBar .pl-waves-btn:hover { opacity: 1; background: rgba(56, 189, 248, 0.2); }
+body.mode-listening #plBar .pl-waves-btn svg { width: 12px; height: 9px; display: block; }
+.pl-waves-name {
+  position: absolute; right: calc(100% + 6px); top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  font-size: 0.6rem; letter-spacing: 0.3px;
+  color: #cbd5e1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.pl-waves-name.show { opacity: 0.9; }
+/* In the showcase the switch goes with the other controls. */
+body.mode-listening #plBar .pl-top.pl-showcase ~ .pl-waves-btn { opacity: 0; pointer-events: none; }
+
+/* The note under a scene with instruments while they are being found
+   (instr-note.js): a small turning ring and a line, a dimmer one under it,
+   low in the middle of the picture — waves.js places it over the seek bar
+   (over the transport on the whole screen). It fades in and out. Its look
+   and states are on the class alone; the rule that lets it show (an id in
+   it) sets nothing a state changes — it outweighed .show and .one. */
+.vis-instr-note {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.8);
+}
+body.mode-listening #plBar > .vis-instr-note,
+.fv-view .fv-stage > .vis-instr-note { display: flex; }
+/* Over the picture and the bars (the player's own layers). */
+body.mode-listening #plBar > .vis-instr-note { z-index: 1; }
+.vis-instr-note.show { opacity: 1; }
+.vis-instr-line {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.66rem; letter-spacing: 0.2px;
+  color: #e2e8f0;
+}
+.vis-instr-sub { margin-top: 1px; font-size: 0.58rem; color: #94a3b8; }
+.vis-instr-sub:empty { display: none; }
+/* Where two lines would reach the text over it (a low big player): one. */
+.vis-instr-note.one { flex-direction: row; align-items: baseline; gap: 8px; }
+.vis-instr-note.one .vis-instr-sub { margin-top: 0; }
+.vis-instr-spin {
+  width: 10px; height: 10px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid rgba(125, 211, 252, 0.25);
+  border-top-color: #7dd3fc;
+  animation: vis-instr-turn 0.9s linear infinite;
+}
+@keyframes vis-instr-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .vis-instr-spin { animation: none; }
+}
+/* On the whole screen the text follows the screen's size, as the rest there. */
+.fv-view .vis-instr-line { font-size: clamp(12px, 0.95vw, 20px); }
+.fv-view .vis-instr-sub { font-size: clamp(10px, 0.8vw, 17px); }
+.fv-view .vis-instr-spin { width: clamp(11px, 0.85vw, 18px); height: clamp(11px, 0.85vw, 18px); }
+
+/* title, tags, the technical line */
+body.mode-listening #plBar .pl-now {
+  grid-area: meta;
+  align-self: start;
+  line-height: 1.3;
+  transform: none;
+  /* The right of the cell belongs to the time and the buffer readout. */
+  padding-right: 120px;
+  max-height: var(--lm-cover, 216px);
+  overflow: hidden;
+}
+body.mode-listening #plBar .pl-title,
+body.mode-listening #plBar .pl-sub {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/* The big player's text (Anton 27.09): the title the brightest white;
+   artist, album and the technical line one light colour; the device it
+   plays on in a dark gold. Every line carries a shadow, to read over a
+   cover at full brightness or over the waves. */
+body.mode-listening #plBar .pl-title { font-size: 1.05em; color: #ffffff; }
+body.mode-listening #plBar .pl-now,
+body.mode-listening #plBar .pl-time-col {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.8), 0 0 14px rgba(2, 6, 23, 0.65);
+}
+body.mode-listening #plBar .pl-tags {
+  display: block;
+  margin-top: 5px;
+}
+.pl-tags-artist, .pl-tags-album {
+  display: block;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pl-tags-artist { font-size: 0.82em; color: #e2e8f0; }
+.pl-tags-album { font-size: 0.72em; color: #e2e8f0; margin-top: 1px; }
+body.mode-listening #plBar .pl-sub { font-size: 0.62em; margin-top: 8px; color: #e2e8f0; }
+/* The technical line and, under it, the device it plays on (listening.js). */
+body.mode-listening #plBar .pl-sub { white-space: normal; -webkit-line-clamp: 3; }
+.pl-sub-dev { display: block; color: #d4a94f; }
+/* On a low screen whole lines give way, each ending in "…", rather than the
+   cell cutting the last one through the middle (listening.js fitText). */
+body.mode-listening #plBar .pl-now[data-fit~="sub2"] .pl-sub { -webkit-line-clamp: 2; }
+body.mode-listening #plBar .pl-now[data-fit~="title1"] .pl-title { -webkit-line-clamp: 1; }
+body.mode-listening #plBar .pl-now[data-fit~="sub1"] .pl-sub { -webkit-line-clamp: 1; }
+body.mode-listening #plBar .pl-now[data-fit~="noalbum"] .pl-tags-album { display: none; }
+
+/* time and buffer: the top right corner, level with the title */
+body.mode-listening #plBar .pl-time-col {
+  grid-area: meta;
+  align-self: start;
+  justify-self: end;
+  text-align: right;
+}
+body.mode-listening #plBar .pl-time { font-size: 0.72em; }
+
+/* the spectrum: behind the seek bar, the transport and the device row,
+   the full width of the player */
+body.mode-listening #plBar .pl-spec-bg {
+  position: absolute;
+  inset: auto;
+  grid-row: 3 / 7;
+  grid-column: 1 / -1;
+  width: auto; height: auto;
+  left: 0; right: 0; top: 0; bottom: 0;
+  border-radius: 6px;
+  z-index: 0;
+}
+
+/* Nothing playing: the idle sea (player.js setSea) at full strength, and
+   it comes up slowly with the swell. */
+body.mode-listening #plBar .pl-top.pl-sea .pl-spec-bg { opacity: 1; transition: opacity 2s ease; }
+
+/* The bars off (Anton 29.09; the switch and the right-click menu): no
+   spectrum, and the picture — the scene or the cover — fills the whole
+   player, from its top edge to its bottom one. The scene dims itself under
+   the seek bar and the buttons while they show (waves.js); the cover fades
+   a little towards them. */
+body.mode-listening #plBar.lm-bars-off .pl-spec-bg { display: none; }
+body.mode-listening #plBar.lm-bars-off .pl-waves-wrap,
+body.mode-listening #plBar.lm-bars-off .pl-art-wrap {
+  grid-row: 1 / -1;
+  margin: 0 -12px -8px;
+  border-radius: 11px;
+}
+body.mode-listening #plBar.lm-bars-off .pl-art-wrap {
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.5) 100%);
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.5) 100%);
+}
+body.mode-listening #plBar.lm-bars-off .pl-dev,
+body.mode-listening #plBar.lm-bars-off .pl-status {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+/* Over the switches' row: the time a click would go to shows above the bar,
+   where the row hangs at its two ends. */
+body.mode-listening #plBar .pl-seek { grid-area: seek; margin-top: 12px; height: 8px; border-radius: 4px; z-index: 3; }
+body.mode-listening #plBar .pl-seek-fill { border-radius: 4px; }
+
+body.mode-listening #plBar .pl-transport {
+  grid-area: trans;
+  justify-self: center;   /* the empty sides stay window-drag ground */
+  gap: 10px;
+  margin: 10px 0;
+}
+body.mode-listening #plBar .pl-transport button { width: 32px; height: 32px; }
+body.mode-listening #plBar .pl-transport button svg { width: 12px; height: 12px; }
+body.mode-listening #plBar .pl-transport .pl-main { width: 44px; height: 44px; }
+body.mode-listening #plBar .pl-transport .pl-main svg { width: 18px; height: 18px; }
+body.mode-listening #plBar .pl-transport .pl-repeat svg { width: 16px; height: 16px; }
+body.mode-listening #plBar .pl-transport .pl-repeat.pl-repeat-on svg { width: 18px; height: 18px; }
+
+/* One line, as in the studio: the analyser's readout (analytics.js appends
+   it to this row) stays at its end and the device list gives way. A second
+   line, even an invisible one, pushed the badges out of the player. */
+/* No dB text beside the slider here: the level shows over the thumb while
+   it moves (Anton 27.09). */
+body.mode-listening #plBar .pl-vol-text { display: none; }
+body.mode-listening #plBar .pl-dev {
+  grid-area: dev;
+  margin-bottom: 8px;
+  transition: opacity 0.2s ease;
+}
+
+/* The badges keep away from the spectrum's floor: 8 px above, 8 px below
+   (listening.js counts them in the rows under the cover) — of the 8 above,
+   3 now lie under the line; the arming bar runs below it, in the 8 under
+   (player.css). */
+body.mode-listening #plBar .pl-status { grid-area: stat; height: 18px; margin-top: 5px; }
+/* The stages the big player plays: a step larger than the studio's line. */
+body.mode-listening #plBar .pl-status .cb,
+body.mode-listening #plBar .pl-status .pl-tok { font-size: 0.66rem; }
+
+/* ── showcase in the big player ───────────────────────────────────────
+   The same state machine (player.js). Cover, title and tags stay where
+   they are; the transport and the device row go, the spectrum comes up,
+   the seek bar stays as a thin progress line. The studio's slide and
+   scale do not apply here. */
+body.mode-listening #plBar .pl-top.pl-showcase .pl-now,
+body.mode-listening #plBar .pl-top.pl-showcase .pl-transport { transform: none; }
+body.mode-listening #plBar .pl-top.pl-showcase .pl-art-wrap { opacity: 1; }
+body.mode-listening #plBar .pl-top.pl-showcase ~ .pl-dev,
+body.mode-listening #plBar .pl-top.pl-showcase ~ .pl-seek {
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+/* Over the waves (an effect, not a cover) the text steps back while the
+   showcase is on, so the waves read (Anton 27.09): title, tags, the
+   technical line and the device. The showcase is left on pause and stop,
+   so the text comes back with them. "Waves shown" is the rule above that
+   hides them, turned round. */
+body.mode-listening #plBar .pl-now { transition: opacity 0.25s ease; }
+body.mode-listening #plBar:not(.lm-no-track):not(.lm-look-off):is(.lm-look-effect, :not(:has(.pl-art-wrap:not(.pl-art-hidden):not(.pl-art-no-cover) #plArt[src]))) .pl-top.pl-showcase .pl-now {
+  opacity: 0.3;
+  transition: opacity 0.8s ease;
+}
+/* The seek bar goes and comes with the transport (the time stays in the
+   corner); faded, it takes no press. */
+body.mode-listening #plBar .pl-seek { transition: opacity 0.2s ease; }
+body.mode-listening #plBar .pl-top.pl-showcase ~ .pl-seek { pointer-events: none; }
+
+/* ── while switching (listening.js) ───────────────────────────────── */
+
+/* No CSS transition may start under the animation: a transition on
+   transform or opacity would win over it. */
+body.lm-anim #plBar,
+body.lm-anim #plBar *,
+body.lm-anim #plBar::before,
+body.lm-anim #plListHead,
+body.lm-anim #dropZone { transition: none !important; }
+/* On a screen lower than the studio the panel scrolls (fitWindowToContent);
+   while switching, the list still has its listening rows and would bring a
+   scrollbar up for the length of the animation. */
+body.lm-anim #converterPanel { overflow: hidden !important; }
+/* Above the rack blocks that are fading out underneath. */
+body.lm-anim #plBar,
+body.lm-anim #plListHead { z-index: 1; }
+body.lm-anim #plListHead { position: relative; }
+body.lm-anim #dropZone { z-index: 1; }
+
+/* The rack blocks fading out keep their place out of the flow. */
+#converterPanel > .lm-ghost { position: absolute; margin: 0; box-sizing: border-box; z-index: 0; pointer-events: none; }
+
+/* The player's own background and border move to a shell that the
+   animation can stretch without stretching what is inside. */
+#plBar.lm-shell { background: transparent !important; border-color: transparent !important; }
+#plBar.lm-shell::before {
+  content: '';
+  position: absolute;
+  left: -1px; right: -1px; top: -1px;
+  height: calc(100% + 2px);
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.55), rgba(15, 23, 42, 0.55));
+  z-index: -1;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-mode-strip::before, .pl-mode-strip::after, .pl-mode-strip svg { transition: none; }
+}
+
+/* ── the picture on the whole screen (fullview.js) ────────────────────
+   A button at the left end of the look switch's row; the window goes full screen and shows
+   the waves (moved in here) or the cover, the title top left, the time top
+   right, the transport at the bottom in the middle. Sizes follow the
+   screen. While a track plays and the pointer rests, the texts and the
+   buttons go (fv-awake off), the pointer too. */
+/* On the left end of the look switch's row, the player's own left edge (Anton 27.09). */
+body.mode-listening #plBar .pl-full-btn { justify-self: start; }
+body.mode-listening #plBar .pl-full-btn svg { width: 11px; height: 11px; }
+/* The bars' switch (listening.js): four little bars; with the bars hidden
+   they dim and a stroke crosses them out. In the right corner, at the
+   player's edge, with the look switch beside it on its left (Anton 1.10):
+   the picture's switch, then the bars'. */
+body.mode-listening #plBar .pl-bars-btn { justify-self: end; }
+body.mode-listening #plBar #plWavesBtn { margin-right: 22px; }
+body.mode-listening #plBar .pl-bars-btn svg { width: 12px; height: 10px; }
+.pl-bars-btn .pl-bars-cross { display: none; }
+.pl-bars-btn.off .pl-bars-cross { display: inline; }
+.pl-bars-btn.off svg g { opacity: 0.4; }
+
+.fv-view { display: none; }
+.fv-view.fv-open {
+  display: block;
+  position: fixed; inset: 0;
+  z-index: 9000;
+  background: radial-gradient(ellipse at 50% 45%, #0f1a2e 0%, #070b14 72%);
+  overflow: hidden;
+  user-select: none;
+}
+.fv-view.fv-open:not(.fv-awake) { cursor: none; }
+.fv-stage { position: absolute; inset: 0; }
+.fv-view .pl-waves-wrap {
+  display: block;
+  position: absolute; inset: 0;
+  margin: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.fv-view .pl-waves { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.fv-view.fv-has-cover .fv-stage { display: none; }
+.fv-cover, .fv-cover-bg { display: none; position: absolute; inset: 0; width: 100%; height: 100%; }
+.fv-view.fv-has-cover .fv-cover {
+  display: block;
+  object-fit: contain;
+  padding: 7vh 7vw;
+  box-sizing: border-box;
+}
+.fv-view.fv-has-cover .fv-cover-bg {
+  display: block;
+  object-fit: cover;
+  filter: blur(48px) brightness(0.35) saturate(1.2);
+  transform: scale(1.12);
+}
+.fv-ui { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.7s ease; }
+.fv-view.fv-awake .fv-ui { opacity: 1; transition: opacity 0.2s ease; }
+.fv-view.fv-awake .fv-ui > * { pointer-events: auto; }
+.fv-title, .fv-time {
+  position: absolute;
+  top: clamp(14px, 2.4vh, 52px);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 10px rgba(0, 0, 0, 0.8), 0 0 24px rgba(2, 6, 23, 0.7);
+}
+.fv-title { left: clamp(16px, 2.6vw, 60px); max-width: 62vw; color: #fff; }
+.fv-name {
+  font-size: clamp(18px, 2.1vw, 46px);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fv-tags {
+  margin-top: 0.3em;
+  font-size: clamp(12px, 1.05vw, 24px);
+  color: #e2e8f0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fv-time {
+  right: clamp(16px, 2.6vw, 60px);
+  font-size: clamp(14px, 1.3vw, 30px);
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+.fv-transport {
+  position: absolute;
+  left: 50%; bottom: clamp(18px, 4.5vh, 72px);
+  transform: translateX(-50%);
+  display: flex; align-items: center;
+  gap: clamp(10px, 1.2vw, 26px);
+}
+.fv-btn, .fv-exit {
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(15, 23, 42, 0.6);
+  color: #e0f2fe;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.fv-btn:hover, .fv-exit:hover { background: rgba(56, 189, 248, 0.25); }
+.fv-btn { width: clamp(38px, 2.8vw, 64px); height: clamp(38px, 2.8vw, 64px); border-radius: 50%; }
+.fv-btn.fv-main { width: clamp(52px, 3.9vw, 90px); height: clamp(52px, 3.9vw, 90px); }
+.fv-btn svg { width: 36%; height: 36%; }
+.fv-exit {
+  position: absolute;
+  right: clamp(16px, 2.6vw, 60px); bottom: clamp(18px, 4.5vh, 72px);
+  width: clamp(28px, 2vw, 46px); height: clamp(28px, 2vw, 46px);
+  border-radius: 6px;
+  color: #7dd3fc;
+}
+.fv-exit svg { width: 50%; height: 50%; }

@@ -1,0 +1,827 @@
+/* ═══ Player: the transport strip over the list ═══════════════════════
+   One strip, always the same height whether anything plays or not: the
+   window is sized once to the panel, so nothing here may grow or shrink. */
+.pl-bar {
+  margin-top: 10px;
+  padding: 8px 10px 7px;
+  border-radius: 12px;
+  border: 1px solid rgba(14, 165, 233, 0.22);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.55), rgba(15, 23, 42, 0.55));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── top area: transport, title, time ─────────────────────────────── */
+.pl-top {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  position: relative;
+  /* No overflow:hidden here — the spectrum has its own clipping wrapper so
+     the main transport button's circle is never clipped at the top. */
+}
+
+/* The spectrum background canvas sits absolutely inside a clipping wrapper
+   that exactly covers the .pl-top row but does not clip its siblings.
+   Opacity is 0.35 in control mode (bars dimmed) and 1.0 in showcase (full
+   brightness). The CSS-level opacity compounds with the alpha values drawn
+   in JS (v * 0.85), giving effective alpha ≈ v * 0.30 in control and
+   v * 0.85 in showcase. */
+.pl-spec-bg {
+  position: absolute; inset: 0;
+  overflow: hidden;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  transition: opacity 0.5s ease;
+}
+.pl-top.pl-showcase .pl-spec-bg { opacity: 1; }
+.pl-spectrum {
+  display: block;
+  width: 100%; height: 100%;
+}
+/* Everything inside .pl-top must sit above the canvas. */
+.pl-left-slot, .pl-now, .pl-time-col { position: relative; z-index: 1; }
+
+/* ── left slot: stacks transport + album art in the same layout cell ── */
+/* The slot is a flex-shrink:0 box whose width is set by the transport (the
+   only in-flow child). The album art sits absolutely inside it and fades in
+   during showcase without touching the layout. */
+.pl-left-slot {
+  flex-shrink: 0;
+  display: flex; align-items: center;
+  position: relative;
+}
+
+/* ── transport buttons ────────────────────────────────────────────── */
+/* Transition: slow into showcase (0.5 s), fast back (0.2 s). The CSS engine
+   uses the destination state's transition, so the two durations are split
+   across the two states. In the showcase the buttons only fade: they keep
+   their size and keep taking the pointer, so a press on the invisible Play
+   plays (player.js ends the showcase on that press). */
+.pl-transport { display: flex; align-items: center; gap: 3px; flex-shrink: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease; }
+.pl-top.pl-showcase .pl-transport {
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+/* A stream: ▶ and ■ only — no list to step through, no repeat — here, in
+   the big player and on the full screen (transport.js, player.js). */
+body.pl-stream #plPrev,
+body.pl-stream #plNext,
+body.pl-stream #plRepeat,
+body.pl-stream .fv-btn[data-for="plPrev"],
+body.pl-stream .fv-btn[data-for="plNext"] { display: none !important; }
+/* The title slides over the faded transport: presses go through it to the
+   buttons underneath. */
+.pl-top.pl-showcase .pl-now { pointer-events: none; }
+.pl-transport button {
+  width: 26px; height: 26px; padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(14, 165, 233, 0.3);
+  background: rgba(15, 23, 42, 0.7);
+  color: #7dd3fc;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0.5;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, opacity 0.2s;
+}
+.pl-transport button:hover,
+.pl-transport button:active,
+.pl-transport button:focus-visible { opacity: 1; }
+.pl-transport button:hover { border-color: #38bdf8; color: #e0f2fe; background: rgba(14, 165, 233, 0.15); }
+
+/* SVG icons inside the buttons. Every icon size differs from its button's
+   inner size (24 px, 30 px for the main one) by an even number, so the icon
+   starts on a whole pixel inside the button; player.js puts the strip itself
+   on a whole pixel (snapTransport). Odd differences left the icons smeared
+   across half pixels, and play/pause read higher than their neighbours. */
+.pl-transport button svg { display: block; width: 10px; height: 10px; flex: none; }
+/* The icon never takes the pointer: a press always lands on the button
+   itself, so an icon swapped between press and release cannot eat the
+   click. */
+.pl-transport button svg, .pl-transport button svg * { pointer-events: none; }
+
+/* Main play/pause: slightly larger than the others — no negative margin
+   needed, flex align-items:center centres it within the row naturally. */
+.pl-transport .pl-main {
+  width: 32px; height: 32px;
+  border-color: rgba(56, 189, 248, 0.6);
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+}
+.pl-transport .pl-main svg { width: 14px; height: 14px; }
+
+/* Repeat button: same family as the others — the on/off state lives in the
+   icon shape, size and colour only; opacity is handled by the shared rule. */
+.pl-transport .pl-repeat svg { width: 14px; height: 14px; }
+/* The loop and the "1" carry the meaning of a lit button: a size up. */
+.pl-transport .pl-repeat.pl-repeat-on svg { width: 16px; height: 16px; }
+.pl-repeat.pl-repeat-on {
+  border-color: rgba(56, 189, 248, 0.6) !important;
+  color: #38bdf8 !important;
+}
+/* Repeat-one gets an extra cyan tint to distinguish it from repeat-all. */
+.pl-repeat.pl-repeat-one {
+  background: rgba(56, 189, 248, 0.08) !important;
+}
+
+/* ── title / sub / time ───────────────────────────────────────────── */
+.pl-now { flex: 1; min-width: 0; line-height: 1.25;
+  transition: transform 0.2s ease;
+  /* transform-origin: left center for the scale in showcase */
+  transform-origin: left center;
+}
+/* In showcase the title block slides left (next to the album art) and
+   grows slightly. translateX is relative to its normal flex position; it
+   moves over the faded transport area so it reads alongside the art. */
+.pl-top.pl-showcase .pl-now {
+  transform: translateX(var(--pl-showcase-slide, -76px)) scale(1.12);
+  transition: transform 0.5s ease;
+}
+.pl-title, .pl-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-title { font-size: 0.78em; color: #e2e8f0; }
+.pl-sub { font-size: 0.6em; color: #64748b; letter-spacing: 0.3px; }
+/* In showcase the sub-line carries "Artist · Album · Year" — slightly
+   brighter than the technical sub so the metadata reads clearly. */
+.pl-top.pl-showcase .pl-sub { color: #94a3b8; }
+
+/* Time column: two lines stacked right-aligned — the position counter on
+   top and the buffer readout below it (item H). */
+.pl-time-col {
+  flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+}
+.pl-time { font-size: 0.62em; color: #94a3b8; font-variant-numeric: tabular-nums;
+  transition: opacity 0.2s ease; }
+.pl-top.pl-showcase .pl-time { opacity: 0.45;
+  transition: opacity 0.5s ease; }
+.pl-buf {
+  font-size: 0.53em;
+  color: #475569;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+  white-space: nowrap;
+}
+
+/* ── seek bar ─────────────────────────────────────────────────────── */
+.pl-seek {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(124, 58, 237, 0.18);
+  cursor: pointer;
+  overflow: visible;           /* thumb and shimmer poke outside the 6 px strip */
+  touch-action: none;          /* let pointer events own this element */
+}
+.pl-seek-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.55), #a78bfa);
+  pointer-events: none;
+}
+
+/* Thumb: appears only while dragging, centred on the seek fill tip. */
+.pl-seek-thumb {
+  position: absolute; top: 50%; transform: translate(-50%, -50%);
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #a78bfa;
+  border: 2px solid rgba(15, 23, 42, 0.8);
+  box-shadow: 0 0 6px rgba(167, 139, 250, 0.7);
+  pointer-events: none;
+}
+
+/* Hover: a hairline at the pointer and the time a click goes to above it.
+   Moved by transform only (player.js drawHover). */
+.pl-seek-hover {
+  position: absolute; left: 0; top: -3px; bottom: -3px; width: 0;
+  display: none; pointer-events: none; will-change: transform;
+}
+.pl-seek-hover::before {
+  content: ''; position: absolute; left: -0.5px; top: 0; bottom: 0; width: 1px;
+  background: rgba(226, 232, 240, 0.75);
+}
+.pl-seek-hover-t {
+  position: absolute; bottom: 15px; left: 0;
+  font-size: 0.52em; color: #e2e8f0;
+  background: rgba(10, 15, 28, 0.88);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 4px; padding: 1px 4px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  will-change: transform;
+}
+
+/* Time label: small floating text above the thumb while dragging. */
+.pl-seek-time-lbl {
+  position: absolute; bottom: 12px;
+  transform: translateX(-50%);
+  font-size: 0.52em; color: #e2e8f0;
+  background: rgba(10, 15, 28, 0.85);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 4px; padding: 1px 4px;
+  white-space: nowrap; pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* After a seek, until the jump is heard: a breathing band from where the
+   sound is now to where it goes, and a dot where the listener clicked.
+   player.js sets left/width; --back when the target is behind. */
+.pl-seek-shimmer {
+  position: absolute; top: -2px; bottom: -2px;
+  border-radius: 4px;
+  pointer-events: none; display: none;
+}
+.pl-seek-shimmer.active {
+  display: block;
+  background: linear-gradient(90deg, rgba(167, 139, 250, 0.22), rgba(56, 189, 248, 0.6));
+  animation: pl-seek-breathe 0.75s ease-in-out infinite alternate;
+}
+.pl-seek-shimmer--back.active {
+  background: linear-gradient(270deg, rgba(167, 139, 250, 0.22), rgba(56, 189, 248, 0.6));
+}
+.pl-seek-shimmer.active::after {
+  content: '';
+  position: absolute; top: 50%; right: 0;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  transform: translate(50%, -50%);
+  background: #e0f2fe;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.85);
+}
+.pl-seek-shimmer--back.active::after { right: auto; left: 0; transform: translate(-50%, -50%); }
+@keyframes pl-seek-breathe {
+  from { opacity: 0.5; }
+  to   { opacity: 1.0; }
+}
+
+/* ── device row ───────────────────────────────────────────────────── */
+.pl-dev { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* The output device: a square with a speaker-and-plug icon, no text (Anton
+   26.09). The device list is the same <select> as before, laid invisible
+   over the icon: a click opens its own list, the keys work as they did, and
+   everything that reads or sets #plDevice is unchanged. Its tooltip names
+   the device. */
+.pl-dev-pick {
+  position: relative;
+  flex: none;
+  width: 22px; height: 22px;
+  box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.08);
+  color: #7dd3fc;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.pl-dev-pick:hover { background: rgba(56, 189, 248, 0.22); color: #e0f2fe; }
+.pl-dev-pick:focus-within { border-color: rgba(125, 211, 252, 0.8); }
+.pl-dev-pick svg { width: 16px; height: 16px; display: block; pointer-events: none; }
+.pl-dev-pick select {
+  position: absolute; inset: -1px;   /* over the border too */
+  width: calc(100% + 2px); height: calc(100% + 2px);
+  margin: 0; padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0.72rem;   /* the list's own text */
+}
+/* The volume slider takes the room the device list had. */
+.pl-vol-wrap { position: relative; flex: 1 1 64px; min-width: 64px; display: flex; align-items: center; }
+.pl-dev input[type=range] { flex: 1 1 auto; width: 100%; min-width: 0; margin: 0; }
+/* The level over the thumb while the slider is held or moved. */
+.pl-vol-tip {
+  position: absolute; bottom: calc(100% + 5px);
+  transform: translateX(-50%);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #e0f2fe;
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 5;
+}
+.pl-vol-tip.show { opacity: 1; }
+/* The analyser's readout before its button, so the button keeps the row's
+   right edge (the readout is there, invisible, before it has numbers). */
+.pl-dev .an-mini { order: 1; }
+.pl-dev .an-open-btn { order: 2; }
+.pl-bp {
+  flex-shrink: 0;
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: transparent;
+  color: #64748b;
+  font-size: 0.58em;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: all 0.15s;
+}
+.pl-bp:hover { border-color: rgba(250, 204, 21, 0.6); color: #fde68a; opacity: 1; }
+.pl-bp.on {
+  border-color: rgba(250, 204, 21, 0.75);
+  color: #facc15;
+  background: rgba(250, 204, 21, 0.1);
+  box-shadow: 0 0 6px rgba(250, 204, 21, 0.25);
+  opacity: 1;
+}
+.pl-dev input[type=range]:disabled { opacity: 0.3; }
+.pl-vol-text {
+  width: 38px; flex-shrink: 0; text-align: right;
+  font-size: 0.6em; color: #94a3b8; font-variant-numeric: tabular-nums;
+}
+
+/* ── status line ──────────────────────────────────────────────────── */
+/* Fixed height: the strip's total height must not change with content.
+   The status line is a flex row: the badge cluster on the left, and a
+   message span on the right that carries error / busy / approx text so
+   the badges are never replaced — they stay for as long as the player
+   is running (only BIT-PERFECT replaces them, as before). */
+.pl-status {
+  height: 15px;
+  font-size: 0.58em;
+  color: #64748b;
+  /* Cut at its box as before, but for the arming bar, which runs 3 px
+     below it, in the strip's own padding (nothing lies there). */
+  overflow: visible;
+  clip-path: inset(0 0 -4px 0);
+  display: flex; align-items: center; gap: 4px;
+  /* The whole line sits 3 px higher; the 3 px it leaves below and 3 px of
+     the strip's padding hold the arming bar, clear of the badges. The
+     strip's height stays as it was. */
+  position: relative;
+  margin-top: -3px;
+  padding-bottom: 3px;
+}
+
+/* The arming bar (arming.js): how far the player is with bringing the rack
+   onto the air. 2 px under the badges, from the first chip to the last; a
+   faint track and a fill that grows with the work, breathing in step with
+   the pending badges. Full, it fades; so it does when nothing more is on its
+   way. */
+.pl-arm {
+  position: absolute;
+  left: 0; bottom: -3px;
+  width: 0; height: 2px;
+  border-radius: 1px;
+  overflow: hidden;
+  background: rgba(56, 189, 248, 0.14);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  pointer-events: none;
+}
+.pl-arm.on { opacity: 1; }
+.pl-arm-fill {
+  position: absolute; inset: 0;
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  background: #38bdf8;
+  opacity: 0.8;
+  transition: transform 0.35s linear;
+}
+.pl-arm-fill.jump { transition: none; }
+/* The track breathes too: an empty bar (a rack change not sent yet) is a
+   line that pulses, not nothing. */
+.pl-arm.breathe {
+  animation: pl-arm-track 1.5s ease-in-out infinite;
+  animation-delay: var(--arm-phase, 0s);
+}
+.pl-arm.breathe .pl-arm-fill {
+  animation: pl-arm-breathe 1.5s ease-in-out infinite;
+  animation-delay: var(--arm-phase, 0s);
+}
+/* No share known (a stream's own filter or a rack change's new chain being
+   made): the same fill runs along the bar instead of growing. */
+.pl-arm.breathe.run .pl-arm-fill {
+  right: auto;
+  width: 34%;
+  transition: none;
+  animation: pl-arm-run 1.4s ease-in-out infinite, pl-arm-breathe 1.5s ease-in-out infinite;
+}
+@keyframes pl-arm-run {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+@keyframes pl-arm-track {
+  0%, 100% { background-color: rgba(56, 189, 248, 0.15); }
+  50%       { background-color: rgba(56, 189, 248, 0.45); }
+}
+@keyframes pl-arm-breathe {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1; }
+}
+
+/* The badge wrapper is a display:contents ghost — its children participate
+   directly in the .pl-status flex layout, exactly as if they were written
+   there inline.  This keeps the flex-item alignment that the .cb spans and
+   .pl-tok chips need without adding an extra wrapping box. */
+#plStatusBadges { display: contents; }
+
+/* The message span: fills the remaining space to the right of the
+   badges, clips with ellipsis, and carries the full text in its title. */
+.pl-status-msg {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pl-status-msg.is-error { color: #fca5a5; }
+.pl-status-msg.is-busy  { color: #7dd3fc; }
+
+/* The instruments pack updating by itself (pack-note.js): quiet, at the
+   right end of the line, only while it runs. In a narrow line the words
+   give way (…) and the percent stays. */
+.pl-pack-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  margin-left: auto;
+  padding-left: 8px;
+  white-space: nowrap;
+  color: #94a3b8;
+}
+.pl-pack-note[hidden] { display: none; }
+.pl-pack-note .w { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pl-pack-note .p { flex: 0 0 auto; }
+
+/* The .cb badges from dsprack.css are used directly in the status line.
+   Their default size (0.6rem, 14-15 px tall) fits cleanly in the 15 px slot.
+   The pending and leaving states are added here so they apply everywhere a
+   badge appears (status line, the row's badge container). */
+
+/* Pending: on in the rack, not yet in the audible output. Dim + gentle pulse
+   so the user sees the stage is coming without it shouting. */
+.cb.pending {
+  opacity: 0.38;
+  animation: cb-pending-pulse 1.5s ease-in-out infinite;
+}
+@keyframes cb-pending-pulse {
+  0%, 100% { opacity: 0.38; }
+  50%       { opacity: 0.62; }
+}
+
+/* Leaving: still audible but the rack switch has been turned off.
+   Stays at full fired brightness with a slight fade to signal it is going. */
+.cb.leaving { opacity: 0.72; }
+
+/* ── rack arming / disarming (item C) ────────────────────────────── */
+
+/* Arming: stage is on in the rack but not yet flowing out of the speakers.
+   The coloured vertical bar breathes at the same ~1 Hz rhythm as the strip's
+   pending badge, so both pulse together when a stage is switching in. */
+.lab-badge.pl-arming .bar {
+  animation: pl-bar-breathe 1.5s ease-in-out infinite;
+}
+@keyframes pl-bar-breathe {
+  0%, 100% { background: color-mix(in srgb, var(--h) 24%, transparent); }
+  50%       { background: color-mix(in srgb, var(--h) 70%, transparent); }
+}
+
+/* Disarming: stage is still audible after being switched off — dims the bar
+   to signal it is going away without it abruptly vanishing. */
+.lab-badge.pl-leaving .bar {
+  background: color-mix(in srgb, var(--h) 40%, transparent) !important;
+  opacity: 0.6;
+}
+
+/* Failure flash: the bar briefly turns red, then reverts. */
+.lab-badge.pl-armed-fail .bar {
+  animation: pl-fail-flash 0.8s ease-out forwards !important;
+}
+@keyframes pl-fail-flash {
+  0%   { background: rgba(239, 68, 68, 0.85); box-shadow: 0 0 6px rgba(239, 68, 68, 0.7); }
+  100% { background: color-mix(in srgb, var(--h) 24%, transparent); box-shadow: none; }
+}
+
+/* ── Held while a track is on (player.js setHeld) ─────────────────── */
+
+/* What the player does not play holds while a track is on: dimmed as a
+   switched-off control is, with the not-allowed cursor; its tooltip says why
+   (a press shows it at once). Hover still reaches it for that tooltip. */
+.pl-held,
+.pl-held * { cursor: not-allowed !important; }
+.pl-held { opacity: 0.35 !important; }
+/* …except what the player itself plays through (Polyphase FIR): it holds
+   lit, as the stage that is on — dimmed it read as switched off. */
+.pl-held.pl-held-lit { opacity: 1 !important; }
+
+/* Neutral token chips (taps label, BIT-PERFECT label, DISK label).
+   Vertical padding and font-size match .cb from dsprack.css so all chips
+   sit on the same baseline at the same height in the status line. */
+.pl-tok {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  color: #c4b5fd;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.6rem;
+}
+
+/* Taps chip (e.g. "30M"): white thin outline, white digits, no glow (item I). */
+.pl-tap {
+  border-color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.82);
+  background: transparent;
+}
+
+/* BIT-PERFECT on the air: a quiet line in the badges' place (no stage plays;
+   the mode's own button says the mode). Soft white, as the app's calm lines. */
+.pl-bp-line {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #94a3b8;
+  letter-spacing: 0.2px;
+}
+
+/* DISK chip: neutral — playing from disk is a source, not a DSP stage. */
+.pl-disk {
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #94a3b8;
+  background: transparent;
+  cursor: default;
+}
+
+/* M chip: violet accent, matches the M row button palette. */
+.pl-mem-chip {
+  border-color: rgba(139, 92, 246, 0.55);
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.10);
+  cursor: default;
+}
+
+/* GPU chip: sky-blue when active, red when failed, never absent mid-track. */
+.pl-gpu {
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.06);
+  cursor: default;
+}
+.pl-gpu.pl-gpu-failed {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.14);
+  box-shadow: 0 0 4px rgba(239, 68, 68, 0.18);
+}
+
+/* Dying-lamp blink: slow fade out/in on the taps chip after a GPU→CPU downgrade.
+   Period 2.4 s — noticeably slower than pending-pulse (1.5 s) and seek shimmer
+   (0.75 s), reads as "intermittent failure" rather than "switching in progress". */
+@keyframes pl-tap-warn-blink {
+  0%, 100% { opacity: 0.15; box-shadow: none; }
+  50%       { opacity: 1.0;  box-shadow: 0 0 6px rgba(255, 255, 255, 0.4); }
+}
+.pl-tap.pl-tap-warn {
+  animation: pl-tap-warn-blink 2.4s ease-in-out infinite;
+  cursor: pointer;
+}
+
+/* Switching (arming.js tapsChip): the size is on its way, not heard yet. A
+   gradient runs round the outline (a ring drawn by ::before, its inside
+   masked out), the digits breathe grey to bright in step with the pending
+   badges; heard, the chip is the plain one with the new size. */
+@property --pl-tap-turn {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+.pl-tap.pl-tap-switch {
+  position: relative;
+  border-color: transparent;
+  animation: pl-tap-switch-breathe 1.5s ease-in-out infinite;
+}
+.pl-tap.pl-tap-switch::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--pl-tap-turn),
+    rgba(56, 189, 248, 0.95), rgba(167, 139, 250, 0.9), rgba(255, 255, 255, 0.75),
+    rgba(56, 189, 248, 0.25), rgba(56, 189, 248, 0.95));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: pl-tap-switch-turn 2.4s linear infinite;
+  pointer-events: none;
+}
+@keyframes pl-tap-switch-turn { to { --pl-tap-turn: 360deg; } }
+@keyframes pl-tap-switch-breathe {
+  0%, 100% { color: rgba(148, 163, 184, 0.6); }
+  50%       { color: rgba(255, 255, 255, 0.95); }
+}
+
+/* Metrics block: level and overs — pushed to the right. */
+.pl-metrics {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 5px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.pl-metric {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.92em;
+  color: #64748b;
+  white-space: nowrap; flex-shrink: 0;
+  cursor: default;
+}
+/* Level chip: the true-peak gain the chain applied (negative = quieter). */
+.pl-metric-level {
+  color: #7dd3fc;
+  padding: 0 3px; border-radius: 3px;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  background: rgba(125, 211, 252, 0.06);
+}
+/* Overs chip: amber warning that BIT-PERFECT will deliver clipped samples. */
+.pl-metric-warn {
+  color: #fbbf24;
+  padding: 0 3px; border-radius: 3px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+/* ≈ chip: compact amber indicator that the player approximates the rack.
+   Replaces the old full-sentence note that was eating the status line. */
+.pl-approx-chip {
+  flex-shrink: 0;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.08);
+  color: #fbbf24;
+  font-size: 0.95em;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  cursor: default;
+}
+/* When stopped and only the approx chip is present, show it as a block. */
+.pl-status.is-approx { display: flex; align-items: center; color: inherit; }
+
+/* ── album art (showcase) ─────────────────────────────────────────── */
+
+/* The art wrapper is absolutely positioned inside .pl-left-slot, covering
+   the transport area. It is invisible in control mode and fades in on
+   showcase. */
+.pl-art-wrap {
+  position: absolute; inset: 0;
+  /* At the slot's left edge: snapShowcaseSlide slides the title to just
+     right of the art from there. Centred in the slot, the art sat under the
+     sliding title. */
+  display: flex; align-items: center; justify-content: flex-start;
+  opacity: 0; pointer-events: none;
+  z-index: 2;
+  transition: opacity 0.2s ease;
+}
+.pl-top.pl-showcase .pl-art-wrap {
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+/* The art image itself: square, rounded, cover-fitting. */
+.pl-art {
+  display: block;
+  width: 34px; height: 34px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+/* Initials placeholder: shown when no cover art is available. */
+.pl-art-init {
+  display: none;
+  width: 34px; height: 34px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: #7dd3fc;
+  font-size: 0.58em;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  align-items: center; justify-content: center;
+  text-align: center;
+  flex-shrink: 0;
+  user-select: none;
+}
+/* When the img fails or is absent, the art-wrap gets pl-art-no-cover and
+   shows the initials span instead. */
+.pl-art-no-cover .pl-art { display: none; }
+.pl-art-no-cover .pl-art-init { display: flex; }
+
+/* pl-art-hidden: track has no cover art — suppress the wrap entirely,
+   even in showcase, so the title can take the art's place. */
+.pl-art-wrap.pl-art-hidden { display: none; }
+
+/* No animations when the OS has asked for stillness. */
+@media (prefers-reduced-motion: reduce) {
+  .pl-seek-shimmer.active { animation: none; opacity: 0.75; }
+  .cb.pending { animation: none; opacity: 0.45; }
+  .cb.leaving { opacity: 0.65; }
+  .pl-arm.breathe { animation: none; }
+  .pl-arm.breathe .pl-arm-fill { animation: none; opacity: 0.8; }
+  .lab-badge.pl-arming .bar { animation: none; opacity: 0.6; }
+  .lab-badge.pl-armed-fail .bar { animation: none; }
+  /* Dying-lamp blink: steady dim state instead of animation. */
+  .pl-tap.pl-tap-warn { animation: none; opacity: 0.55; }
+  /* Switching taps: a still gradient ring, the digits half bright. */
+  .pl-tap.pl-tap-switch { animation: none; color: rgba(203, 213, 225, 0.75); }
+  .pl-tap.pl-tap-switch::before { animation: none; }
+  /* Showcase: plain opacity cross-fade only, no transforms. */
+  .pl-transport,
+  .pl-top.pl-showcase .pl-transport { transition: opacity 0.3s ease !important; }
+  .pl-art-wrap,
+  .pl-top.pl-showcase .pl-art-wrap { transition: opacity 0.3s ease !important; }
+  .pl-now,
+  .pl-top.pl-showcase .pl-now {
+    transition: opacity 0.3s ease !important;
+    transform: none !important;
+  }
+  .pl-spec-bg,
+  .pl-top.pl-showcase .pl-spec-bg { transition: opacity 0.3s ease !important; }
+  .pl-time,
+  .pl-top.pl-showcase .pl-time { transition: opacity 0.3s ease !important; }
+  /* In reduced-motion showcase, dim the now block slightly instead of sliding */
+  .pl-top.pl-showcase .pl-now { opacity: 0.95; }
+  .pl-top.pl-showcase .pl-transport { opacity: 0; }
+}
+
+/* ── the player's right-click menu (player.js openPlayerMenu) ─────────
+   Rows like the visualization list's. A row with more to it (›) opens its
+   page in the same box, a back row on top: the list of scenes, the
+   picture delay. */
+.pl-menu {
+  position: fixed; z-index: 50;
+  width: 214px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(12, 19, 35, 0.98);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+.pl-menu[data-page="delay"] { width: 260px; }
+.pl-menu-right {
+  flex: none;
+  max-width: 96px;
+  margin-left: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #64748b;
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+}
+.pl-menu-sub .pl-vis-arrow { flex: none; margin-left: 6px; }
+.pl-vis-item.pl-menu-back { color: #e0f2fe; font-weight: 600; }
+.pl-menu-back .pl-vis-tick { color: #7dd3fc; font-size: 0.8rem; line-height: 1; }
+/* The picture delay's page: the slider, its reset, what it is for. */
+.pl-delay-box { padding: 4px 8px 6px; color: #cbd5e1; font-size: 0.72rem; }
+.pl-delay-row { display: flex; align-items: center; gap: 8px; }
+.pl-delay-row input[type=range] { flex: 1; min-width: 0; }
+.pl-delay-val { width: 52px; text-align: right; font-variant-numeric: tabular-nums; color: #f1f5f9; }
+.pl-delay-reset {
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.66rem;
+  cursor: pointer;
+}
+.pl-delay-reset:hover { color: #e0f2fe; border-color: rgba(125, 211, 252, 0.6); }
+.pl-delay-why { margin-top: 8px; color: #94a3b8; line-height: 1.35; }
+.pl-delay-meas { margin-top: 4px; color: #64748b; }
+.pl-vis-arrow { opacity: 0.8; font-size: 0.8rem; line-height: 1; }
+.pl-vis-item {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0; border-radius: 6px;
+  background: transparent;
+  color: #cbd5e1;
+  font-size: 0.72rem;
+  text-align: left;
+  cursor: pointer;
+}
+.pl-vis-item:hover { background: rgba(56, 189, 248, 0.14); color: #f0f9ff; }
+.pl-vis-tick { width: 10px; flex: none; color: #7dd3fc; }
+.pl-vis-item.on .pl-vis-tick::before { content: '✓'; }
+.pl-vis-item.on { color: #e0f2fe; }
+.pl-vis-item.failed .pl-vis-nm { text-decoration: line-through; opacity: 0.6; }
+.pl-vis-nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-vis-sep { height: 1px; margin: 4px 6px; background: rgba(148, 163, 184, 0.16); }
+
+/* A stream has nothing to seek: the bar rests (radio.js). */
+.pl-seek.pl-seek-live { pointer-events: none; opacity: 0.35; }
+.pl-seek.pl-seek-live .pl-seek-fill { width: 0 !important; }

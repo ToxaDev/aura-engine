@@ -1,0 +1,232 @@
+// @name     Aurora
+// @author   Aura Engine
+// @about    Northern lights: a curtain each for the bass, the middle and the highs. A hit sends a pulse up the rays; their tips light up with the sound ahead.
+// @spec     1
+//
+// @section  "Curtains"      "The curtains of light, one for each part of the sound"
+// @param    int    curtains   3     1    3    1           "Curtains"        "One for the whole sound, two (low, high) or three (bass, middle, highs)"
+// @param    float  height     0.5   0.2  1.0  0.01        "Ray length"      "How far the rays reach up the sky"
+// @param    float  rays       1.0   0.3  2.5  0.05  x     "Rays"            "How many fine rays stand in a curtain"
+// @param    float  contrast   0.65  0.0  1.0  0.01        "Ray contrast"    "0 soft veils … 1 sharp rays"
+// @param    float  folds      1.0   0.0  2.5  0.05  x     "Folds"           "How much the curtains wave and fold"
+//
+// @section  "Colour"
+// @param    choice colours    0     "Northern lights|Album cover|App|Custom"  "Colours"  "Where the colours come from"
+// @param    color  colourLow  #3cff9a                     "Custom lower edge" "With Custom: the colour of the curtains' lower edge"
+// @param    color  colourHigh #a45cff                     "Custom top"      "With Custom: the colour the rays turn to high up"
+// @param    float  bright     1.0   0.3  2.0  0.05  x     "Brightness"      "How bright the curtains are"
+// @param    float  glow       0.6   0.0  1.5  0.05  x     "Glow"            "The soft haze around the curtains"
+//
+// @section  "Motion"        "How the curtains follow the music"
+// @param    float  react      1.0   0.0  2.0  0.05  x     "Reaction"        "How much the music lights and lifts the curtains"
+// @param    float  release    4.0   1.0  12.0 0.5   x     "Release"         "How quickly a curtain dims after its sound"
+// @param    float  pulses     1.0   0.0  2.0  0.05  x     "Pulses"          "How bright the pulse is that a hit sends up the rays"
+// @param    float  pulseSpeed 1.0   0.3  3.0  0.05  x     "Pulse speed"     "How fast a pulse climbs"
+// @param    float  ahead      1.5   0.0  3.5  0.1   s     "Look ahead"      "The tips of the rays show the sound this far ahead"
+// @param    float  shimmer    1.0   0.0  2.0  0.05  x     "Shimmer"         "How much the highs make the rays flicker"
+// @param    float  drift      1.0   0.0  3.0  0.05  x     "Drift"           "How fast the curtains sway by themselves"
+//
+// @section  "Sky"           "Behind and under the curtains"
+// @param    float  stars      0.6   0.0  1.5  0.05  x     "Stars"           "How many stars and how bright"
+// @param    choice ground     1     "None|Hills|Lake"     "Ground"          "What lies under the sky"
+//
+// @section  "Layout"
+// @param    float  hang       -0.42 -0.7 0.1  0.01        "Height"          "Where the curtains hang in the player (full screen: a little below the middle)"
+
+// Each curtain is a sheet of light hanging from a wavy lower edge. Its rays
+// are bright where its part of the spectrum is loud: the lowest notes of
+// its part in the middle, the highest at the sides. A hit sends a pulse up
+// the rays (the height tells how long ago it struck). Up a ray, the moment
+// shown moves into the future: its tip shows the sound `ahead` seconds
+// before it is heard, so what is coming lights the tips first and slides
+// down to the edge as it arrives.
+
+vec3 tint(int i, float up) {                      // up: 0 at the lower edge … 1 high up
+    float k = float(i) / 3.0;
+    if (colours == 3) return mix(colourLow, colourHigh, up);                  // Custom
+    if (colours == 2) return auraAppPalette(0.02 + k * 0.28 + up * 0.35);     // App
+    if (colours == 1) return auraPalette(k * 0.25 + up * 0.5);                // Album cover
+    // Northern lights: green at the edge, violet and red high up; the highs a little bluer.
+    vec3 low = mix(vec3(0.20, 1.00, 0.55), vec3(0.25, 0.95, 0.95), k * 0.9);
+    vec3 high = mix(vec3(0.62, 0.30, 1.00), vec3(0.95, 0.28, 0.55), k);
+    return mix(low, high, smoothstep(0.0, 1.0, up));
+}
+
+// The light of the curtains at q (premultiplied colour).
+vec3 curtainsAt(vec2 q, float base, float aspect, float px) {
+    bool live = uLive > 0.5;
+    float T = uTime * drift;
+    vec3 light = vec3(0.0);
+    for (int i = 0; i < 3; i++) {
+        if (i >= curtains) break;
+        float fi = float(i);
+        // Which part of the sound this curtain shows (its frequencies, its hits, its level now).
+        float f0 = 0.0, f1 = 1.0, partNow = uLoudness;
+        int part = 0;
+        if (curtains == 2) {
+            f0 = i == 0 ? 0.0 : 0.42; f1 = i == 0 ? 0.42 : 1.0;
+            part = i == 0 ? 0 : 2;
+            partNow = i == 0 ? uBass : max(uMid, uTreble);
+        } else if (curtains == 3) {
+            f0 = i == 0 ? 0.0 : i == 1 ? 0.34 : 0.72; f1 = i == 0 ? 0.34 : i == 1 ? 0.72 : 1.0;
+            part = i;
+            partNow = i == 0 ? uBass : i == 1 ? uMid : uTreble;
+        }
+        float depth = curtains == 1 ? 0.5 : fi / float(curtains - 1);     // 0 front, low, heavy … 1 back, high, fine
+        if (!live) partNow = 0.45 + 0.15 * sin(uTime * 0.4 + fi * 2.0);
+
+        // The lower edge, waving.
+        float amp = folds * (0.7 + 0.6 * (live ? uEnergy : 0.4));
+        float x = q.x;
+        float edge = base + (depth - 0.5) * 0.34
+                   + amp * (0.050 * sin(x * (1.3 + 0.5 * depth) + T * 0.31 + fi * 2.1)
+                          + 0.028 * sin(x * (3.7 - depth) - T * 0.47 + fi * 5.3)
+                          + 0.028 * (auraNoise(vec2(x * 2.4 + T * 0.13, fi * 7.7)) - 0.5));
+        float d = q.y - edge;                                              // height above the edge
+        // Reaction 0: a calm glow of its own; 1: as the music; 2: stronger.
+        float rk = min(react, 1.0), rb = max(react, 1.0);
+        partNow = mix(0.45, partNow, rk) * rb;
+        float Hc = height * (0.6 + 0.5 * depth) * (0.55 + 0.45 * clamp(partNow, 0.0, 1.2));
+        if (d < -0.15 || d > Hc * 3.2 + 0.1) continue;                    // (all of it is ~0 there)
+
+        // Along the curtain: brighter and fainter stretches that wander slowly, so there is sky between.
+        float env = 0.3 + 0.7 * smoothstep(0.2, 0.75, auraNoise(vec2(x * 0.75 + T * 0.05 + fi * 3.7, fi * 5.1)));
+        // The sound under this x: the part's lowest notes in the middle, its highest at the sides.
+        float f = mix(f0, f1, clamp(abs(x) / (aspect * 0.92), 0.0, 1.0));
+        float up = clamp(d / Hc, 0.0, 2.0);
+        float lvl, soon;
+        if (live) {
+            lvl = max(musicSpectrum(f, 0.0), musicSpectrum(f, -0.1) * exp(-0.1 * release));
+            // Up a ray the moment moves ahead: the tips glow with the loudness to come (build-ups,
+            // drops), so what is coming lights them first and slides down as it nears.
+            soon = musicEnergy(ahead * smoothstep(0.2, 1.3, up));
+        } else {
+            lvl = 0.42 + 0.18 * sin(uTime * 0.6 + x * 2.3 + fi * 1.7) * sin(uTime * 0.23 + fi);
+            soon = 0.4;
+        }
+        lvl = clamp(mix(0.42, lvl, rk) * rb, 0.0, 1.3);
+        soon = mix(0.45, soon, rk);
+        float w = smoothstep(0.15, 1.1, up);
+        float L = mix(lvl * lvl, soon * soon * 0.8 * (0.4 + 0.6 * lvl), w) * env;
+
+        // Rays: a field of light across the curtain — waves of unrelated lengths over a bent line,
+        // so the rays have smooth sides, every width and uneven gaps, and no two curtains repeat —
+        // that changes slowly along the height, so rays wander, thin out and merge. A wave finer
+        // than a pixel is left out (it would only flicker).
+        float s = x + 0.12 * folds * sin(x * 2.3 + T * 0.4 + fi * 3.3);
+        float rd = rays * (14.0 + 16.0 * depth);
+        float sharp = contrast * smoothstep(0.55, 0.25, rd * px);         // too fine to show: a veil
+        float dd0 = max(d, 0.0);
+        float xr = s * rd;
+        float yv = dd0 * 1.6 / height + fi * 7.0 - T * 0.12;
+        float wx = xr + 0.8 * sin(xr * 0.41 + yv * 0.5) + 0.5 * sin(xr * 0.17 - yv * 0.3 + fi * 2.0);
+        float field = 0.5 + 0.3 * sin(TAU * wx)
+                    + 0.13 * smoothstep(0.5, 0.2, rd * 1.73 * px) * sin(TAU * wx * 1.73 + 1.9 + yv * 0.7)
+                    + 0.07 * smoothstep(0.5, 0.2, rd * 2.87 * px) * sin(TAU * wx * 2.87 + 0.4 - yv * 1.1);
+        // …gathered in bundles: bright groups, dim gaps
+        float bundle = 0.3 + 0.7 * smoothstep(0.2, 0.8, 0.5 + 0.5 * sin(TAU * wx * 0.21 + 1.3 * sin(xr * 0.047 + T * 0.1 + fi)));
+        float rayShape = pow(smoothstep(0.35, 0.98, field), 2.0) * bundle;
+        float n2 = 0.5 + 0.5 * sin(TAU * wx * 0.5 + 1.3);                // a ray's own lateness (pulses)
+        float fl = shimmer * (live ? uTreble : 0.3) * (0.35 + 0.65 * depth);
+        float r2 = 0.5 + 0.5 * sin(TAU * wx * 0.77 + uTime * (1.5 + 4.0 * fl) * 3.0);
+        float ray = mix(1.0, rayShape * 2.3 + 0.08, sharp) * (1.0 + fl * (r2 - 0.5) * 1.2);
+
+        // The sheet: a luminous lower edge, the rays rising from it with soft ends at their own
+        // heights (a bright ray reaches a little lower), fading upwards.
+        float dr = d + (field - 0.5) * 0.04 * Hc / height;
+        float dd = max(dr, 0.0);
+        float foot = smoothstep(-0.03, 0.025, dr);                        // the rays' soft lower ends
+        float body = exp(-dd / (Hc * 0.45)) * foot;
+        float rim = d < 0.0 ? 0.6 * exp(d / max(0.01, 2.5 * px)) : exp(-d / (0.05 * Hc + 0.006));
+        // A hit's pulse climbs the rays where its part sounds: the height is how long ago it struck,
+        // each ray a little early or late. A hit begins in an instant, so its front would be a hard
+        // line: it is spread over 0.16 s by four looks at times shifted by this pixel's own grain.
+        float pulse = 0.0;
+        if (live && pulses > 0.0) {
+            float tau = -dd / (0.55 * pulseSpeed) + (n2 - 0.5) * 0.12;
+            float jit = auraHash(floor(q * uResolution.y * 0.5) + fi * 17.0);
+            float h = 0.0;
+            for (int k = 0; k < 4; k++) h += musicHit(part, tau - (float(k) + jit) * 0.04);
+            pulse = pulses * 0.25 * h * exp(-dd / (Hc * 0.8)) * foot * lvl * env * (0.15 + rayShape);
+        }
+        // (the edge flashes as its part strikes)
+        float strike = live ? pulses * (part == 0 ? uHit.x : part == 1 ? uHit.y : uHit.z) : 0.0;
+        float I = bright * (ray * (body * (0.05 + 0.6 * L) + pulse * 0.9) + rim * (0.08 + 0.45 * lvl * lvl + 0.5 * strike * lvl) * env);
+        float haze = glow * 0.12 * (0.05 + L) * (d > 0.0 ? exp(-abs(d - Hc * 0.15) / (0.12 + Hc * 0.35))
+                                                        : exp(-Hc * 0.15 / (0.12 + Hc * 0.35)) * exp(d / 0.025));
+        // (fewer curtains: each a little brighter, so the sky is as full)
+        light += tint(i, up) * (I + haze) * (1.0 - 0.3 * depth) * (curtains == 1 ? 1.8 : curtains == 2 ? 1.3 : 1.0);
+        // A strong display gets a pink fringe along its lower edge.
+        if (colours == 0 && d < 0.0) light += vec3(1.0, 0.3, 0.62) * bright * 0.35 * lvl * lvl * env * exp(d / max(0.007, 2.5 * px));
+    }
+    // Bright light turns whiter instead of clipping (a soft shoulder).
+    return 1.0 - exp(-1.6 * light);
+}
+
+float starsAt(vec2 q, float horizon) {
+    if (stars <= 0.0) return 0.0;
+    vec2 g = q * uResolution.y / 28.0;                                     // cells of 14 px
+    vec2 cell = floor(g);
+    float h = auraHash(cell);
+    if (h < 1.0 - 0.055 * stars) return 0.0;
+    vec2 at = vec2(auraHash(cell + 13.7), auraHash(cell + 29.1));
+    float dpx = length(g - cell - at) * 14.0;
+    float tw = 0.65 + 0.35 * sin(uTime * (0.7 + 2.0 * fract(h * 37.0)) + h * 60.0);
+    return smoothstep(1.3, 0.2, dpx) * (0.35 + 0.65 * fract(h * 91.0)) * tw * min(stars, 1.0)
+         * smoothstep(horizon, horizon + 0.35, q.y);
+}
+
+vec4 scene(vec2 uv, vec2 p) {
+    float aspect = uResolution.x / uResolution.y;
+    float px = 2.0 / uResolution.y;
+    float base = uFull > 0.5 ? -0.3 : hang;
+    // Over water the land lies higher, so the curtains' edges are seen in it.
+    float horizon = base - (ground == 2 ? 0.22 : uFull > 0.5 ? 0.38 : 0.3);
+
+    // The land: rolling hills, or a low far shore behind still water. Its edge is smoothed over a
+    // pixel (cov: how much of this pixel is land).
+    float ridge = 0.7 * auraNoise(vec2(p.x * 2.2, 3.1)) + 0.3 * auraNoise(vec2(p.x * 6.5, 9.7));
+    float shore = horizon + (ground == 1 ? 0.02 + 0.07 * ridge : 0.003 + 0.012 * ridge);
+    vec3 land = vec3(0.012, 0.018, 0.032);
+    float lit = uLive > 0.5 ? 0.3 + 0.7 * uLoudness : 0.3;
+    float cov = 0.0;
+    vec3 landC = land;
+    if (ground == 1) {
+        cov = smoothstep(shore + px, shore - px, p.y);
+        // the hills' tops catch a little of the light
+        landC = land + tint(1, 0.1) * 0.10 * lit * exp(-max(shore - p.y, 0.0) / 0.012);
+    } else if (ground == 2) {
+        cov = smoothstep(shore + px, shore - px, p.y) * smoothstep(horizon - px, horizon + px, p.y);
+    }
+    if (cov > 0.999) return vec4(landC, 1.0);
+
+    vec2 q = p;
+    float refl = 1.0, shoreRefl = 0.0;
+    bool inWater = ground == 2 && p.y < horizon;
+    if (inWater) {
+        // Still water: the sky upside down, trembling a little, darker further down.
+        float below = horizon - p.y;
+        float calm = min(1.0, below * 6.0);
+        q = vec2(p.x + 0.0035 * sin(p.y * 70.0 + uTime * 1.1) * calm,
+                 2.0 * horizon - p.y + 0.012 * calm * (auraNoise(vec2(p.x * 4.0, p.y * 30.0 - uTime * 0.4)) - 0.5));
+        refl = 0.45 * (1.0 - 0.5 * smoothstep(0.0, 0.5, below));
+        shoreRefl = smoothstep(shore + px, shore - px, q.y);         // the far shore upside down
+        if (shoreRefl > 0.999) return vec4(land * 0.8, 1.0);
+    }
+
+    vec3 light = curtainsAt(q, base, aspect, px) * refl;
+    float a = clamp(max(light.r, max(light.g, light.b)), 0.0, 1.0);
+    float st = starsAt(q, horizon) * refl * (1.0 - a);
+    vec3 rgb = light + vec3(0.85, 0.9, 1.0) * st;
+    float alpha = clamp(a + st, 0.0, 1.0);
+    vec3 sky = rgb / max(alpha, 1e-3);
+    if (inWater) {
+        // the water itself is dark, the reflection lies on it
+        return vec4(mix(mix(land * 0.8, sky, alpha), land * 0.8, shoreRefl), 1.0);
+    }
+    // (with a grain of half a step, so the dark gradients show no bands on the screen)
+    float g = (auraHash(floor(uv * uResolution)) - 0.5) / 255.0;
+    vec3 pm = max(sky * alpha * (1.0 - cov) + landC * cov + g, 0.0);
+    float A = clamp(alpha * (1.0 - cov) + cov + g, 0.0, 1.0);
+    return vec4(pm / max(A, 1e-3), A);
+}

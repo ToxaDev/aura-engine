@@ -1,0 +1,109 @@
+/* The radio in the list's place (js/radio.js): its tabs in the list's head
+   after F / R, its stations in the list's zone, a stream's address under
+   them. Shown while body.lv-radio is on (listview.js);
+   the files' controls and rows are hidden meanwhile, not taken away. */
+
+/* ── the head: the files' controls give way to the tabs ── */
+.rd-htabs { display: none; flex: 1; min-width: 0; gap: 4px; }
+body.lv-radio .rd-htabs { display: flex; }
+body.lv-radio #plPlaylistCtrl,
+body.lv-radio #plPlayAll,
+body.lv-radio #plConvertAll,
+body.lv-radio #plClear { display: none !important; }
+.rd-htab {
+  flex: 1 1 0; min-width: 0; height: 24px; box-sizing: border-box; padding: 0 4px;
+  border-radius: 6px; border: 1px solid rgba(14, 165, 233, 0.22); background: rgba(14, 165, 233, 0.05);
+  color: #7dd3fc; font-size: 0.64em; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.rd-htab:hover { border-color: #38bdf8; background: rgba(14, 165, 233, 0.16); color: #e0f2fe; }
+.rd-htab.on {
+  border-color: rgba(56, 189, 248, 0.8); background: rgba(14, 165, 233, 0.24); color: #e0f2fe;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.22);
+}
+
+/* ── the zone: the stations where the rows are ── */
+.rd-view { display: none; }
+body.lv-radio #dropZone > :not(#rdView) { display: none !important; }
+body.lv-radio #dropZone { border-style: solid; border-color: rgba(14, 165, 233, 0.22); cursor: default; }
+body.lv-radio #dropZone:hover { border-color: rgba(14, 165, 233, 0.32); }
+body.lv-radio .rd-view {
+  display: flex; flex-direction: column; flex: 1; min-height: 0;
+  color: #cbd5e1; font-size: 0.72rem;
+}
+
+.rd-find { display: flex; flex-direction: column; gap: 5px; padding: 6px 6px 2px; }
+.rd-find[hidden] { display: none; }
+.rd-find input, .rd-url input {
+  min-width: 0; padding: 4px 7px;
+  border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 6px;
+  background: rgba(2, 6, 23, 0.7); color: #e2e8f0; font-size: 0.72rem;
+}
+.rd-find input:focus, .rd-url input:focus { outline: none; border-color: rgba(56, 189, 248, 0.6); }
+.rd-pick { display: flex; flex-wrap: wrap; gap: 4px; }
+.rd-pick select {
+  flex: 1 1 30%; min-width: 0; width: auto; margin-top: 0; padding: 3px 4px;
+  border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 6px;
+  background: rgba(2, 6, 23, 0.7); color: #cbd5e1; font-size: 0.68rem;
+}
+.rd-pick select:focus { outline: none; border-color: rgba(56, 189, 248, 0.6); box-shadow: none; }
+
+/* The stations: cards like the list's rows. */
+.rd-list {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain;
+  display: flex; flex-direction: column; gap: 4px; padding: 4px;
+}
+.rd-st {
+  flex: none; display: flex; align-items: center; gap: 9px;
+  width: 100%; min-height: 40px; padding: 5px 8px; box-sizing: border-box;
+  border-radius: 7px; border: 1px solid rgba(14, 165, 233, 0.13); background: rgba(15, 23, 42, 0.75);
+  color: #cbd5e1; text-align: left; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.rd-st:hover, .rd-st:focus-visible { background: rgba(56, 189, 248, 0.12); color: #f0f9ff; outline: none; }
+.rd-st.on { border-color: rgba(56, 189, 248, 0.55); background: rgba(14, 165, 233, 0.12); color: #e0f2fe; }
+.rd-st.dim { opacity: 0.5; }
+.rd-ico {
+  --rd-hue: 200;
+  position: relative; flex: none;
+  width: 28px; height: 28px; border-radius: 6px; overflow: hidden;
+  background: hsl(var(--rd-hue) 45% 26%);
+  display: flex; align-items: center; justify-content: center;
+}
+.rd-ini { color: hsl(var(--rd-hue) 80% 86%); font-size: 0.66rem; font-weight: 600; letter-spacing: 0.02em; }
+.rd-ico img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #0b1220; opacity: 0; }
+.rd-ico.has-img img { opacity: 1; }
+.rd-st.on .rd-ico { box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.8); }
+.rd-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rd-nm, .rd-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-nm { font-size: 0.74rem; }
+.rd-sub { color: #64748b; font-size: 0.64rem; }
+.rd-st.on .rd-nm::before { content: '▶ '; font-size: 0.6rem; color: #7dd3fc; }
+.rd-fav {
+  flex: none; width: 22px; height: 22px; border: 0; border-radius: 50%;
+  background: transparent; color: #64748b; font-size: 0.9rem; line-height: 1; cursor: pointer;
+}
+.rd-fav:hover { background: rgba(148, 163, 184, 0.16); color: #fde68a; }
+.rd-fav.on { color: #facc15; }
+.rd-empty { padding: 18px 8px; color: #64748b; text-align: center; }
+.rd-empty.is-error { color: #fca5a5; }
+.rd-more { display: block; margin: 2px auto; }
+.rd-credit { padding: 2px 4px 0; color: #475569; font-size: 0.62rem; text-align: center; }
+
+/* Under the stations: a stream's address. */
+.rd-tools {
+  flex: none; display: flex; flex-direction: column; gap: 5px;
+  padding: 6px 8px 7px; border-top: 1px solid rgba(148, 163, 184, 0.13);
+}
+.rd-note { color: #fca5a5; font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rd-note[hidden] { display: none; }
+.rd-url { display: flex; gap: 6px; }
+.rd-url input { flex: 1; }
+.rd-btn {
+  flex: none; padding: 4px 12px;
+  border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 6px;
+  background: rgba(56, 189, 248, 0.12); color: #e0f2fe; font-size: 0.72rem; cursor: pointer;
+}
+.rd-btn:hover { background: rgba(56, 189, 248, 0.26); }
+.rd-btn:disabled { opacity: 0.5; cursor: default; }

@@ -1,0 +1,107 @@
+[package]
+name = "aura-engine"
+version = "1.5.1"
+description = "Aura Engine High-Fidelity Audio Upsampler"
+authors = ["you"]
+edition = "2021"
+rust-version = "1.88"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+# GLSL → SPIR-V compilation is delegated to an external glslangValidator
+# binary in build.rs (we tried shaderc-rs, but its native build chain
+# triggers MSVC long-path / SPIRV-Tools compile errors on Windows).
+# build.rs looks for the binary via env var GLSLANG_VALIDATOR or known paths.
+
+[dependencies]
+tauri = { version = "1.5", features = ["api-all"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rustfft = "6.1" # Extreme performance 64-bit convolution matrices
+realfft = "3.5" # Real-input FFT over rustfft: half spectra (N/2 + 1 bins) for the convolvers, f64
+rand = { version = "0.8", features = ["small_rng"] } # Required for generating noise shaping dither
+lazy_static = "1.4" # Global state management for audio streams
+rubato = "0.15" # High-quality async sinc resampling
+rayon = "1.8" # Parallel DSP filter initialization only
+winapi = { version = "0.3", features = ["processthreadsapi", "winbase", "timeapi", "avrt", "errhandlingapi", "winuser", "winreg", "winnt", "shellapi", "dxgi", "dxgi1_4", "winerror", "unknwnbase", "pdh", "combaseapi", "objbase", "synchapi", "fileapi", "wincon", "dwmapi", "libloaderapi"] } # Thread priority, timer resolution, MMCSS; plus the startup diagnostics: registry probe, message boxes, and opening the page that fixes it; DXGI and PDH for how much video memory is free; the single-instance mutex; free disk space for a long file's temporaries; the console window minimized at start, once (dwmapi: without the animation if the terminal brings it back)
+wgpu = { version = "0.19", features = ["spirv"] } # WebGPU bindings + SPIR-V passthrough for DS-precision GPU path
+bytemuck = { version = "1.14", features = ["derive"] } # Zero-cost casting between GPU buffers and Rust types
+pollster = "0.3" # Synchronous block_on for async wgpu functions
+symphonia = { version = "0.6", features = ["all"] } # Audio file decoding (FLAC, WAV, MP3, OGG)
+# Opus for radio streams (symphonia has no Opus decoder): libopus 1.6.1, built
+# from its bundled source (needs cmake), BSD-3-Clause.
+symphonia-adapter-libopus = "0.3"
+# HE-AAC (SBR, PS), for radio streams and files, which symphonia does not
+# decode: the FDK AAC decoder in Rust, from AOSP (platform/external/aac,
+# rust/, tag android-17.0.0_r1), under its own licence (FDK-AAC:
+# vendor/aac/NOTICE). Vendored unchanged in vendor/aac and built from there
+# (.cargo/config.toml).
+aac = { git = "https://android.googlesource.com/platform/external/aac", tag = "android-17.0.0_r1", default-features = false, features = ["aac_dec"] }
+tokio = { version = "1.29.1", features = ["full"] }
+sysinfo = "0.29.5"
+chrono = { version = "0.4", default-features = false, features = ["clock"] } # Local-time timestamps for log lines
+flacenc = { version = "0.5.1", default-features = false }
+
+# Signed in-app updater.
+reqwest = { version = "0.11", default-features = false, features = ["default-tls", "stream", "json"] }
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+base64 = "0.21"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+
+# Spatial scenes: the separation network runs on the ONNX Runtime the spatial
+# pack brings (loaded at run time; nothing is linked or downloaded at build).
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic", "directml", "api-24"] }
+
+# Player mode: event-driven WASAPI output (exclusive, bit-perfect when asked).
+[target.'cfg(windows)'.dependencies]
+wasapi = "0.24"
+# The analyzer's Screenshot: WebView2 draws a window's page as a PNG
+# (webview_png.rs). The versions Tauri's WebView (wry 0.24) is built on, so
+# its controller is the same type here.
+webview2-com = "0.19"
+# COM streams: the analyzer's Screenshot reads WebView2's PNG out of one
+# (webview_png.rs).
+windows = { version = "0.39", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_Com_StructuredStorage"] }
+
+[dev-dependencies]
+# SigningKey::generate() in unit tests needs rand_core. Cargo unifies features
+# per crate, so this extends the main dep; no private-key API is exposed in
+# the updater's public surface.
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "rand_core"] }
+rand = "0.8"
+tempfile = "3"
+# libopus's own encoder makes the Opus test streams (radio/decode.rs).
+opusic-sys = { version = "0.7", default-features = false }
+# The FDK AAC encoder (C, built by cc) makes the AAC-LC, HE-AAC and HE-AAC v2
+# test streams, the same on every system (player/radio/he_aac.rs).
+fdk-aac = "0.8"
+
+# symphonia-common 0.6.1 (MPL-2.0), from vendor/symphonia-common: the crate
+# as published, so that a FLAC above 655 350 Hz — FS16, 705.6 and 768 kHz —
+# can be read back. Its STREAMINFO parser refuses any rate above what a frame
+# header can name, while the STREAMINFO field itself is 20 bits (RFC 9639).
+# What was changed is marked at the top of the changed file.
+[patch.crates-io]
+symphonia-common = { path = "vendor/symphonia-common" }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+# Enable the GPU convolver equivalence and throughput tests (ignored by default).
+gpu-player-tests = []
+
+# DSP hot loops (partitioned OLS Kahan-MAC, DS pack/unpack) live behind
+# crate boundaries (rustfft, bytemuck); without fat LTO the AVX2/FMA codegen
+# enabled via .cargo/config.toml target-cpu=native cannot inline across them.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+# Iteration build: optimised code, no fat-LTO relink (tests and quick checks).
+#     cargo build --profile fast
+[profile.fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true

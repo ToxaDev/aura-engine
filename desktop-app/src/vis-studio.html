@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Visualization studio</title>
+<!--
+  The visualization studio (Anton 27.09): scenes written in GLSL against the
+  app's contract (vis/AURA-VIS-SPEC.md) — by hand or by an AI given that
+  spec — compiled as they are typed, shown on the music playing now, tuned
+  with the settings their @section / @param lines declare, saved, and shown
+  in the player. The logic is js/vis/studio.js.
+-->
+<link rel="stylesheet" href="css/vis-studio.css">
+<link rel="stylesheet" href="css/select.css">
+</head>
+<body>
+<div class="win" id="win">
+  <header id="head" data-tauri-drag-region>
+    <span class="t" data-tauri-drag-region>Visualization studio</span>
+    <span class="scene-name" id="hdrName" data-tauri-drag-region></span>
+    <span class="grow" data-tauri-drag-region></span>
+    <div class="win-btns">
+      <button class="win-btn win-btn-min" id="bMin" aria-label="Minimize" data-tip="Minimize"></button>
+      <button class="win-btn win-btn-max" id="bMax" aria-label="Maximize" data-tip="Maximize (double-click the head bar too)"></button>
+      <button class="win-btn win-btn-close" id="bClose" aria-label="Close" data-tip="Close"></button>
+    </div>
+  </header>
+
+  <div class="body">
+    <aside class="list" id="list">
+      <div class="list-head">Visualizations</div>
+      <div class="list-scroll" id="listScroll"></div>
+      <div class="list-foot">
+        <button id="bNew" data-tip="A new scene from the example in the spec">New</button>
+        <button id="bImport" data-tip="Add a scene file (.aura-vis)">Import…</button>
+        <button id="bFolder" data-tip="The scenes' folder in Explorer">Folder</button>
+      </div>
+      <button class="link" id="bRestore" data-tip="Put back the scenes that came with the app, if any were removed">Bring back the app's scenes</button>
+    </aside>
+
+    <section class="center">
+      <div class="preview-box" id="previewBox">
+        <div class="preview" id="preview">
+          <canvas id="cv"></canvas>
+          <div class="pv-note" id="pvNote"></div>
+          <button class="pv-back" id="pvBack" aria-label="Back" data-tip="Back (Esc)"></button>
+        </div>
+        <div class="pv-bar">
+          <button class="pv-full" id="pvFull" aria-label="Full screen" data-tip="The preview on the whole screen, as the player shows it there. Esc or the button in the corner: back."></button>
+          <div class="seg" id="aspect">
+            <button data-a="player" class="on" data-tip="The shape of the player's picture, its text corner faded as there">Player</button>
+            <button data-a="screen" data-tip="The whole screen's shape, nothing faded">Screen</button>
+          </div>
+          <span class="pv-stat" id="pvStat"></span>
+        </div>
+      </div>
+      <div class="split" id="split" tabindex="0" role="separator" aria-orientation="horizontal" aria-label="Resize the preview and the code" data-tip="Drag to give the picture or the code more room. Double-click: back to the usual size."></div>
+
+      <div class="ai-bar">
+        <input id="idea" type="text" spellcheck="false" placeholder="Idea for an AI: e.g. neon city skyline whose windows light up with the music ahead">
+        <label class="chk" data-tip="Put the code in the editor into the prompt too — for asking the AI to change this scene"><input type="checkbox" id="withCode"> with this code</label>
+        <button id="bCopyAi" data-tip="The whole spec + your idea to the clipboard: paste it into any AI chat">Copy prompt for AI</button>
+        <button id="bPaste" class="accent" data-tip="Take the AI's answer from the clipboard and run it">Paste answer &amp; run</button>
+      </div>
+
+      <div class="editor" id="editor">
+        <div class="gutter" id="gutter"></div>
+        <div class="ed-main">
+          <div class="hl" id="hl"></div>
+          <textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off"></textarea>
+        </div>
+      </div>
+      <div class="errors" id="errors"></div>
+    </section>
+
+    <aside class="side">
+      <div class="info">
+        <div class="info-name" id="infoName"></div>
+        <div class="info-by" id="infoBy"></div>
+        <div class="info-about" id="infoAbout"></div>
+        <div class="tier">
+          <div class="seg" id="tier">
+            <button data-t="1" data-tip="Standard: the scene draws the whole mix — its spectrum, beats and loudness. Works on any computer, nothing to download.">Standard</button>
+            <button data-t="2" data-tip="With instruments: the scene draws each instrument of the song — where it sits, its hits and notes. Needs the instruments pack, downloaded once.">With instruments</button>
+          </div>
+          <span class="sp-state" id="spState"></span>
+          <div class="sp-note" id="specNote"></div>
+        </div>
+        <div class="info-acts">
+          <button class="use" id="bUse" data-tip="Show this scene in the player (the look switch goes through it too)">Show in player</button>
+          <button id="bSaveAs" data-tip="A copy under a new name">Duplicate…</button>
+          <button id="bExport" data-tip="Write the scene to a file, its settings included — to share it">Export…</button>
+        </div>
+      </div>
+      <div class="params-head">
+        <span>Settings</span>
+        <button class="mini" id="bFold" data-tip="Fold or open every section">Fold all</button>
+        <button class="mini" id="bDefaults" data-tip="Every setting back to the scene's own default">Reset all</button>
+      </div>
+      <div class="params" id="params"></div>
+      <div class="side-foot">
+        <div class="st" id="st"></div>
+        <div class="row">
+          <button id="bRevert" data-tip="The code and the settings back to what was saved">Revert</button>
+          <span class="sp"></span>
+          <button class="save" id="bSave" data-tip="Keep the code and the settings (Ctrl+S)">Save</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+<div class="modal" id="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle"></div>
+    <input id="modalInput" type="text" spellcheck="false">
+    <div class="row"><span class="sp"></span><button id="modalNo">Cancel</button><button class="save" id="modalYes">OK</button></div>
+  </div>
+</div>
+<div class="modal" id="packModal" hidden>
+  <div class="modal-box pack-box" role="dialog" aria-modal="true" aria-labelledby="packTitle">
+    <div class="modal-title" id="packTitle">Scenes with instruments need the instruments pack</div>
+    <div class="pack-text" id="packText"></div>
+    <div class="pack-bar" id="packBar" hidden><div class="pack-fill" id="packFill"></div></div>
+    <div class="pack-stat" id="packStat"></div>
+    <div class="row"><span class="sp"></span><button id="packNo">Cancel</button><button class="save" id="packYes">Download</button></div>
+  </div>
+</div>
+<script type="module" src="js/vis/studio.js"></script>
+</body>
+</html>

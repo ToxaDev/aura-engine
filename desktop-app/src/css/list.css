@@ -1,0 +1,554 @@
+/* ═══ CSS custom properties for the row revolver ═══
+   Row height includes the fi-head line + the badge-container reserve so every
+   row is the same height regardless of whether it has badges or not.
+   --pl-row-gap: visible space between rows (A1).
+   --pl-list-pad: inner top/bottom padding inside #fileQueue so rows never
+                  touch the dashed zone border (A7). */
+:root {
+    /* 43 = 1 border + 4 pad + 18 head line + 15 badges + 4 pad + 1 border:
+       the badges sit as far from the bottom edge as the buttons from the
+       top (Anton 26.09; at 40 the badges had ~1 px under them). */
+    --pl-row-h: 43px;
+    /* 4 px gap and 4 px uniform padding:
+       with row-h=43 and gap=4 each "row unit" is 47 px.  At scroll offset
+       N*47 row N+10 starts at N*47+474, past the viewport end at N*47+474 —
+       no sliver at either end.
+       (10×43 + 9×4 + 2×4 = 474: 10 rows of 43 px, 9 inter-row gaps of 4 px,
+       top + bottom container pad of 4 px each.) */
+    --pl-row-gap: 4px;
+    --pl-list-pad: 4px;
+    /* Ten in the studio since the rack folded into its strip (Anton 2.10);
+       on a low screen main.js sets fewer here, not fewer than six. */
+    --pl-visible-rows: 10;
+}
+
+/* ═══ The list's own header ═══ */
+.pl-list-head {
+    display: flex; align-items: center; gap: 5px;
+    margin-top: 10px;
+}
+/* A6: all head controls share the same 24 px height so they sit on one
+   baseline regardless of their content. */
+.pl-head-btn {
+    height: 24px;
+    box-sizing: border-box;
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 0 9px;
+    border-radius: 6px;
+    border: 1px solid rgba(14, 165, 233, 0.35);
+    background: rgba(14, 165, 233, 0.08);
+    color: #7dd3fc;
+    font-size: 0.64em;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.pl-head-btn:hover:not(:disabled):not([aria-disabled="true"]) { border-color: #38bdf8; background: rgba(14, 165, 233, 0.2); color: #e0f2fe; }
+.pl-head-btn:disabled { opacity: 0.35; cursor: default; }
+/* SVG icons inside row and head buttons: block so inline-baseline is gone,
+   flex:none so they do not shrink inside the flex container. */
+.pl-btn svg, .pl-head-btn svg { display: block; flex: none; }
+/* The icon never takes the pointer, so a press lands on the button itself —
+   the node that stays when a row is brought up to date. */
+.pl-btn svg, .pl-btn svg *, .pl-head-btn svg, .pl-head-btn svg *,
+.file-item-close svg, .file-item-close svg *,
+.pl-dd-trigger svg, .pl-dd-trigger svg * { pointer-events: none; }
+.pl-head-clear { border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.06); color: #fca5a5; }
+.pl-head-clear:hover:not(:disabled) { border-color: #ef4444; background: rgba(239, 68, 68, 0.18); color: #fee2e2; }
+.pl-list-head + .smart-drop-zone { margin-top: 5px; }
+
+/* ═══ F / R: the list's two views (js/listview.js) ═══
+   First in the head, a switch: a capsule of two letters with a lit lens
+   that slides under the one shown, its turquoise line at the foot (Anton
+   chose it of three). A dot on the dim letter says something plays there. A
+   hairline after it parts the switch from the view's own controls. */
+.lv-trig {
+    position: relative;
+    width: 58px; height: 24px;
+    box-sizing: border-box;
+    display: flex; align-items: stretch;
+    padding: 0;
+    border-radius: 7px;
+    border: 1px solid rgba(14, 165, 233, 0.35);
+    background: rgba(14, 165, 233, 0.06);
+    font-family: var(--lab-mono, ui-monospace, Consolas, monospace);
+    font-size: 0.68em; font-weight: 700; letter-spacing: 0.5px;
+    color: #475569;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 0.15s, background 0.15s;
+}
+.lv-trig:hover { border-color: #38bdf8; background: rgba(14, 165, 233, 0.12); }
+.lv-trig:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+.lv-lens {
+    position: absolute; top: 2px; bottom: 2px; left: 2px;
+    width: calc(50% - 3px);
+    border-radius: 5px;
+    background: linear-gradient(180deg, rgba(56, 189, 248, 0.30), rgba(14, 165, 233, 0.12));
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.35), inset 0 -2px 0 #38bdf8;
+    transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.2, 1);
+    pointer-events: none;
+}
+.lv-trig[data-view="radio"] .lv-lens { transform: translateX(calc(100% + 2px)); }
+.lv-l {
+    position: relative; z-index: 1;
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: #475569;
+    transition: color 0.18s, text-shadow 0.18s;
+}
+.lv-trig:hover .lv-l:not(.on) { color: #64748b; }
+.lv-l.on { color: #f0f9ff; text-shadow: 0 0 6px rgba(56, 189, 248, 0.95); }
+/* What plays while the other view is shown: its whole letter breathes, slowly
+   (no dot, no blink — Anton 3.10). */
+.lv-dot { display: none; }
+.lv-l.live:not(.on) { animation: lvBreathe 2.6s ease-in-out infinite; }
+@keyframes lvBreathe {
+    0%, 100% { color: #475569; text-shadow: none; }
+    50%      { color: #bae6fd; text-shadow: 0 0 5px rgba(56, 189, 248, 0.55); }
+}
+.lv-rule {
+    flex: none;
+    width: 1px; height: 20px;
+    margin: 0 2px;
+    background: linear-gradient(180deg, transparent, rgba(56, 189, 248, 0.75) 28%, rgba(167, 139, 250, 0.75) 72%, transparent);
+    box-shadow: 0 0 6px rgba(56, 189, 248, 0.35);
+}
+@media (prefers-reduced-motion: reduce) {
+    .lv-lens, .lv-l { transition: none; }
+    .lv-l.live:not(.on) { animation: none; color: #94a3b8; }
+}
+
+/* ═══ Convert all button — 3 states ═══
+   The button is position:relative so the absolutely-placed fill divs sit
+   behind the text without pushing it sideways. overflow:hidden clips the
+   fills at the button's rounded border. The text span is z-index 2 so it
+   floats over both fills at all times. */
+#plConvertAll {
+    position: relative;
+    overflow: hidden;
+    /* A min-width keeps the button stable across all states (idle "Convert all · N",
+       busy "99%", done "✓ 8:51 · ×25.3") so the playlist (flex:1) and the Play
+       button do not shift when the label text changes. */
+    min-width: 90px;
+    flex-shrink: 0;
+    justify-content: center;
+}
+
+/* Progress fill: advances left → right as the batch runs. */
+.pl-ca-progress {
+    position: absolute;
+    left: 0; top: 0; height: 100%;
+    width: 0%;
+    background: rgba(14, 165, 233, 0.32);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Hold-to-cancel red overlay: animates from left on mousedown, retreats on release. */
+.pl-ca-hold {
+    position: absolute;
+    left: 0; top: 0; height: 100%;
+    width: 0%;
+    background: rgba(239, 68, 68, 0.48);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Text label: sits on top of both fills. */
+.pl-ca-text {
+    position: relative;
+    z-index: 2;
+    pointer-events: none;
+    /* Centred by the parent's justify-content:center (flex). */
+}
+
+/* Converting state: progress-bar appearance, cursor invites holding. */
+#plConvertAll.pl-ca-busy {
+    border-color: rgba(56, 189, 248, 0.55);
+    background: rgba(14, 165, 233, 0.04);
+    cursor: pointer;
+}
+#plConvertAll.pl-ca-busy:hover {
+    border-color: rgba(56, 189, 248, 0.8);
+    background: rgba(14, 165, 233, 0.07);
+    color: #e0f2fe;
+}
+
+/* Result state: green tones at full strength. It takes no click, but it is
+   aria-disabled, not disabled — a disabled button gets no pointer, and the
+   result's tip, its figures file by file, never showed (Anton 3.10). */
+#plConvertAll.pl-ca-done {
+    border-color: rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.07);
+    color: #6ee7b7;
+    cursor: default;
+}
+
+/* ═══ Playlist dropdown control ═══ */
+.pl-playlist-ctrl {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+}
+
+.pl-dd-trigger {
+    /* display:flex (not inline-flex) avoids the baseline offset that inline
+       boxes accumulate inside a block container, keeping this control on
+       exactly the same horizontal line as the .pl-head-btn siblings. */
+    display: flex; align-items: center; gap: 5px;
+    height: 24px;           /* A6: same height as .pl-head-btn */
+    padding: 0 7px;
+    border-radius: 6px;
+    border: 1px solid rgba(125, 211, 252, 0.25);
+    background: rgba(14, 165, 233, 0.06);
+    color: #7dd3fc;
+    font-size: 0.64em;
+    cursor: pointer;
+    user-select: none;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.15s, background 0.15s;
+}
+button.pl-dd-trigger {
+    /* reset button styles */
+    text-align: left;
+    outline: none;
+    font-family: inherit;
+    line-height: 1;
+}
+.pl-dd-trigger:hover { border-color: rgba(56, 189, 248, 0.5); background: rgba(14, 165, 233, 0.12); }
+
+.pl-dd-name {
+    flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: #e0f2fe;
+    font-weight: 500;
+}
+.pl-dd-count {
+    flex-shrink: 0;
+    opacity: 0.55;
+    font-variant-numeric: tabular-nums;
+}
+.pl-dd-arrow {
+    flex-shrink: 0;
+    opacity: 0.45;
+    transition: transform 0.15s;
+}
+
+/* The dropdown panel: floats below the trigger */
+.pl-dd-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 180px;
+    max-width: 260px;
+    background: rgba(10, 20, 40, 0.97);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
+    z-index: 100;
+    overflow: hidden;
+    padding: 4px 0;
+    backdrop-filter: blur(8px);
+}
+
+.pl-dd-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.7em;
+    color: #94a3b8;
+    transition: background 0.1s, color 0.1s;
+    user-select: none;
+}
+.pl-dd-item:hover { background: rgba(56, 189, 248, 0.1); color: #e0f2fe; }
+.pl-dd-item.active { color: #38bdf8; font-weight: 500; }
+.pl-dd-item.active::before { content: '●'; margin-right: 2px; font-size: 0.65em; }
+
+.pl-dd-item-name {
+    flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pl-dd-actions {
+    flex-shrink: 0;
+    display: flex; gap: 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.pl-dd-item:hover .pl-dd-actions { opacity: 1; }
+
+.pl-dd-act-btn {
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    background: rgba(56, 189, 248, 0.06);
+    color: #7dd3fc;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+.pl-dd-act-btn:hover { background: rgba(56, 189, 248, 0.18); color: #e0f2fe; }
+.pl-dd-del { border-color: rgba(239, 68, 68, 0.25); color: #fca5a5; }
+.pl-dd-del:hover { background: rgba(239, 68, 68, 0.18); color: #fee2e2; }
+
+.pl-dd-rename {
+    flex: 1;
+    padding: 1px 5px;
+    background: rgba(14, 165, 233, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    border-radius: 4px;
+    color: #e0f2fe;
+    font-size: 0.9em;
+    outline: none;
+    font-family: inherit;
+}
+.pl-dd-rename:focus { border-color: #38bdf8; box-shadow: 0 0 6px rgba(56, 189, 248, 0.3); }
+
+.pl-dd-divider {
+    height: 1px;
+    background: rgba(56, 189, 248, 0.12);
+    margin: 3px 0;
+}
+.pl-dd-new {
+    padding: 5px 10px;
+    font-size: 0.7em;
+    color: #38bdf8;
+    cursor: pointer;
+    transition: background 0.1s;
+    user-select: none;
+}
+.pl-dd-new:hover { background: rgba(56, 189, 248, 0.1); }
+
+/* ═══ Revolver list: the drop zone becomes a fixed-height scroll drum ═══ */
+
+/* The zone's content height is exactly the list's: N visible rows + (N-1)
+   gaps + the list's top and bottom padding. Its border lies outside that
+   (content-box), so no clearance is added — 8 px added here once sat as an
+   empty band under the last row, making the bottom gap three times the top. */
+#dropZone {
+    height: calc(var(--pl-row-h) * var(--pl-visible-rows)
+               + var(--pl-row-gap) * (var(--pl-visible-rows) - 1)
+               + var(--pl-list-pad) * 2);
+}
+
+/* The file list: fixed height, snapping scroll container.
+   display:flex + gap gives A1 spacing; padding + scroll-padding gives A7
+   clearance so rows never overlap the dashed zone border.
+   scroll-padding-top/bottom tell the browser that snap points are offset by
+   the padding — so each snapped position shows exactly N complete rows. */
+#fileQueue {
+    height: calc(var(--pl-row-h) * var(--pl-visible-rows)
+               + var(--pl-row-gap) * (var(--pl-visible-rows) - 1)
+               + var(--pl-list-pad) * 2);
+    max-height: none;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    scroll-padding-top: var(--pl-list-pad);
+    scroll-padding-bottom: var(--pl-list-pad);
+    overscroll-behavior-y: contain;
+    /* The drum keeps its own place (dropzone.js): the browser does not
+       shift it when rows are rebuilt or dropped in. */
+    overflow-anchor: none;
+    flex: none;
+    padding: var(--pl-list-pad);   /* uniform on all four sides */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--pl-row-gap);
+}
+
+/* Thin styled scrollbar. */
+#fileQueue::-webkit-scrollbar { width: 4px; }
+#fileQueue::-webkit-scrollbar-track { background: transparent; }
+#fileQueue::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.2); border-radius: 2px; }
+#fileQueue::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.4); }
+
+/* ═══ A row dragged to a new place (list-drag.js) ═══
+   The row lifts and follows the pointer; the rows it passes slide into the
+   slot it left; let go, it glides into its own. */
+.file-item.pl-item.pl-drag {
+    position: relative;
+    z-index: 5;
+    cursor: grabbing;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(56, 189, 248, 0.55);
+    background: rgba(30, 58, 90, 0.96);
+    transition: box-shadow 0.12s ease, background 0.12s ease;
+}
+.file-item.pl-item.pl-drag-shift {
+    transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.file-item.pl-item.pl-drag.pl-drag-settle {
+    transition: transform 0.17s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.17s ease;
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.3);
+}
+#fileQueue.pl-drag-active { scroll-snap-type: none; }
+#fileQueue.pl-drag-active .pl-item { scroll-snap-align: none; }
+/* Files dragged in from outside (dropzone.js): one slot more at the list's
+   end while they hover, so the list scrolls far enough for the gap to open
+   under the last row. */
+.pl-drop-tail { flex: none; height: var(--pl-row-h); pointer-events: none; }
+body.pl-list-dragging, body.pl-list-dragging * {
+    cursor: grabbing !important;
+    user-select: none !important;
+}
+
+/* ═══ Rows: ▶ listen, C convert, ✕ remove ═══ */
+.file-item.pl-item {
+    pointer-events: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    height: var(--pl-row-h);
+    min-height: var(--pl-row-h);
+    max-height: var(--pl-row-h);
+    box-sizing: border-box;
+    margin-bottom: 0;
+    padding: 4px 7px;
+    /* Scroll-snap: each row aligns to the top of the viewport. */
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.pl-item .fi-head {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    flex: 0 0 auto;
+}
+
+/* Badge container always reserves its line so every row is the same height. */
+.pl-item .badge-container {
+    flex-wrap: wrap;
+    min-height: 14px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+}
+
+.pl-meta {
+    flex-shrink: 0;
+    font-size: 0.9em;
+    color: #64748b;
+    font-variant-numeric: tabular-nums;
+}
+
+/* A converted file's speed beside its ✓ ("×25.3"): the row's green, quieter
+   than its name. */
+.pl-speed {
+    flex-shrink: 0;
+    font-size: 0.9em;
+    color: rgba(110, 231, 183, 0.72);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Buttons: ▶ and C side by side, same family. */
+.pl-btn {
+    flex-shrink: 0;
+    width: 20px; height: 17px; padding: 0;
+    border-radius: 4px;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    background: rgba(56, 189, 248, 0.08);
+    color: #7dd3fc;
+    font-size: 0.8em;
+    line-height: 1;
+    cursor: pointer;
+    /* Half at rest, full under the pointer — the transport strip's rule,
+       so the row's buttons and the strip's fade the same way. */
+    opacity: 0.5;
+    transition: opacity 0.2s, background 0.15s;
+    display: flex; align-items: center; justify-content: center;
+}
+.pl-btn:hover { opacity: 1 !important; background: rgba(56, 189, 248, 0.25); color: #e0f2fe; }
+
+/* The convert button uses green tones. The SVG icon is centred by flex. */
+.pl-btn.pl-conv {
+    border-color: rgba(16, 185, 129, 0.35);
+    background: rgba(16, 185, 129, 0.08);
+    color: #6ee7b7;
+}
+.pl-btn.pl-conv:hover { background: rgba(16, 185, 129, 0.25); color: #d1fae5; }
+
+/* Track memory button (M). Same geometry as pl-conv; accent on when active. */
+.pl-btn.pl-mem {
+    border-color: rgba(139, 92, 246, 0.35);
+    background: rgba(139, 92, 246, 0.06);
+    color: #c4b5fd;
+}
+.pl-btn.pl-mem:hover { background: rgba(139, 92, 246, 0.22); color: #ede9fe; }
+.pl-btn.pl-mem.pl-mem-on {
+    border-color: rgba(139, 92, 246, 0.7);
+    background: rgba(139, 92, 246, 0.18);
+    color: #ddd6fe;
+    opacity: 1;
+}
+
+/* The play-from-disk button: green like C (it replaces C when a match exists). */
+.pl-btn.pl-disk-play {
+    border-color: rgba(16, 185, 129, 0.4);
+    background: rgba(16, 185, 129, 0.1);
+    color: #6ee7b7;
+}
+.pl-btn.pl-disk-play:hover { background: rgba(16, 185, 129, 0.28); color: #d1fae5; }
+
+/* The regular play button (blue). */
+.pl-btn.pl-play {
+    /* defaults from .pl-btn */
+}
+
+/* A track pressed is getting ready: every row's ▶ waits for it. */
+.pl-btn.pl-wait, .pl-btn.pl-wait:hover { opacity: 0.2 !important; cursor: not-allowed; }
+.pl-btn.pl-play.pl-wait:hover { background: rgba(56, 189, 248, 0.08); color: #7dd3fc; }
+.pl-btn.pl-disk-play.pl-wait:hover { background: rgba(16, 185, 129, 0.1); color: #6ee7b7; }
+
+/* Now-playing row highlight. */
+.file-item.pl-now {
+    border-color: rgba(56, 189, 248, 0.6);
+    background: rgba(14, 165, 233, 0.12);
+    color: #e0f2fe;
+}
+.file-item.pl-now .file-item-icon { color: #38bdf8; text-shadow: 0 0 6px rgba(56, 189, 248, 0.6); }
+/* Pressed ▶, the sound not there yet: the row is lit, its note breathes. */
+.file-item.pl-now.pl-prep .file-item-icon { animation: pl-prep-breathe 0.9s ease-in-out infinite alternate; }
+@keyframes pl-prep-breathe { from { opacity: 0.35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .file-item.pl-now.pl-prep .file-item-icon { animation: none; opacity: 0.7; }
+}
+
+/* Dimmed older-conversion badges (different rack setting). */
+.pl-old-conv {
+    opacity: 0.38;
+    filter: saturate(0.4);
+    cursor: help;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+/* ═══ Highlight animation for newly added rows ═══
+   Rows with .pl-fresh fade in with a cyan glow that settles to normal
+   over ~1.5 s. */
+@keyframes pl-row-appear {
+    0% {
+        opacity: 0;
+        box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.7),
+                    inset 0 0 18px rgba(56, 189, 248, 0.18);
+    }
+    15% {
+        opacity: 1;
+        box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.6),
+                    inset 0 0 18px rgba(56, 189, 248, 0.15);
+    }
+    100% {
+        opacity: 1;
+        box-shadow: none;
+    }
+}
+.pl-item.pl-fresh {
+    animation: pl-row-appear 1.5s ease-out forwards;
+}

@@ -1,0 +1,432 @@
+// @name     Speaker
+// @author   Jan Mróz — jaszunio15 (Speaker visualizer), adapted for Aura Engine — https://www.shadertoy.com/view/wsdXDN
+// @about    A woofer seen close, the camera slowly circling it. Its cone pushes out with the bass and punches out on every kick, then swings back; the centre cap gives on the snare; every kick sends a ring of light out across the speaker's front; a ring of bars round it shows every pitch, glowing rings on the cap the lows to the highs, and a light inside the cone breathes with the mids.
+// @license  CC BY 3.0 — adapted from "Speaker visualizer" by Jan Mróz (jaszunio15), https://www.shadertoy.com/view/wsdXDN ("Shader License: CC BY 3.0")
+//
+// @section  "Woofer"    "The cone and how it moves"
+// @param    float  push      1.0   0.0   2.0   0.01  x   "Bass push"     "How far the cone moves out with the bass"
+// @param    float  punch     1.0   0.0   2.0   0.01  x   "Kick punch"    "How hard each kick punches the cone out"
+// @param    float  bounce    1.0   0.0   2.0   0.01  x   "Bounce"        "How much the cone swings back and forth after a punch"
+// @param    float  capGive   1.0   0.0   2.0   0.01  x   "Centre cap"    "How much the cap in the middle gives with the snare"
+// @param    float  airRings  1.0   0.0   2.0   0.01  x   "Air rings"     "The ring of light each kick sends out across the speaker's front"
+//
+// @section  "Lights"    "The light show on the speaker"
+// @param    float  rimBars   1.0   0.0   2.0   0.01  x   "Rim bars"      "The ring of bars round the speaker, a bar for every pitch"
+// @param    float  capRings  1.0   0.0   2.0   0.01  x   "Cap rings"     "The glowing rings on the centre cap: the lows inside, the highs outside"
+// @param    float  innerGlow 1.0   0.0   2.0   0.01  x   "Inner glow"    "The light inside the cone that breathes with the mids"
+// @param    float  fall      8.0   2.0   20.0  0.5   x   "Fall speed"    "How quickly a light drops after its sound"
+//
+// @section  "Colour"
+// @param    choice colours   0     "Cycling|Album cover|App|Custom" "Colours" "Where the lights' colours come from"
+// @param    color  custom    #9ad7ff                   "Custom colour" "With Custom: the lights' colour"
+// @param    float  bright    1.0   0.4   2.0   0.01  x   "Brightness"    "How bright the whole picture is"
+//
+// @section  "Camera"
+// @param    float  orbit     1.0   0.0   2.5   0.01  x   "Orbit speed"   "How fast the camera circles the speaker"
+// @param    float  sway      1.0   0.0   2.0   0.01  x   "Sway"          "How much the camera rises, dips and tilts as it circles"
+//
+// @section  "Layout"
+// @param    float  bandLift  0.12  0.0   0.3   0.01      "Height in the player" "How low the speaker sits in the player, under the text (full screen: the middle)"
+
+// @common
+// Shader License: CC BY 3.0
+// Author: Jan Mróz (jaszunio15) — "Speaker visualizer", https://www.shadertoy.com/view/wsdXDN
+/*
+	Thanks to Inigo Quilez, I leant a lot about SDF's from his articles:
+	https://iquilezles.org/articles/distfunctions
+	https://iquilezles.org/articles/smin
+*/
+// Adapted for Aura Engine: the player's music instead of Shadertoy's sound texture — the cone is a spring pulled
+// out by the bass and punched by each kick (pass A keeps its motion from frame to frame), the cap gives on the
+// snare, the lights follow their pitches with a fall; the high notes' per-pixel shiver and the denoise that
+// cleaned it up are gone; the march stops once it is there.
+
+#define PI 3.14
+#define TIME (iTime * 0.2)
+#define RAYMARCH_ITERATIONS 50
+#define FAR_PLANE 10.0
+#define LIGHT_DIRECTION normalize(vec3(0.3, 0.3, (sin(TIME) + 1.0) * 0.1 + 0.03))
+#define AMBIENT_LIGHT 0.05
+
+// ── the music (Aura Engine) ──
+// Pass A keeps, in its first texels: (1, 1) the cone's push out and its speed, the cap's own give and its speed;
+// (1, 3) the inner glow's level, with its fall.
+vec4 speakerState() { return texelFetch(iChannel0, ivec2(1, 1), 0); }
+vec4 speakerLights() { return texelFetch(iChannel0, ivec2(1, 3), 0); }
+
+// A level that rises at once and falls at `fall` a second: the loudest of the last moments, each faded by its age.
+float released(float f) {
+    float v = 0.0;
+    for (int i = 0; i < 8; i++) {
+        float t = -float(i) * 0.03;
+        v = max(v, musicSpectrum(f, t) * exp(t * fall));
+    }
+    return v;
+}
+
+// @pass A  iChannel0=A:nearest:clamp
+// The woofer's motion. The cone is a light spring (4.5 swings a second) pulled out by the bass and punched by each
+// kick; the cap in its middle a stiffer one, shaken by the cone and by the snare. The springs are fed the music
+// 50 ms ahead — the time a spring takes to its peak — so a punch peaks as its kick is heard. Paused, time stands:
+// so does the cone.
+void mainImage(out vec4 o, in vec2 fc) {
+    if (fc.x > 4.0 || fc.y > 4.0) { o = vec4(0.0); return; }
+    vec4 s = texelFetch(iChannel0, ivec2(1, 1), 0);      // cone x, cone speed, cap x, cap speed
+    vec4 l = texelFetch(iChannel0, ivec2(1, 3), 0);      // the inner glow
+    float dt = min(uDelta, 0.05);
+    const float LEAD = 0.05;
+    float target = 0.0, kick = 0.0, snare = 0.0, glow = 0.0;
+    if (uLive > 0.5) {
+        float b = musicBass(LEAD);
+        target = push * 0.9 * b * b;
+        kick = max(0.0, musicHit(0, LEAD) - musicHit(0, LEAD - dt));
+        snare = max(0.0, musicHit(1, LEAD) - musicHit(1, LEAD - dt));
+        float m = musicMid(0.0);
+        m *= m * m;
+        glow = 0.3 * m * m;                               // (the author's: the 1 kHz level to the 4th, 0 … ~0.5)
+    } else {
+        target = 0.08 * (0.5 + 0.5 * sin(uTime * 0.9));    // nothing plays: a slow breath
+    }
+    // the punches: a push to the springs' speed
+    s.y += punch * 30.0 * kick;
+    s.w += capGive * 38.0 * snare;
+    float w = TAU * 4.5, z = mix(0.95, 0.18, clamp(bounce * 0.5, 0.0, 1.0));
+    float wc = TAU * 8.0, zc = 0.25;
+    int n = int(ceil(dt / 0.008));
+    float h = dt / float(max(n, 1));
+    for (int i = 0; i < 8; i++) {
+        if (i >= n) break;
+        float a = w * w * (target - s.x) - 2.0 * z * w * s.y;
+        s.y += a * h;
+        s.x += s.y * h;
+        float ac = wc * wc * (0.0 - s.z) - 2.0 * zc * wc * s.w - 0.35 * a * capGive;   // the cap lags the cone
+        s.w += ac * h;
+        s.z += s.w * h;
+    }
+    s = clamp(s, vec4(-1.5, -60.0, -1.5, -80.0), vec4(1.8, 60.0, 1.5, 80.0));
+    // the lights: up at once, down at their fall
+    float k = exp(-fall * 0.5 * dt);
+    l.x = max(glow, l.x * k);
+    o = fc.y < 2.0 ? s : vec4(l.x, 0.0, 0.0, 0.0);
+}
+
+// @pass B  iChannel0=A:nearest:clamp  iChannel2=B:linear:clamp
+struct speakerData
+{
+  	float bigMovement;
+    float capMovement;
+};
+
+struct material
+{
+ 	float metallic;
+    float smoothness;
+};
+
+mat3x3 rotationMatrix(vec3 angle)
+{
+    return
+          mat3x3(cos(angle.y), 0.0, sin(angle.y),
+                 0.0, 1.0, 0.0,
+                 -sin(angle.y), 0.0, cos(angle.y))
+
+        * mat3x3(1.0, 0.0, 0.0,
+                 0.0, cos(angle.x), sin(angle.x),
+                 0.0, -sin(angle.x), cos(angle.x))
+
+        * mat3x3(cos(angle.z), sin(angle.z), 0.0,
+                 -sin(angle.z), cos(angle.z), 0.0,
+                 0.0, 0.0, 1.0);
+}
+
+float sphereSDF(vec3 point, vec3 sphereCenter, float radius)
+{
+ 	float dist = distance(point, sphereCenter);
+    return dist - radius;
+}
+
+float extrudeSDF(float sdf, float radius)
+{
+ 	return sdf - radius;
+}
+
+float ringSDF(vec3 point, float radius, float width, float height)
+{
+    float ring2D = abs(length(point.xy) - radius) - width;
+    vec2 w = vec2( ring2D, abs(point.z) - height );
+    return min(max(w.x,w.y),0.0) + length(max(w,0.0));
+}
+
+float torusSDF(vec3 point, float ringPosition, float ringRadius, float lineRadius)
+{
+    point.z -= ringPosition;
+ 	vec2 flattedUV = vec2(length(point.xy) - ringRadius, point.z);
+    return length(flattedUV) - lineRadius;
+}
+
+float planeSDF(vec3 point, float planeZPos)
+{
+ 	return point.z - planeZPos;
+}
+
+float coneSDF( vec3 point, vec3 coneCenter, float angle)
+{
+    vec2 c = vec2(sin(angle), cos(angle));
+    vec3 pos = point - coneCenter;
+
+    return dot(c, vec2(length(pos.xy), pos.z));
+}
+
+float addObjectsSmooth(float obj1, float obj2, float smoothness )
+{
+    float h = clamp( 0.5 + 0.5 * (obj2-obj1) / smoothness, 0.0, 1.0 );
+    return mix( obj2, obj1, h ) - smoothness * h * (1.0 - h);
+}
+
+float addObjects(float object, float objectToAdd)
+{
+	return min(object, objectToAdd);
+}
+
+float multiplyObjects(float object, float objectToMul)
+{
+ 	return max(object, objectToMul);
+}
+
+float sdfObject(vec3 point, speakerData data)
+{
+    float r = length(point.xy);
+    // the cone and the inner half of its surround move out (towards the camera); the cap gives on its own
+    float movementRegion = smoothstep(2.12, 1.85, r);
+    point.z -= movementRegion * 0.23 * data.bigMovement;
+    point.z -= smoothstep(0.95, 0.6, r) * 0.23 * data.capMovement;
+
+ 	float object = 9999.9;
+    object = addObjects(object, torusSDF(point, -0.04, 2.0, 0.1));
+    float plane = multiplyObjects(planeSDF(point, 0.0), -sphereSDF(point, vec3(0.0), 2.0));
+    object = addObjectsSmooth(object, plane, 0.01);
+
+    float insideSpeaker = coneSDF(point, vec3(0.0, 0.0, -1.64), -0.7);
+
+    float waves = smoothstep(0.45, 0.35, abs(r - 1.35));
+    insideSpeaker -= max(sin(r * 60.0), -0.5) * 0.004 * waves;
+    insideSpeaker = addObjectsSmooth(insideSpeaker, sphereSDF(point, vec3(0.0, 0.0, -1.94), 1.2), 0.04);
+    insideSpeaker = multiplyObjects(insideSpeaker, sphereSDF(point, vec3(0.0), 1.911));
+
+    object = addObjectsSmooth(object, insideSpeaker, 0.01);
+
+    float frame = extrudeSDF(ringSDF(point - vec3(0.0, 0.0, 0.0), 2.25, 0.07, 0.005), 0.003);
+    object = addObjectsSmooth(object, frame, 0.01);
+
+    return object;
+}
+
+vec3 getNormal(vec3 hitPoint, speakerData data)
+{
+    float hitPointDist = sdfObject(hitPoint, data);
+    vec3 normal = vec3(0.0, 0.0, 0.0);
+    normal.x = -hitPointDist + sdfObject(hitPoint + vec3(1.0, 0.0, 0.0) * 0.001, data);
+    normal.y = -hitPointDist + sdfObject(hitPoint + vec3(0.0, 1.0, 0.0) * 0.001, data);
+    normal.z = -hitPointDist + sdfObject(hitPoint + vec3(0.0, 0.0, 1.0) * 0.001, data);
+    return normalize(normal);
+}
+
+//xyz - hit point
+vec3 rayMarch(vec3 rayOrigin, vec3 rayDirection, speakerData data)
+{
+    rayDirection = normalize(rayDirection);
+	for (int i = 0; i < RAYMARCH_ITERATIONS; i++)
+    {
+        float distanceToObject = sdfObject(rayOrigin, data);
+        rayOrigin += rayDirection * distanceToObject * 0.6;
+        if (distanceToObject < 0.0004) break;              // (there: the rest of the steps change nothing)
+    }
+
+    return rayOrigin;
+}
+
+float lightDotRayMarch(vec3 rayOrigin, vec3 rayDirection, speakerData data)
+{
+    vec3 startRayOrigin = rayOrigin;
+    rayDirection = normalize(rayDirection);
+    float minDist = 10.0;
+    float distanceToObject = 0.0;
+	for (int i = 0; i < RAYMARCH_ITERATIONS; i++)
+    {
+        distanceToObject = sdfObject(rayOrigin, data);
+        rayOrigin += rayDirection * distanceToObject * 0.7;
+
+        minDist = min(minDist, abs(distanceToObject / distance(startRayOrigin, rayOrigin)));
+        if (distanceToObject > 1.5 || minDist < 0.002) break;   // (out in the open, or in the dark: settled)
+    }
+
+    return minDist * smoothstep(0.0, 1.0, distanceToObject);
+}
+
+vec3 castPlaneCoordFromUV(vec2 uv)
+{
+	return vec3(uv.x, -0.8, uv.y);
+}
+
+//x - diffuse
+//y - specular
+//z - shadow
+vec3 getLight(vec3 hitPoint, vec3 normal, vec3 lightDirection, vec3 viewDirection, speakerData data, material mat)
+{
+	float diff = clamp(dot(normal, lightDirection), 0.0, 1.0);
+    vec3 halfWay = normalize((lightDirection + viewDirection) * 0.5);
+    float spec = pow(clamp(dot(normal, halfWay), 0.0, 1.0), mat.smoothness);
+
+    float lightDot = lightDotRayMarch(hitPoint + lightDirection * 0.1, lightDirection, data);
+    float shadow = smoothstep(0.0, 0.1, lightDot);
+
+    return vec3(diff * (1.0 - mat.metallic), spec * mat.metallic, (shadow + AMBIENT_LIGHT) * 0.8);
+}
+
+//x - diffuse
+//y - specular
+vec2 getCheapLight(vec3 hitPoint, vec3 normal, vec3 lightDirection, vec3 viewDirection, speakerData data, material mat)
+{
+ 	float diff = clamp(dot(normal, lightDirection), 0.0, 1.0);
+    vec3 halfWay = normalize((lightDirection + viewDirection) * 0.5);
+    float spec = pow(clamp(dot(normal, halfWay), 0.0, 1.0), mat.smoothness);
+
+    return vec2(diff * (1.0 - mat.metallic), spec * mat.metallic);
+}
+
+// The ring of bars round the speaker: a bar for every pitch, the lows at one end of the ring, the highs at the other.
+float musicVizualization(vec2 uv)
+{
+    float radius = 2.18;
+    float len = length(uv);
+    if (len < radius - 0.01 || len > radius + 0.17 || uLive < 0.5) return 0.0;
+    float bandsCount = 200.0;
+    vec2 polarUV = vec2(atan(uv.y, uv.x), len);
+    polarUV.x += PI;
+    polarUV.x /= PI * 2.0;
+
+    float bandX = fract(polarUV.x * bandsCount);
+
+    polarUV.x -= mod(polarUV.x, 1.0 / bandsCount);
+
+    float border = smoothstep(0.4, 0.32, abs(bandX - 0.5));
+    // (the player's levels follow each band's own top: the quiet half of the range is cut, the rest shaped)
+    float freq = smoothstep(0.3, 1.0, released(0.08 + 0.88 * polarUV.x));
+    freq = freq * freq * 0.15;
+    return smoothstep(radius, radius + 0.01, polarUV.y)
+        * smoothstep(radius + freq, radius + freq - 0.01, polarUV.y)
+        * border * freq * 7.0 * rimBars;
+}
+
+// The glowing rings on the centre cap — the lows inside, the highs outside — and the light inside the cone.
+float musicVizualization2(vec2 uv, float glow)
+{
+ 	float len = length(uv);
+    float centerLight = smoothstep(2.0, 0.0, len) * glow * 0.3;
+    float rings = 0.0;
+    if (len < 0.8 && uLive > 0.5) {
+        float l9 = len * 9.0;
+        float bandX = fract(l9);
+        float freq = smoothstep(0.35, 1.0, released(0.2 + 0.1 * floor(l9)));
+        freq *= freq * freq;
+        float borderWidth = 0.1 + centerLight * 3.0;
+        float border = smoothstep(borderWidth, borderWidth - 0.01, abs(bandX - 0.5));
+        rings = freq * border * smoothstep(0.8, 0.6, len) * capRings;
+    }
+    return rings + centerLight + centerLight * smoothstep(0.8, 0.79, len) * 0.5;
+}
+
+// The lights' colour: the author's slow pastel cycle, the cover's, the app's or one's own.
+vec3 lightColour(float t)
+{
+    vec3 c;
+    if (colours == 1) c = auraPalette(t * 0.3);
+    else if (colours == 2) c = auraAppPalette(t * 0.3);
+    else if (colours == 3) c = custom;
+    else return mix(sin(vec3(0.0, 3.0, 4.0) * t), vec3(1.0), 0.7) * 1.5;
+    c /= max(max(c.r, max(c.g, c.b)), 0.2);
+    return mix(c, vec3(1.0), 0.45) * 1.5;
+}
+
+// A kick's ring of light running out across the speaker's front from its rim: at distance d from the rim it shows
+// the kick d / 1.6 seconds ago (only its rise), fading as it goes.
+float airRing(float r)
+{
+    float d = r - 2.33;
+    if (d < 0.0 || uLive < 0.5) return 0.0;
+    float t = -d / 1.6;
+    float on = max(0.0, musicHit(0, t) - musicHit(0, t - 0.04));
+    return on * exp(-d / 1.1) * smoothstep(0.0, 0.05, d) * airRings;
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    vec2 uv = (2.0 * fragCoord - iResolution.xy) / iResolution.x;
+    if (uFull < 0.5) uv.y += bandLift;                   // the player's band: the speaker sits lower, under the text
+
+    float CT = iTime * 0.2 * orbit;                      // the camera's clock
+    vec3 cameraCenter = vec3(sin(CT * 3.5) * 2.7, cos(CT * 3.5) * 2.7, cos(CT * 3.0) * 0.5 * sway + 1.1);
+    vec3 castPlaneCoord = castPlaneCoordFromUV(uv);
+
+    vec3 angle = vec3(-0.67 - cos(CT * 3.0) * 0.2 * sway, sin(CT * 2.7) * 0.3 * sway, CT * 3.5);
+
+    castPlaneCoord *= rotationMatrix(angle);
+
+    vec3 rayOrigin = cameraCenter;
+    vec3 rayDirection = castPlaneCoord;
+
+    vec4 state = speakerState();
+    vec4 lights = speakerLights();
+    speakerData data;
+    data.bigMovement = state.x;
+    data.capMovement = state.z;
+
+    vec3 hitPoint = rayMarch(rayOrigin, rayDirection, data);
+    float distanceToHitPoint = distance(cameraCenter, hitPoint);
+
+    vec3 col = vec3(0.0);
+    if (distanceToHitPoint < FAR_PLANE)
+    {
+        col = vec3(0.1);
+
+        material mat;
+        float centerRingRegion = smoothstep(0.55, 0.54, abs(length(hitPoint.xy) - 1.35));
+
+        vec3 visColor = lightColour(TIME);
+
+        col += centerRingRegion * 0.7 * visColor;
+        mat.metallic = mix(0.8, 0.6, centerRingRegion);
+        mat.smoothness = mix(16.0, 4.0, centerRingRegion);
+
+        vec3 normal = getNormal(hitPoint, data);
+        vec3 light = getLight(hitPoint, normal, LIGHT_DIRECTION, -rayDirection, data, mat);
+
+        vec3 centerLightDirection = normalize(hitPoint - vec3(0.0, 0.0, -2.0));
+        mat.metallic = 1.0;
+        vec2 centerLight = getCheapLight(hitPoint, normal, -centerLightDirection, -rayDirection, data, mat);
+
+        float musicBounce = lights.x * innerGlow * 2.0;
+
+        col = col * (light.x + light.y) * 0.4 * light.z * mix(visColor, vec3(1.0), 0.5)
+            + visColor * musicVizualization(hitPoint.xy) * smoothstep(-0.1, 0.2, musicBounce) * 0.6
+            + visColor * musicVizualization2(hitPoint.xy, musicBounce);
+        col += visColor * (centerLight.x + centerLight.y) * smoothstep(2.0, 1.0, length(hitPoint.xy)) * musicBounce * 3.0;
+        col += visColor * airRing(length(hitPoint.xy)) * (0.25 + 0.75 * light.z) * 0.12;
+        col *= 2.4;
+        col *= smoothstep(3.0, 2.4, length(hitPoint.xy));
+    }
+
+    // Output to screen (the author's: a little of the last frame kept, a soft trail)
+    fragColor = vec4(col * bright, 1.0) * 0.7 + texture(iChannel2, fragCoord / iResolution.xy) * 0.3;
+}
+
+// @pass image  iChannel0=B:linear:clamp
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    vec2 uv = fragCoord / iResolution.xy;
+    vec4 col = texture(iChannel0, uv);
+    col = smoothstep(-0.05, 0.8, sqrt(col));
+    // the player's band: the picture steps back under the title and the technical lines
+    if (uFull < 0.5) col *= mix(1.0, 0.35, smoothstep(0.34, 0.6, uv.y));
+    fragColor = col;
+}

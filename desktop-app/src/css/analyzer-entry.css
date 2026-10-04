@@ -1,0 +1,80 @@
+/* The analyzer's entry points in the main window (js/analytics.js): the
+   button in the player's device row, its three-number readout and the row
+   menu of the list. The analyzer window has its own sheet (analytics.css),
+   which this window does not load. */
+
+/* The button: the device row's outline style, but lit and breathing a
+   soft glow, so it is found. Two traces, sky and violet. */
+.an-open-btn {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 20px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  background: rgba(14, 165, 233, 0.08);
+  cursor: pointer;
+  animation: an-open-glow 2.8s ease-in-out infinite alternate;
+  transition: border-color 0.15s, background 0.15s;
+}
+.an-open-btn svg { width: 15px; height: 15px; }
+.an-open-btn .an-open-t1 { stroke: #38bdf8; }
+.an-open-btn .an-open-t2 { stroke: #a78bfa; opacity: 0.9; }
+.an-open-btn:hover {
+  border-color: rgba(186, 230, 253, 0.9);
+  background: rgba(14, 165, 233, 0.18);
+}
+.an-open-btn:hover .an-open-t1 { stroke: #7dd3fc; }
+.an-open-btn:hover .an-open-t2 { stroke: #c4b5fd; }
+@keyframes an-open-glow {
+  from { box-shadow: 0 0 2px rgba(56, 189, 248, 0.15); }
+  to   { box-shadow: 0 0 9px rgba(56, 189, 248, 0.55), 0 0 3px rgba(167, 139, 250, 0.35); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .an-open-btn { animation: none; box-shadow: 0 0 5px rgba(56, 189, 248, 0.35); }
+}
+
+.an-mini {
+  display: inline-flex; gap: 6px; flex-shrink: 0;
+  font-size: 0.6em;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 0.2s;
+}
+/* Until the live analyzer first sends numbers (analytics.js), no room at all. */
+.an-mini.an-mini-wait { display: none; }
+
+/* The row menu: fixed at the pointer, over everything. */
+.an-ctx-menu {
+  position: fixed;
+  z-index: 9990;
+  min-width: 200px;
+  background: rgba(11, 25, 44, 0.97);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 7px;
+  padding: 4px 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  font-size: 0.78rem;
+  color: #e0f2fe;
+}
+.an-ctx-item {
+  display: block;
+  width: 100%;
+  padding: 6px 14px;
+  background: none;
+  border: none;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.an-ctx-item:hover:not(.an-ctx-item--disabled) {
+  background: rgba(56, 189, 248, 0.12);
+  color: #bae6fd;
+}
+.an-ctx-item--disabled,
+.an-ctx-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

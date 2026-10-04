@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="308" height="52" viewBox="0 0 308 52" role="img"
+     aria-label="Try it on Hugging Face — run AuraEngine in your browser">
+  <title>Try it on Hugging Face</title>
+  <!--
+    A button for a README, where there is no stylesheet and no script: GitHub
+    strips both. An SVG loaded through <img> keeps its own <style>, so the
+    animation has to live in here with the shapes it moves.
+
+    Nothing outside this file is referenced — no fonts to fetch, no images to
+    proxy — because the whole thing is served through GitHub's camo and
+    anything external would simply not arrive. The pill carries its own dark
+    body for the same reason it carries its own type: it has to look
+    deliberate on GitHub's light theme and on its dark one, and it cannot ask
+    which it is on.
+  -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#16203a"/>
+      <stop offset="100%" stop-color="#0a1120"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffd21e" stop-opacity="0"/>
+      <stop offset="45%" stop-color="#ffd21e" stop-opacity="0.20"/>
+      <stop offset="55%" stop-color="#fff6d0" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#ffd21e" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="pill">
+      <rect x="1" y="1" width="306" height="50" rx="25"/>
+    </clipPath>
+    <style>
+      .glow  { animation: breathe 2.6s ease-in-out infinite; }
+      .sweep { animation: sweep 4.2s ease-in-out infinite; }
+      .eye   { animation: blink 4.2s ease-in-out infinite; }
+      .tip   { animation: nudge 2.6s ease-in-out infinite; }
+      @keyframes breathe { 0%, 100% { opacity: 0.28; } 50% { opacity: 0.9; } }
+      @keyframes sweep   { 0% { transform: translateX(-140px); } 60%, 100% { transform: translateX(330px); } }
+      @keyframes blink   { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+      @keyframes nudge   { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+      /* Honoured even here: a badge that will not hold still is exactly the
+         kind of thing people turn that setting on for. */
+      @media (prefers-reduced-motion: reduce) {
+        .glow, .sweep, .eye, .tip { animation: none; }
+        .sweep { opacity: 0; }
+        .glow  { opacity: 0.55; }
+      }
+    </style>
+  </defs>
+
+  <!-- The pulsing rim, under the body so it reads as a glow and not as a
+       second border. -->
+  <rect class="glow" x="2.5" y="2.5" width="303" height="47" rx="23.5"
+        fill="none" stroke="#ffd21e" stroke-width="3"/>
+
+  <rect x="1" y="1" width="306" height="50" rx="25" fill="url(#body)"
+        stroke="#ffd21e" stroke-opacity="0.6"/>
+
+  <g clip-path="url(#pill)">
+    <rect class="sweep" x="0" y="0" width="110" height="52" fill="url(#shine)"/>
+  </g>
+
+  <!-- The mark: a face in the platform's yellow, drawn here rather than
+       fetched, and deliberately a plain smiling one rather than a copy of
+       anybody's logotype. -->
+  <g transform="translate(18, 12)">
+    <path d="M1.2 17 l4.4 -2.6 1.7 3 -4.4 2.6 z" fill="#ff9d00"/>
+    <path d="M26.8 17 l-4.4 -2.6 -1.7 3 4.4 2.6 z" fill="#ff9d00"/>
+    <circle cx="14" cy="14" r="12.4" fill="#ffd21e"/>
+    <g class="eye" style="transform-origin: 9.4px 11.4px">
+      <circle cx="9.4" cy="11.4" r="2" fill="#3b2f00"/>
+    </g>
+    <g class="eye" style="transform-origin: 18.6px 11.4px">
+      <circle cx="18.6" cy="11.4" r="2" fill="#3b2f00"/>
+    </g>
+    <path d="M8 16.6 a6.4 6.4 0 0 0 12 0" fill="none" stroke="#3b2f00"
+          stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <text x="58" y="31.5" fill="#ffd21e" font-size="15.5" font-weight="700"
+        letter-spacing="0.2"
+        font-family="'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif">
+    Try it on Hugging Face
+  </text>
+
+  <path class="tip" d="M283 26 l-8 -6.5 v13 z" fill="#ffd21e" opacity="0.9"/>
+</svg>

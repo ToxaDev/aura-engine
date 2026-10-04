@@ -1,0 +1,195 @@
+// @name     Stage
+// @author   Aura Engine
+// @about    The song's instruments as lights on a stage: where each one stands left to right, how far back, how high it sings. A part that stands apart — a backing voice, a second guitar — lights up where it stands, sounds, and fades; an instrument's wide part — a pad far behind — is a band of haze at its height; hits ring out on the floor, the room's sound is the haze behind.
+// @spatial
+//
+// @section  "Instruments"  "Which ones are on the stage"
+// @param    bool   showVoice    1                                 "Voice"          "The singer and the voices that split off"
+// @param    bool   showDrums    1                                 "Drums"          "Kick, snare, hi-hat, toms and cymbals"
+// @param    bool   showBass     1                                 "Bass"           "The bass line"
+// @param    bool   showGuitars  1                                 "Guitars"        "Guitars, each part where it sits"
+// @param    bool   showKeys     1                                 "Piano"          "Piano and keys"
+// @param    bool   showOthers   1                                 "Everything else" "Synths, strings, pads, brass — by where they sit"
+//
+// @section  "Stage"        "Where they stand, and where you look from"
+// @param    float  spread       1.0   0.3  2.0  0.01   x          "Width"          "1 = the width between your speakers; more spreads them wider"
+// @param    float  depth        1.0   0.2  2.5  0.01   x          "Depth"          "How far back the distant (reverberant, quiet) ones stand"
+// @param    float  lift         0.7   0.0  1.5  0.01              "Height"         "How high a high-pitched sound floats above the floor"
+// @param    float  tilt         0.4   0.0  0.9  0.01              "View from above" "0 = at eye level; more = looking down onto the stage"
+// @param    bool   grid         1                                 "Floor grid"     "Faint lines on the floor, to read the depth"
+//
+// @section  "Lights"       "Each part's light"
+// @param    float  size         1.0   0.3  2.5  0.01   x          "Size"           "The lights' size"
+// @param    float  glow         1.0   0.2  3.0  0.01   x          "Glow"           "How far each light spreads"
+// @param    float  flash        1.0   0.0  2.5  0.01   x          "Hit flash"      "How much a light flares when it strikes"
+// @param    float  rings        1.0   0.0  2.0  0.01   x          "Floor rings"    "A ring runs out on the floor from each hit"
+// @param    bool   stalks       1                                 "Stalks"         "A thin line from each light down to its place on the floor"
+//
+// @section  "Parts"        "Voices and instruments that stand apart"
+// @param    float  burst        1.0   0.0  2.0  0.01   x          "Birth ring"     "A ring around a part as it appears"
+// @param    float  extraSize    0.75  0.3  1.2  0.01   x          "Size of a part" "An extra part's light against its source's main light"
+//
+// @section  "Ambience"     "The room's sound, all around"
+// @param    float  haze         0.8   0.0  2.0  0.01   x          "Haze"           "The reverb and the room as a haze behind the stage"
+// @param    float  dust         0.6   0.0  2.0  0.01   x          "Dust"           "Sparks in the haze that shimmer with the room's sound"
+// @param    float  layers       1.0   0.0  2.0  0.01   x          "Wide layers"    "An instrument's wide part — a pad far behind, a string wash, a guitar recorded wide — as a band of haze at its height"
+//
+// @section  "Colour"
+// @param    choice colours      0     "Per instrument|Album cover|App" "Colours" "A colour for each instrument, or the cover's or the app's colours"
+// @param    float  vivid        1.0   0.0  1.5  0.01   x          "Saturation"     "How vivid the lights are"
+
+const float FOCAL = 1.25;
+
+vec3 kindColour(int k, bool lead) {
+    if (colours == 1) return auraPalette(float(k) / 11.0);
+    if (colours == 2) return auraAppPalette(float(k) / 11.0);
+    if (k == AURA_VOICE) return lead ? vec3(1.0, 0.84, 0.58) : vec3(1.0, 0.93, 0.8);
+    if (k == AURA_BASS) return vec3(0.58, 0.34, 1.0);
+    if (k == AURA_KICK) return vec3(1.0, 0.32, 0.26);
+    if (k == AURA_SNARE) return vec3(1.0, 0.62, 0.22);
+    if (k == AURA_HATS) return vec3(0.72, 0.95, 1.0);
+    if (k == AURA_DRUMS) return vec3(1.0, 0.8, 0.36);
+    if (k == AURA_TOMS) return vec3(1.0, 0.46, 0.32);
+    if (k == AURA_CYMBAL) return vec3(1.0, 0.93, 0.62);
+    if (k == AURA_GUITAR) return vec3(0.32, 1.0, 0.62);
+    if (k == AURA_PIANO) return vec3(1.0, 0.5, 0.82);
+    if (k == AURA_MIX) return vec3(0.62, 0.7, 0.82);     // the mix alone: no instrument is known
+    return vec3(0.36, 0.72, 1.0);                        // the others
+}
+
+bool shown(int k) {
+    if (k == AURA_VOICE) return showVoice;
+    if (k == AURA_BASS) return showBass;
+    if (k == AURA_KICK || k == AURA_SNARE || k == AURA_HATS || k == AURA_DRUMS || k == AURA_TOMS || k == AURA_CYMBAL)
+        return showDrums;
+    if (k == AURA_GUITAR) return showGuitars;
+    if (k == AURA_PIANO) return showKeys;
+    return showOthers;
+}
+
+float eyeH() { return 0.55 + 1.6 * tilt; }
+float horizon() { return 0.12 + 0.55 * tilt; }
+vec2 toScreen(vec3 w) { return vec2(w.x, w.y - eyeH()) * FOCAL / w.z + vec2(0.0, horizon()); }
+// Across, a little widened: mixes seldom pan hard, and ±0.3 should read as "left", not "almost centre".
+float across(float x) { return sign(x) * pow(abs(x), 0.7); }
+vec3 place(vec3 pos) { return vec3(across(pos.x) * 2.6 * spread, 0.1 + pos.y * 1.4 * lift, 1.3 + pos.z * 2.6 * depth); }
+
+float segDist(vec2 p, vec2 a, vec2 b) {
+    vec2 ab = b - a;
+    float h = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0);
+    return length(p - a - ab * h);
+}
+
+vec4 scene(vec2 uv, vec2 p) {
+    vec3 col = vec3(0.0);
+    float alpha = 0.0;
+    bool live = uLive > 0.5 && uSpatial > 0.5;
+
+    // The floor: back-projected, a faint grid fading into the distance.
+    float hy = horizon();
+    if (grid && p.y < hy - 0.002) {
+        float z = eyeH() * FOCAL / (hy - p.y);
+        float x = p.x * z / FOCAL;
+        vec2 g = abs(fract(vec2(x * 1.2, z * 0.8)) - 0.5);
+        float w = fwidth(x * 1.2) + fwidth(z * 0.8);
+        float line = max(smoothstep(w * 1.5, 0.0, g.x), smoothstep(w * 1.5, 0.0, g.y));
+        float fade = exp(-z * 0.18) * smoothstep(0.0, 0.1, hy - p.y);
+        float breath = live ? 0.0 : 0.04 * sin(uTime * 0.6);
+        col += vec3(0.3, 0.5, 0.8) * line * fade * (0.22 + breath);
+        alpha += line * fade * (0.22 + breath);
+    }
+
+    // The ambience: a haze behind the stage, sparks in it.
+    int ai = auraFind(AURA_AMBIENCE);
+    AuraObject amb = auraObjectNow(max(ai, 0));
+    float ambE = live && ai >= 0 ? amb.energy * amb.presence : (live ? 0.0 : 0.15 + 0.05 * sin(uTime * 0.5));
+    if (haze > 0.0) {
+        float band = exp(-pow((p.y - hy - 0.12) / 0.45, 2.0));
+        float n = auraFbm(vec2(p.x * 1.6 + uTime * 0.03, p.y * 2.2 - uTime * 0.02));
+        float h = haze * ambE * band * (0.35 + 0.65 * n) * 0.55;
+        vec3 hc = colours == 0 ? vec3(0.22, 0.26, 0.62) : kindColour(AURA_AMBIENCE, true) * 0.6;
+        col += hc * h;
+        alpha += h;
+    }
+    if (dust > 0.0 && live && ai >= 0) {
+        vec2 cell = floor(p * 60.0);
+        float r = auraHash(cell);
+        float tw = sin(uTime * (2.0 + 4.0 * r) + r * 40.0) * 0.5 + 0.5;
+        vec2 f = fract(p * 60.0) - 0.5;
+        float spark = step(0.965, r) * smoothstep(0.18, 0.0, length(f)) * tw;
+        float s = dust * spark * (ambE + 0.6 * amb.onset) * smoothstep(-0.2, 0.3, p.y - hy + 0.3);
+        col += vec3(0.8, 0.85, 1.0) * s;
+        alpha += s;
+    }
+
+    if (live) {
+        for (int i = 0; i < AURA_OBJECTS; i++) {
+            if (auraObjectPresence(i) < 0.01) continue;
+            AuraObject o = auraObjectNow(i);
+            if (o.kind == AURA_AMBIENCE || !shown(o.kind)) continue;
+            // every light stands where its sound is: a part that comes lights
+            // up in its place (nothing flies: nothing moves in the sound)
+            vec3 w = place(o.pos);
+            vec2 c = toScreen(w);
+            vec2 f0 = toScreen(vec3(w.x, 0.0, w.z));
+            float persp = FOCAL / w.z;
+            vec3 ic = kindColour(o.kind, o.main);
+            ic = mix(vec3(dot(ic, vec3(0.299, 0.587, 0.114))), ic, vivid);
+            float scale = o.main ? 1.0 : extraSize;
+
+            // An instrument's wide layer (its diffuse part: a pad far behind, a
+            // wash, the width of a guitar recorded wide) is no place to point at:
+            // a band of haze across the stage at its height.
+            bool layer = o.main && o.width >= 0.75 && o.kind != AURA_BASS && o.kind != AURA_KICK
+                && o.kind != AURA_SNARE && o.kind != AURA_HATS && o.kind != AURA_DRUMS && o.kind != AURA_TOMS
+                && o.kind != AURA_CYMBAL;
+            if (layer) {
+                if (layers > 0.0) {
+                    float halfW = 2.6 * spread * persp * (0.6 + 0.6 * o.width);   // the stage's width
+                    float bx = smoothstep(halfW, halfW * 0.3, abs(p.x - c.x));
+                    float by = exp(-pow((p.y - c.y) / (0.2 * persp + 0.06), 2.0));
+                    float hz = layers * 0.5 * (0.3 + o.energy) * o.presence * bx * by;
+                    col += ic * hz;
+                    alpha += hz;
+                }
+                continue;
+            }
+
+            // The light: a core and a glow; wider for a wide (spread, diffuse) sound. No sound, no light.
+            vec2 d2 = p - c;
+            d2.x /= 1.0 + 2.5 * o.width;
+            float d = length(d2);
+            float r = size * scale * persp * (0.05 + 0.13 * o.energy);
+            float core = exp(-pow(d / max(r, 1e-3), 2.0)) * (0.15 + 1.2 * o.energy);
+            float halo = glow * 0.012 * persp / (d * d / (r + 1e-3) + 0.02) * (0.08 + o.energy);
+            float hit = flash * o.onset * exp(-pow(d / (r * 2.2 + 1e-3), 2.0));
+            float I = (core + halo + hit) * o.presence;
+
+            // Its birth: a ring that opens around it.
+            if (!o.main && burst > 0.0 && o.age < 0.45) {
+                float t = o.age / 0.45;
+                float R = r * (1.5 + 5.0 * t);
+                I += burst * (1.0 - t) * 0.7 * smoothstep(0.004 + 0.1 * r, 0.0, abs(length(p - c) - R));
+            }
+            // The stalk down to the floor.
+            if (stalks) {
+                float ds = segDist(p, f0, c);
+                float h = clamp(dot(p - f0, c - f0) / max(dot(c - f0, c - f0), 1e-6), 0.0, 1.0);
+                I += 0.35 * o.presence * (0.2 + o.energy) * smoothstep(0.004 * persp + 0.0015, 0.0, ds) * (0.3 + 0.7 * h);
+            }
+            // A ring on the floor: it runs out as the hit dies away (onset 1 → 0).
+            if (rings > 0.0 && o.onset > 0.02) {
+                vec2 q = p - f0;
+                q.y *= w.z / eyeH();                           // a circle on the floor, seen flattened
+                float R = persp * (0.05 + 0.35 * (1.0 - o.onset)) * size;
+                float ring = smoothstep(0.012 * persp + 0.003, 0.0, abs(length(q) - R));
+                I += rings * 0.8 * o.onset * o.presence * ring;
+            }
+            col += ic * I;
+            alpha += I;
+        }
+    }
+
+    alpha = clamp(alpha, 0.0, 1.0);
+    return vec4(col / max(alpha, 1e-3), alpha);
+}
