@@ -1,0 +1,271 @@
+/* ═══ The newcomer's tour (js/tour-engine.js, js/tour.js) ═════════════════
+   Over the window while it is up: a sheet that takes the clicks, the dim
+   with a hole round what a step points at, a lit ring on the hole's edge,
+   and the tip with its arrow. Under the update dialog (9000): an update
+   offered meanwhile stays usable. Also loaded by the analyzer window. */
+
+.tour-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 8000;
+  /* Only the sheet and the tip take the pointer: where a step opens the
+     sheet (the one the listener presses something on), the click goes on
+     to the window, not to the layer's own box. */
+  pointer-events: none;
+}
+.tour-block {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+/* the dim: an SVG sheet with holes cut by its mask */
+.tour-dim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  /* The window is transparent past its rounded frame (11 px): the dim keeps
+     to the frame, so no dark corners show against the desktop. */
+  clip-path: inset(0 round 11px);
+}
+.tour-layer.tour-in .tour-dim { opacity: 1; }
+.tour-shade { fill: rgba(2, 6, 14, 0.64); }
+.tour-ring {
+  fill: none;
+  stroke: rgba(125, 211, 252, 0.85);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.55));
+  animation: tour-ring 1.8s ease-in-out infinite;
+}
+@keyframes tour-ring {
+  0%, 100% { stroke-opacity: 0.55; }
+  50% { stroke-opacity: 1; }
+}
+/* Between two steps in different layouts: the dim lifts, the switch is seen. */
+.tour-layer.tour-switching .tour-dim,
+.tour-layer.tour-switching .tour-tip { opacity: 0; }
+
+/* ── the tip ─────────────────────────────────────────────────────────── */
+
+.tour-tip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  width: min(286px, calc(100vw - 16px));
+  padding: 10px 12px 9px;
+  background: rgba(4, 9, 18, 0.97);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  border-radius: 9px;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.72), 0 0 18px rgba(56, 189, 248, 0.12);
+  color: #cbd5e1;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  user-select: none;
+  pointer-events: auto;
+}
+.tour-layer.tour-in .tour-tip { opacity: 1; }
+.tour-layer.tour-out .tour-tip { pointer-events: none; }
+.tour-tip [hidden] { display: none !important; }
+
+/* The arrow: a square turned 45°, half out of the tip's edge on the side
+   of what it points at; the two sides inside the tip carry no border. */
+.tour-arrow {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  background: rgba(4, 9, 18, 0.97);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.tour-tip[data-side="bottom"] .tour-arrow { border-right: 0; border-bottom: 0; }
+.tour-tip[data-side="top"] .tour-arrow { border-left: 0; border-top: 0; }
+.tour-tip[data-side="right"] .tour-arrow { border-top: 0; border-right: 0; }
+.tour-tip[data-side="left"] .tour-arrow { border-bottom: 0; border-left: 0; }
+
+.tour-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.tour-h {
+  flex: 1;
+  min-width: 0;
+  color: #7dd3fc;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.tour-n {
+  flex: none;
+  color: #475569;
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+.tour-b { color: #cbd5e1; }
+
+/* A button named in a text by its sign ("the {?} button"): a small key, so
+   the sign does not stand alone in the line. */
+.tour-chip {
+  display: inline-block;
+  min-width: 13px;
+  height: 13px;
+  padding: 0 2px;
+  box-sizing: border-box;
+  border-radius: 3px;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(15, 23, 42, 0.85);
+  color: #7dd3fc;
+  font: 600 9px/11px 'Segoe UI', Tahoma, Arial, sans-serif;
+  text-align: center;
+  vertical-align: 1px;
+}
+
+/* a row's buttons, each beside what it does */
+.tour-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+.tour-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 17px;
+  box-sizing: border-box;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(15, 23, 42, 0.85);
+  color: #7dd3fc;
+}
+.tour-key svg { display: block; }
+.tour-key-remove { color: #94a3b8; border-color: rgba(148, 163, 184, 0.3); }
+
+.tour-f {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+}
+.tour-skip {
+  margin-right: auto;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+  color: #64748b;
+  font: inherit;
+  font-size: 0.66rem;
+  cursor: pointer;
+}
+.tour-skip:hover { color: #94a3b8; text-decoration: underline; }
+.tour-btn {
+  padding: 4px 11px;
+  border-radius: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(15, 23, 42, 0.85);
+  color: #7dd3fc;
+  font: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tour-btn:hover { background: rgba(56, 189, 248, 0.14); color: #e0f2fe; }
+.tour-next {
+  background: rgba(14, 165, 233, 0.22);
+  border-color: rgba(56, 189, 248, 0.6);
+  color: #e0f2fe;
+}
+.tour-next:hover { background: rgba(14, 165, 233, 0.34); }
+.tour-tip button:focus { outline: none; }
+.tour-tip button:focus-visible { outline: 1px solid #7dd3fc; outline-offset: 1px; }
+
+/* the offer: a card in the middle, its buttons on the right */
+.tour-offer .tour-h { font-size: 0.8rem; letter-spacing: 1.5px; }
+.tour-offer .tour-f { justify-content: flex-end; }
+
+/* ── the ? under the version: the way back into the tour ─────────────── */
+
+.tour-help {
+  position: absolute;
+  left: 9px;
+  top: 24px;
+  z-index: 2;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  box-sizing: border-box;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  background: rgba(15, 23, 42, 0.45);
+  color: rgba(125, 211, 252, 0.8);
+  font: 600 9.5px/13px 'Segoe UI', Tahoma, Arial, sans-serif;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
+}
+.tour-help:hover,
+.tour-help:focus-visible {
+  opacity: 1;
+  color: #e0f2fe;
+  border-color: rgba(125, 211, 252, 0.6);
+  background: rgba(56, 189, 248, 0.16);
+  outline: none;
+}
+/* the tour gone into it: it lights, and fades back */
+.tour-help.tour-glow { animation: tour-glow 1.5s ease-out; }
+@keyframes tour-glow {
+  0%, 18% {
+    opacity: 1;
+    color: #f0f9ff;
+    border-color: rgba(186, 230, 253, 0.95);
+    background: rgba(14, 116, 144, 0.9);
+    box-shadow: 0 0 10px 3px rgba(56, 189, 248, 0.7);
+  }
+  100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+}
+
+/* The analyzer's ?: first in its title bar, in the row, not over it. */
+.tour-help.an-tour-help {
+  position: relative;
+  left: auto;
+  top: auto;
+  flex: none;
+  margin-right: 8px;
+  -webkit-app-region: no-drag;
+}
+
+/* ── the main window's furniture while a step shows it ───────────────── */
+
+/* The listening mode's flap, out as if the pointer were near it. */
+#plBar.tour-flap .pl-mode-strip::before,
+#plBar.tour-flap .pl-mode-strip::after { opacity: 1; }
+#plBar.tour-flap .pl-mode-strip svg { top: 2px; color: rgba(203, 213, 225, 0.9); }
+
+/* The player's right-click menu, shown in place: under the dim (seen
+   through its hole), never pressed. */
+.pl-menu.tour-replica { z-index: 7990; pointer-events: none; }
+
+/* The window's own tooltip (10000, over the tour's 8000) waits while the
+   tour is up: the edge the last step hands to the listener has one, and it
+   would stand over the step's own words. */
+body.tour-up #labTip { visibility: hidden !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-ring { animation: none; }
+  .tour-dim, .tour-tip { transition: none; }
+}

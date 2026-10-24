@@ -1,0 +1,12 @@
+[build]
+rustflags = ["-C", "target-cpu=native"]
+
+# The FDK AAC decoder (Cargo.toml: aac) is built from vendor/aac, its AOSP tag
+# vendored unchanged (`cargo vendor`): offline, and the same bytes every time.
+[source."git+https://android.googlesource.com/platform/external/aac?tag=android-17.0.0_r1"]
+git = "https://android.googlesource.com/platform/external/aac"
+tag = "android-17.0.0_r1"
+replace-with = "vendored-aac"
+
+[source.vendored-aac]
+directory = "vendor"

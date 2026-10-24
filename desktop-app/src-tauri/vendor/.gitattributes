@@ -1,0 +1,3 @@
+# Vendored crates are kept byte for byte: cargo checks every file against
+# .cargo-checksum.json, so line endings must not be converted on checkout.
+* -text
