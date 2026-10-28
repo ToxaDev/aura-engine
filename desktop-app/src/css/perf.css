@@ -1,0 +1,63 @@
+/* ── The load badge (next to #appVersion, js/perf-badge.js) ─────────────
+   One small pill in two parts, CPU and GPU, as faint as the version beside
+   it: readable when looked for, never calling for the eye. The numbers keep
+   their width, so the pill does not twitch as they change. */
+
+/* 14 px tall on the version's 12 px line, one pixel out above and below, so
+   both share a centre; the letters are trimmed to their capitals (text-box)
+   and centred in it — as much room above them as below (Anton 19.10: the
+   text sat high, the room all under it). */
+#perfBadge {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 14px;
+  margin: -1px 0 -1px 9px;
+  padding: 0 5px;
+  border: 1px solid rgba(14, 165, 233, 0.20);
+  border-radius: 3px;
+  background: rgba(14, 165, 233, 0.04);
+  color: rgba(148, 163, 184, 0.62);
+  font: inherit;
+  font-size: 9px;
+  line-height: 10px;
+  letter-spacing: 0.6px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: none;
+  vertical-align: top;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+#perfBadge:hover,
+#perfBadge:focus-visible {
+  color: rgba(203, 213, 225, 0.95);
+  border-color: rgba(14, 165, 233, 0.45);
+  background: rgba(14, 165, 233, 0.10);
+  outline: none;
+}
+#perfBadge .pb-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+#perfBadge .pb-k,
+#perfBadge .pb-v { line-height: 1; text-box: trim-both cap alphabetic; }
+#perfBadge .pb-k {
+  font-size: 8px;
+  letter-spacing: 0.8px;
+  opacity: 0.75;
+}
+#perfBadge .pb-v {
+  min-width: 2ch;
+  text-align: right;
+  color: rgba(125, 211, 252, 0.78);
+}
+#perfBadge:hover .pb-v { color: #7dd3fc; }
+/* "640 MB" and "1.2 GB" hold the same width, so the badge does not jump. */
+#perfBadge #perfRam { min-width: 6ch; }
+#perfBadge .pb-sep {
+  width: 1px;
+  height: 8px;
+  margin: 0 6px;
+  background: rgba(14, 165, 233, 0.25);
+}

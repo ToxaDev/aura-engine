@@ -1,0 +1,65 @@
+// @name     Lineup
+// @author   Aura Engine
+// @about    Every instrument of the song as one still point in a row, left to right: the kit piece by piece (kick, snare, toms, hi-hat, cymbals), then the bass, the voice, guitars, keys and the rest. A point glows while its instrument sounds and flashes with each of its hits and notes; nothing moves. A test of how well the song's instruments are told apart.
+// @spatial
+//
+// @section  "Points"       "The row of instruments"
+// @param    float  size         1.0   0.4  2.5  0.01   x          "Size"           "The points' size"
+// @param    float  glow         1.0   0.2  3.0  0.01   x          "Glow"           "How far each point's light spreads"
+// @param    float  flash        1.0   0.0  2.5  0.01   x          "Hit flash"      "How much a point flares when its instrument strikes"
+// @param    float  rest         0.12  0.0  0.5  0.01              "At rest"        "How much a silent instrument's point still shows"
+// @param    bool   marks        1                                 "Marks"          "A small dot under each point, so a silent one is still found"
+
+vec3 kindColour(int k) {
+    if (k == AURA_KICK) return vec3(1.00, 0.45, 0.20);
+    if (k == AURA_SNARE) return vec3(1.00, 0.72, 0.25);
+    if (k == AURA_TOMS) return vec3(0.95, 0.35, 0.35);
+    if (k == AURA_HATS) return vec3(1.00, 0.92, 0.45);
+    if (k == AURA_CYMBAL) return vec3(0.95, 0.85, 0.65);
+    if (k == AURA_DRUMS) return vec3(0.95, 0.55, 0.40);
+    if (k == AURA_BASS) return vec3(0.30, 0.50, 1.00);
+    if (k == AURA_VOICE) return vec3(1.00, 0.95, 0.85);
+    if (k == AURA_GUITAR) return vec3(0.40, 0.95, 0.50);
+    if (k == AURA_PIANO) return vec3(0.75, 0.50, 1.00);
+    if (k == AURA_OTHER) return vec3(0.30, 0.90, 0.95);
+    if (k == AURA_AMBIENCE) return vec3(0.55, 0.60, 0.75);
+    return vec3(0.65, 0.70, 0.85);
+}
+
+vec4 scene(vec2 uv, vec2 p) {
+    float aspect = uResolution.x / uResolution.y;
+    float px = 2.0 / uResolution.y;
+    int n = 0;
+    for (int i = 0; i < AURA_OBJECTS; i++) {
+        if (auraObjectPresence(i) > 0.0) n++;
+    }
+    if (n == 0) return vec4(0.0);
+    // the player's band keeps its text in the upper half: the row stands low, where the scene is seen whole
+    float y0 = uFull > 0.5 ? 0.0 : -0.48;
+    float span = aspect * 0.88;
+    float stp = 2.0 * span / float(n);
+    float r = min(stp * 0.22, 0.16) * size;
+    vec3 col = vec3(0.0);
+    int k = 0;
+    for (int i = 0; i < AURA_OBJECTS; i++) {
+        if (auraObjectPresence(i) <= 0.0) continue;
+        AuraObject o = auraObjectNow(i);
+        vec2 c = vec2(-span + stp * (float(k) + 0.5), y0);
+        k++;
+        float d = length(p - c);
+        float e = clamp(o.energy, 0.0, 1.0);
+        float f = clamp(o.onset, 0.0, 1.0) * flash;
+        float lvl = rest + (1.0 - rest) * e;
+        vec3 kc = kindColour(o.kind);
+        float core = smoothstep(r * 0.35 + px, r * 0.35 - px, d) * (0.2 + 0.8 * lvl + 0.6 * f);
+        float rr = r * r * glow * (1.0 + 1.5 * f);
+        float halo = exp(-d * d / rr) * (0.75 * lvl * lvl + 0.9 * f);
+        col += kc * (core + halo);
+        if (marks) {
+            float m = smoothstep(px * 2.5, px * 1.0, length(p - c + vec2(0.0, r * 1.9)));
+            col += kc * m * 0.35;
+        }
+    }
+    float a = clamp(max(col.r, max(col.g, col.b)), 0.0, 1.0);
+    return vec4(col / max(a, 1e-4), a);
+}

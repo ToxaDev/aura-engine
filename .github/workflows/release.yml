@@ -1,0 +1,410 @@
+name: Release
+
+# Pushing a tag like v1.0.0 builds the app for Windows (portable zip + ASIO
+# driver), Linux (AppImage + .deb, on Ubuntu 22.04 for an older glibc) and
+# macOS (universal .dmg, Apple Silicon + Intel), and publishes a GitHub Release
+# with all of them, their .sha256 files and SHA256SUMS.txt. None of them is
+# signed for an OS store; the update signatures (.sig) are added afterwards
+# from the offline key.
+#
+# Manual runs (workflow_dispatch) build the same files and keep them as
+# workflow artifacts. With `draft_tag` (e.g. v1.9.0) a manual run also makes a
+# DRAFT release of that tag on the commit it built: nothing is public and no
+# tag exists until the draft is published.
+#
+# A tag can arrive here more than once — rewriting history moves every tag, and
+# force-pushing them re-fires this workflow on releases that are already public.
+# The `guard` job stops that: a tag whose release already carries assets is left
+# exactly as it was published.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      draft_tag:
+        description: 'Make a DRAFT release of this tag (e.g. v1.9.0); empty = artifacts only'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # Portable optimized build: x86-64-v3 = AVX2 + FMA (Intel Haswell 2013+,
+  # AMD Excavator 2015+). This deliberately overrides the repo-local
+  # `target-cpu=native` in .cargo/config.toml, which is right for private
+  # builds but would tie a distributed exe to the build machine's CPU.
+  RUSTFLAGS: "-C target-cpu=x86-64-v3"
+
+jobs:
+  guard:
+    name: Check the tag is not already published
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.check.outputs.publish }}
+      tag: ${{ steps.check.outputs.tag }}
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          DRAFT='${{ github.event.inputs.draft_tag }}'
+          if [ "${{ github.event_name }}" = "push" ]; then
+            OUT="$TAG"; RELEASE=publish
+          elif [ -n "$DRAFT" ]; then
+            if ! echo "$DRAFT" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::draft_tag must look like v1.9.0"; exit 1
+            fi
+            OUT="$DRAFT"; RELEASE=draft
+          else
+            OUT="dev-$(echo "$GITHUB_SHA" | cut -c1-7)"; RELEASE=none
+          fi
+          echo "tag=$OUT" >> "$GITHUB_OUTPUT"
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          if [ "$RELEASE" = "none" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"   # artifacts only, never a release
+            exit 0
+          fi
+          # A release of this tag that already carries assets (published, or a
+          # draft) is left exactly as it is.
+          count=$(gh api "repos/$REPO/releases?per_page=100" \
+            --jq "[.[] | select(.tag_name == \"$OUT\")][0].assets | length" 2>/dev/null || echo 0)
+          if [ "${count:-0}" -gt 0 ]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$OUT already has $count assets - refusing to rebuild and overwrite a release."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  windows:
+    name: Windows x64
+    needs: guard
+    if: needs.guard.outputs.publish == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            desktop-app/src-tauri
+            desktop-app/asio
+
+      # Aura Player ASIO, the driver other players play into the app through:
+      # a DLL of its own (GPL-3.0-only, desktop-app/asio), 64-bit for 64-bit
+      # players and 32-bit for 32-bit ones. Built for the baseline CPU of each
+      # target - a player of any age loads it - so the CPU flag is dropped
+      # here. /Brepro: the linker stamps no time or random PDB id into the
+      # DLLs, so the same sources and compiler give the same bytes.
+      - name: Install the 32-bit target
+        run: rustup target add i686-pc-windows-msvc
+
+      - name: Build the ASIO driver (x64 and x86)
+        working-directory: desktop-app/asio
+        env:
+          RUSTFLAGS: "-C link-arg=/Brepro"
+        run: |
+          cargo build --release --locked -p aura-player-asio --target x86_64-pc-windows-msvc
+          cargo build --release --locked -p aura-player-asio --target i686-pc-windows-msvc
+
+      # The app carries the driver's SHA-256s, not the driver: it installs
+      # the DLLs beside it only when they are these, and otherwise fetches
+      # this release's driver asset and checks it against them.
+      - name: Hash the ASIO driver
+        shell: pwsh
+        run: |
+          $t = 'desktop-app/asio/target'
+          $h64 = (Get-FileHash "$t/x86_64-pc-windows-msvc/release/aura_player_asio.dll" -Algorithm SHA256).Hash.ToLower()
+          $h32 = (Get-FileHash "$t/i686-pc-windows-msvc/release/aura_player_asio.dll" -Algorithm SHA256).Hash.ToLower()
+          echo "AURA_ASIO_SHA256_64=$h64" >> $env:GITHUB_ENV
+          echo "AURA_ASIO_SHA256_32=$h32" >> $env:GITHUB_ENV
+
+      - name: Build release binary
+        working-directory: desktop-app/src-tauri
+        env:
+          AURA_RELEASE_BUILD: "1"
+        run: cargo build --release --locked --bin aura-engine
+
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          $tag = '${{ needs.guard.outputs.tag }}'
+          $name  = "aura-engine-$tag-windows-x64"
+          $stage = "stage/$name"
+          New-Item -ItemType Directory -Force "$stage/fir-optimizer/output" | Out-Null
+
+          Copy-Item desktop-app/src-tauri/target/release/aura-engine.exe "$stage/"
+          Copy-Item LICENSE "$stage/LICENSE.txt"
+          Copy-Item THIRD-PARTY-NOTICES.txt "$stage/THIRD-PARTY-NOTICES.txt"
+
+          # The ASIO driver, in asio\ beside the exe where the app looks for
+          # it. Its texts are not named README.txt / LICENSE.txt: an updater
+          # before 1.6.0 takes those by name at any depth, and one nested in a
+          # folder would stop its update.
+          $asio = "$stage/asio"
+          New-Item -ItemType Directory -Force $asio | Out-Null
+          Copy-Item desktop-app/asio/target/x86_64-pc-windows-msvc/release/aura_player_asio.dll "$asio/aura_player_asio64.dll"
+          Copy-Item desktop-app/asio/target/i686-pc-windows-msvc/release/aura_player_asio.dll "$asio/aura_player_asio32.dll"
+          Copy-Item desktop-app/asio/driver/LICENSE "$asio/LICENSE-GPL-3.0.txt"
+          Set-Content -Path "$asio/README-ASIO.txt" -Encoding utf8 -Value @(
+            'Aura Player ASIO - the ASIO driver other players play into AuraEngine through',
+            '',
+            'aura_player_asio64.dll is for 64-bit players, aura_player_asio32.dll for',
+            '32-bit ones. Install them from the app: Input, then Install driver',
+            '(Windows asks for permission once). The app copies them to',
+            '%ProgramFiles%\AuraEngine\ASIO and registers them there.',
+            '',
+            'The driver is a separate program from AuraEngine, under its own licence:',
+            'GNU General Public License version 3 only (LICENSE-GPL-3.0.txt).',
+            "Its source code: https://github.com/ToxaDev/aura-engine/tree/$tag/desktop-app/asio",
+            '',
+            'ASIO is a trademark and software of Steinberg Media Technologies GmbH.'
+          )
+
+          $readme = @(
+            'AuraEngine - high-fidelity audio upsampler and player',
+            'https://github.com/ToxaDev/aura-engine',
+            'Docs: https://aura-engine.app/',
+            '',
+            'REQUIREMENTS',
+            '  * Windows 10/11 x64. CPU with AVX2 (any Intel/AMD from ~2013+).',
+            '  * WebView2 runtime (preinstalled on Windows 11; on Windows 10 the',
+            '    app offers the download if it is missing). Nothing else: decoding',
+            '    (HE-AAC and Opus included) and FLAC encoding are built in, and no',
+            '    external tool is called during a conversion.',
+            '  * To play: the output device is opened in WASAPI exclusive mode at',
+            '    the output rate, so nothing else plays through it meanwhile, and',
+            '    it must accept that rate (FS8 is 352.8 / 384 kHz; otherwise pick',
+            '    a lower FS multiplier).',
+            '  * For internet radio: a connection a stream plays on.',
+            '  * Optional: a Vulkan GPU for the accelerated DS path. Playback moves',
+            '    to a discrete card only when the CPU cannot keep up.',
+            '',
+            'FIR FILTERS (required - this zip has none)',
+            '  This is the app on its own. The million-tap FIR stages and',
+            '  Hybrid-Phase need pre-computed filter files, and there are none',
+            '  in here.',
+            '',
+            '  If you did not specifically want the bare app, take a BUNDLE from',
+            '  the Releases page instead: same app, with its filters already in',
+            '  it, nothing to set up. Otherwise download a filter pack (e.g.',
+            '  aura-filters-10M-all-rates.zip) and extract it here - the archive',
+            '  already contains the fir-optimizer/output/ folder. Or generate',
+            '  them with Python (fir-optimizer/README.md), or point the',
+            '  AURA_FILTER_DIR environment variable at a folder that has them.',
+            '',
+            '  The app adapts to whatever it finds: it opens on the largest tap',
+            '  count present at FS8, and strikes through the slider positions it',
+            '  has no filter for. Selecting one anyway names the download that',
+            '  would add it.',
+            '',
+            '  Without a filter matching your tap count and FS multiplier the',
+            '  conversion stops and names the file it wanted. It will NOT fall',
+            '  back to an ordinary resampler while the interface still claims',
+            '  the filter you selected.',
+            '',
+            'USAGE',
+            '  Run aura-engine.exe and drop audio files onto the window: they join',
+            '  the list and wait. The play button on a row plays the file through',
+            '  the chain it would be converted with; C converts that row, and',
+            '  Convert all every row not converted yet. Output FLAC appears next',
+            '  to the source file. F / R at the head of the list switches between',
+            '  your files and internet radio. The console window with the audit',
+            '  log starts minimized; session logs are kept in',
+            '  %LOCALAPPDATA%\AuraEngine\logs.',
+            '',
+            'UPDATES',
+            '  The app looks for a newer release at start and offers it. The',
+            '  download is checked against its signature before anything is',
+            '  written, and nothing is updated while a conversion runs. Versions',
+            '  before 1.5.0 have no updater: unzip a new version over the old',
+            '  folder, and your settings are kept.',
+            '',
+            'LICENSE',
+            '  PolyForm Noncommercial 1.0.0 - free for noncommercial use.',
+            '  Commercial licensing: auraengine.dev@gmail.com',
+            '  THIRD-PARTY-NOTICES.txt lists the libraries the program is built',
+            '  with and their licences.',
+            '',
+            'CONTACT',
+            '  Something broken     https://github.com/ToxaDev/aura-engine/issues',
+            '  Questions and ideas  https://github.com/ToxaDev/aura-engine/discussions',
+            '  Anything private     auraengine.dev@gmail.com'
+          )
+          Set-Content -Path "$stage/README.txt" -Value $readme -Encoding utf8
+
+          Set-Content -Path "$stage/fir-optimizer/output/PUT-FILTERS-HERE.txt" -Encoding utf8 -Value @(
+            'Place the generated FIR filter .npy files in this folder.',
+            'See https://github.com/ToxaDev/aura-engine/blob/master/fir-optimizer/README.md'
+          )
+
+          Compress-Archive -Path "$stage" -DestinationPath "$name.zip"
+          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path "$name.zip.sha256" -Value "$hash  $name.zip" -Encoding ascii
+
+          # The driver on its own, for an app that came without it (an update
+          # from 1.5.x brings the exe alone): the app fetches this asset by its
+          # name and takes the DLLs only if they match the SHA-256s it was
+          # built with.
+          $drv = "aura-player-asio-$tag-windows"
+          New-Item -ItemType Directory -Force "stage/$drv" | Out-Null
+          Copy-Item "$asio/*" "stage/$drv/"
+          Compress-Archive -Path "stage/$drv" -DestinationPath "$drv.zip"
+
+          New-Item -ItemType Directory -Force out | Out-Null
+          Move-Item "$name.zip", "$name.zip.sha256", "$drv.zip" out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          if-no-files-found: error
+          path: out/*
+
+
+  linux:
+    name: Linux x86_64 (AppImage, .deb)
+    needs: guard
+    if: needs.guard.outputs.publish == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: desktop-app/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System libraries (Tauri 2 on Ubuntu 22.04)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev librsvg2-dev \
+            libssl-dev libvulkan-dev pkg-config cmake build-essential libasound2-dev libdbus-1-dev \
+            patchelf libfuse2 file
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app/src-tauri
+
+      - name: Build (AppImage, .deb)
+        env:
+          AURA_RELEASE_BUILD: "1"
+        run: npx --yes @tauri-apps/cli@2 build --ci --bundles deb,appimage
+
+      - name: Name the files
+        run: |
+          tag='${{ needs.guard.outputs.tag }}'
+          out="$GITHUB_WORKSPACE/out"
+          mkdir -p "$out"
+          b=target/release/bundle
+          cp "$(ls $b/appimage/*.AppImage | head -1)" "$out/aura-engine-$tag-linux-x86_64.AppImage"
+          cp "$(ls $b/deb/*.deb | head -1)" "$out/aura-engine-$tag-linux-amd64.deb"
+          cd "$out"
+          chmod +x ./*.AppImage
+          for f in *.AppImage *.deb; do sha256sum "$f" > "$f.sha256"; done
+          ls -l
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          if-no-files-found: error
+          path: out/*
+
+  macos:
+    name: macOS universal (Apple Silicon + Intel)
+    needs: guard
+    if: needs.guard.outputs.publish == 'true'
+    runs-on: macos-14
+    timeout-minutes: 150
+    defaults:
+      run:
+        working-directory: desktop-app/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable, both Mac targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache cargo registry + target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop-app/src-tauri
+
+      # Each half gets its own CPU baseline: Apple M1 for Apple Silicon, and
+      # x86-64-v3 (AVX2, as on Windows and Linux) for Intel. The global
+      # RUSTFLAGS would give the arm half an x86 CPU, so it is dropped here.
+      - name: Build (.app, .dmg)
+        env:
+          AURA_RELEASE_BUILD: "1"
+          CARGO_TARGET_AARCH64_APPLE_DARWIN_RUSTFLAGS: "-C target-cpu=apple-m1"
+          CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS: "-C target-cpu=x86-64-v3"
+        run: |
+          unset RUSTFLAGS
+          npx --yes @tauri-apps/cli@2 build --ci --target universal-apple-darwin --bundles app,dmg
+
+      - name: Name the files
+        run: |
+          tag='${{ needs.guard.outputs.tag }}'
+          out="$GITHUB_WORKSPACE/out"
+          mkdir -p "$out"
+          b=target/universal-apple-darwin/release/bundle
+          lipo -info "$b/macos/Aura Engine.app/Contents/MacOS/"*
+          cp "$(ls $b/dmg/*.dmg | head -1)" "$out/aura-engine-$tag-macos-universal.dmg"
+          cd "$out"
+          for f in *.dmg; do shasum -a 256 "$f" > "$f.sha256"; done
+          ls -l
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          if-no-files-found: error
+          path: out/*
+
+  release:
+    name: Release
+    needs: [guard, windows, linux, macos]
+    if: needs.guard.outputs.release != 'none' && needs.guard.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: SHA256SUMS.txt
+        working-directory: dist
+        run: |
+          for f in *.sha256; do sha256sum -c "$f"; done
+          sha256sum $(ls | grep -v '\.sha256$') > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish GitHub Release
+        if: needs.guard.outputs.release == 'publish'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+      - name: Draft GitHub Release
+        if: needs.guard.outputs.release == 'draft'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.guard.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: AuraEngine ${{ needs.guard.outputs.tag }}
+          draft: true
+          files: dist/*

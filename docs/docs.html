@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuraEngine documentation — install, converter, player, filters</title>
+<meta name="description" content="AuraEngine documentation: install, every converter setting, the player, ASIO input, filters up to 1G taps and how the signal path works.">
+<link rel="canonical" href="https://aura-engine.app/docs.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AuraEngine">
+<meta property="og:title" content="AuraEngine documentation">
+<meta property="og:description" content="Install AuraEngine, set up the converter and the player, choose filters, and see what every DSP stage does to your audio.">
+<meta property="og:url" content="https://aura-engine.app/docs.html">
+<meta property="og:image" content="https://aura-engine.app/media/og-image.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AuraEngine documentation">
+<meta name="twitter:description" content="Install AuraEngine, set up the converter and the player, choose filters, and see what every DSP stage does to your audio.">
+<meta name="twitter:image" content="https://aura-engine.app/media/og-image.jpg">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48 64x64">
+<link rel="icon" type="image/png" sizes="256x256" href="media/aura-icon.png">
+<link rel="apple-touch-icon" href="media/apple-touch-icon.png">
+<meta name="theme-color" content="#02050c">
+<meta name="color-scheme" content="dark">
+<style>
+  :root {
+    --bg: #02050c;
+    --bg-2: #060d1c;
+    --panel: rgba(12, 22, 42, .62);
+    --panel-solid: #0a1426;
+    --line: rgba(56, 189, 248, .16);
+    --line-2: rgba(56, 189, 248, .32);
+    --text: #e6f1ff;
+    --body: #c9d6ea;
+    --dim: #94a3b8;
+    --faint: #5b6b86;
+    --sky: #38bdf8;
+    --cyan: #67e8f9;
+    --violet: #a78bfa;
+    --amber: #fbbf24;
+    --green: #34d399;
+    --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", monospace;
+    --sans: "SF Pro Display", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    --r: 12px;
+    --top: 56px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: calc(var(--top) + 16px); -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--body); font: 16.5px/1.68 var(--sans); }
+  a { color: var(--sky); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, kbd { font-family: var(--mono); font-size: .88em; background: rgba(56,189,248,.08); border: 1px solid var(--line);
+    border-radius: 5px; padding: .05em .35em; color: var(--text); white-space: nowrap; }
+  pre { font-family: var(--mono); font-size: .88em; background: var(--panel-solid); border: 1px solid var(--line);
+    border-radius: 8px; padding: 12px 14px; overflow-x: auto; color: var(--text); }
+  pre code { background: none; border: 0; padding: 0; white-space: pre; }
+  strong { color: var(--text); font-weight: 600; }
+
+  /* top bar */
+  .topbar { position: sticky; top: 0; z-index: 20; height: var(--top); display: flex; align-items: center; gap: 18px;
+    padding: 0 20px; background: rgba(2,5,12,.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; letter-spacing: .01em; }
+  .brand img { width: 26px; height: 26px; }
+  .brand small { color: var(--faint); font-weight: 400; }
+  .topbar nav { margin-left: auto; display: flex; gap: 18px; align-items: center; font-size: .95em; }
+  .topbar nav a { color: var(--dim); }
+  .topbar nav a:hover { color: var(--text); text-decoration: none; }
+  .topbar nav a.dl { color: var(--bg); background: var(--sky); padding: 6px 14px; border-radius: 999px; font-weight: 600; }
+  .topbar nav a.dl:hover { background: var(--cyan); }
+  .toc-btn { display: none; margin-left: auto; background: var(--panel-solid); color: var(--text); border: 1px solid var(--line-2);
+    border-radius: 8px; padding: 6px 12px; font: inherit; font-size: .92em; cursor: pointer; }
+
+  /* layout */
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; display: grid; grid-template-columns: 270px minmax(0, 1fr);
+    gap: 48px; }
+  .side { position: sticky; top: var(--top); align-self: start; height: calc(100vh - var(--top)); overflow-y: auto;
+    padding: 22px 4px 40px 0; scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+  .search { position: relative; margin-bottom: 18px; }
+  .search input { width: 100%; background: var(--panel-solid); border: 1px solid var(--line-2); border-radius: 9px;
+    color: var(--text); font: inherit; font-size: .95em; padding: 8px 34px 8px 12px; outline: none; }
+  .search input:focus { border-color: var(--sky); box-shadow: 0 0 0 3px rgba(56,189,248,.15); }
+  .search kbd { position: absolute; right: 9px; top: 8px; color: var(--faint); font-size: .78em; }
+  .results { list-style: none; margin: 8px 0 0; padding: 0; display: none; }
+  .results.on { display: block; }
+  .results li a { display: block; padding: 7px 10px; border-radius: 8px; color: var(--body); font-size: .9em; line-height: 1.45; }
+  .results li a:hover, .results li a.sel { background: rgba(56,189,248,.1); text-decoration: none; }
+  .results li b { color: var(--text); font-weight: 600; display: block; }
+  .results li span { color: var(--dim); }
+  .results mark { background: rgba(251,191,36,.25); color: var(--text); border-radius: 3px; }
+  .results .none { color: var(--faint); font-size: .9em; padding: 6px 10px; }
+  .toc { list-style: none; margin: 0; padding: 0; font-size: .93em; }
+  .toc > li { margin: 2px 0; }
+  .toc a { display: block; color: var(--dim); padding: 4px 10px; border-left: 2px solid transparent; line-height: 1.4; }
+  .toc a:hover { color: var(--text); text-decoration: none; }
+  .toc > li > a { color: var(--body); font-weight: 600; margin-top: 8px; }
+  .toc ul { list-style: none; margin: 0; padding: 0 0 0 10px; display: none; }
+  .toc li.open > ul { display: block; }
+  .toc a.on { color: var(--sky); border-left-color: var(--sky); }
+
+  main { min-width: 0; max-width: 760px; padding: 28px 0 80px; }
+  .intro h1 { color: var(--text); font-size: 2.1em; line-height: 1.2; margin: 6px 0 10px; letter-spacing: -.01em; }
+  .intro p.lead { color: var(--dim); font-size: 1.08em; margin: 0 0 8px; }
+  .meta { font-family: var(--mono); font-size: .78em; color: var(--faint); letter-spacing: .04em; }
+  section.doc { padding-top: 26px; margin-top: 30px; border-top: 1px solid var(--line); }
+  h2, h3, h4 { color: var(--text); position: relative; line-height: 1.3; }
+  h2 { font-size: 1.6em; margin: 0 0 14px; }
+  h3 { font-size: 1.22em; margin: 34px 0 10px; }
+  h4 { font-size: 1.02em; margin: 24px 0 6px; }
+  .anchor { position: absolute; left: -1.1em; width: 1.1em; color: var(--faint); opacity: 0; font-weight: 400; }
+  h2:hover .anchor, h3:hover .anchor, h4:hover .anchor, .anchor:focus { opacity: 1; text-decoration: none; }
+  .tag { font-family: var(--mono); font-size: .68em; font-weight: 600; color: var(--cyan); border: 1px solid var(--line-2);
+    border-radius: 5px; padding: 1px 6px; margin-left: 8px; vertical-align: 3px; }
+  .def { font-size: .9em; color: var(--dim); margin: -4px 0 8px; }
+  .def b { color: var(--green); font-weight: 600; }
+  ul.list, ol.list { padding-left: 1.3em; }
+  ul.list li, ol.list li { margin: 4px 0; }
+  .note { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--sky); border-radius: 8px;
+    padding: 10px 14px; margin: 16px 0; font-size: .95em; }
+  .note.warn { border-left-color: var(--amber); }
+  .tbl { overflow-x: auto; margin: 14px 0 18px; border: 1px solid var(--line); border-radius: 10px; }
+  table { border-collapse: collapse; width: 100%; font-size: .9em; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--text); background: rgba(56,189,248,.06); font-weight: 600; white-space: nowrap; }
+  tr:last-child td { border-bottom: 0; }
+  td.n { font-family: var(--mono); font-size: .92em; white-space: nowrap; }
+  figure { margin: 18px 0 22px; }
+  figure img, figure video { display: block; max-width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel-solid); }
+  figcaption { font-size: .86em; color: var(--dim); margin-top: 8px; }
+  .shots { display: flex; gap: 16px; flex-wrap: wrap; }
+  .shots img { width: 240px; }
+  .shots.one img { width: 280px; }
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding-left: 40px; margin: 12px 0; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid var(--line-2); color: var(--sky); font: 600 .85em/24px var(--mono); text-align: center; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; font-size: .92em; }
+  .card h4 { margin: 0 0 4px; }
+  .faq dt { color: var(--text); font-weight: 600; margin-top: 18px; }
+  .faq dd { margin: 4px 0 0; }
+  .flash { animation: flash 1.6s ease-out; }
+  @keyframes flash { from { background: rgba(251,191,36,.18); } to { background: transparent; } }
+  footer { border-top: 1px solid var(--line); color: var(--faint); font-size: .86em; padding: 22px 20px 40px; text-align: center; }
+  footer a { color: var(--dim); }
+
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .topbar nav { display: none; }
+    .toc-btn { display: block; }
+    .side { display: none; position: fixed; top: var(--top); left: 0; right: 0; height: auto; max-height: calc(100vh - var(--top));
+      z-index: 15; background: var(--bg-2); border-bottom: 1px solid var(--line-2); padding: 16px 16px 24px; }
+    body.toc-open .side { display: block; }
+    .wrap, .topbar { padding-left: 16px; padding-right: 16px; }
+    .anchor { display: none; }
+    .cards { grid-template-columns: minmax(0, 1fr); }
+    .intro h1 { font-size: 1.7em; }
+    .shots img, .shots.one img { width: calc(50% - 8px); }
+  }
+  @media (prefers-reduced-motion: reduce) { .flash { animation: none; } html { scroll-behavior: auto; } }
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "Do I need a powerful PC or a graphics card?",
+     "acceptedAnswer": {"@type": "Answer", "text": "No. Pinned to four efficiency cores of an i9-14900K, the player runs a 30M-tap filter at x8 on 27 ms of CPU per second of music, with no graphics card. Any filter also converts on any machine; a long one just takes longer."}},
+    {"@type": "Question", "name": "Do I have to wait for the conversion before I can listen?",
+     "acceptedAnswer": {"@type": "Answer", "text": "No. The player plays the source through the same chain at once: the first sound of a 30M track is ready 1.2 to 1.5 s after the press on four efficiency cores, and the stages that need the whole track switch in as they get ready."}},
+    {"@type": "Question", "name": "Is multistage upsampling lossy?",
+     "acceptedAnswer": {"@type": "Answer", "text": "It is not bit-identical, but the difference to the single-stage output of the same 30M filter is -204 to -220 dBFS, about 66 dB below the last bit of a 24-bit file; the wall, the phase and the delay are unchanged."}},
+    {"@type": "Question", "name": "Is a billion-tap filter better than 30M?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Not by depth. The stop band is deepest at 30M (-220.9 dB), which already sits at the floor of double-precision arithmetic. 100M to 1G buy a steeper wall at the cutoff, at the price of a larger download and more time."}},
+    {"@type": "Question", "name": "Why will the converter not write FLAC at x32?",
+     "acceptedAnswer": {"@type": "Answer", "text": "A FLAC header stores the sample rate in 20 bits, at most 1,048,575 Hz, and x32 is 1411.2 or 1536 kHz. x32 works for the player and for DSD output, where the converter writes a DSF."}},
+    {"@type": "Question", "name": "Does it need ffmpeg or any other external tool?",
+     "acceptedAnswer": {"@type": "Answer", "text": "No. Decoding and encoding are built in. The one exception is verifying 705.6 and 768 kHz FLAC, which exceed the FLAC specification's own rate limit; without ffmpeg the log says verification could not run at that rate."}}
+  ]
+}
+</script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./"><img src="media/aura-icon-64.png" alt="" width="26" height="26">AuraEngine <small>docs</small></a>
+  <nav>
+    <a href="./">← AuraEngine home</a>
+    <a href="https://github.com/ToxaDev/aura-engine">GitHub</a>
+    <a class="dl" href="./#download">Download</a>
+  </nav>
+  <button class="toc-btn" type="button" aria-expanded="false" aria-controls="side">Contents ▾</button>
+</header>
+
+<div class="wrap">
+<aside class="side" id="side">
+  <div class="search" role="search">
+    <input id="q" type="search" placeholder="Search the docs" aria-label="Search the documentation" autocomplete="off">
+    <kbd>/</kbd>
+    <ul class="results" id="results"></ul>
+  </div>
+  <ul class="toc" id="toc"></ul>
+</aside>
+
+<main id="main">
+<div class="intro">
+  <div class="meta">AURAENGINE 1.9 · WINDOWS · LINUX · MACOS</div>
+  <h1>AuraEngine documentation</h1>
+  <p class="lead">How to install it, what every setting does, and what happens to your audio on the way through.</p>
+  <p>AuraEngine upsamples music with very long FIR filters — from 5 thousand to a billion taps — either into a file
+    (<strong>convert</strong>) or live to your DAC (<strong>play</strong>). Both run the same chain. Start with
+    <a href="#get">Getting started</a>; the later sections go as deep as you want.</p>
+</div>
+
+<!-- ===== 1. GETTING STARTED ===== -->
+<section class="doc" id="get">
+<h2>Getting started</h2>
+<p>The same app runs on Windows, Linux and macOS and gives the same results on all three, to rounding. It is free for
+  noncommercial use. The downloads are on the <a href="./#download">home page</a> and on the
+  <a href="https://github.com/ToxaDev/aura-engine/releases/latest">releases page</a>.</p>
+
+<h3 id="get-windows">Windows</h3>
+<p>Windows 10 or 11, 64-bit, on a CPU with AVX2 (Intel Haswell, 2013, or AMD Excavator, 2015, and newer). The interface
+  needs the Microsoft Edge <a href="https://developer.microsoft.com/microsoft-edge/webview2/">WebView2</a> runtime:
+  Windows 11 has it, Windows 10 often does not, and the LTSC and N editions never do.</p>
+<ol class="steps">
+  <li>Download a <strong>bundle</strong> — a ZIP with the app and filters already inside. Start with <strong>Lite</strong>
+    (~0.17 GB, 5k and 1M taps at every rate); the ×8, ×16 and ×32 bundles (~2 GB each) carry up to 30M taps for the output
+    rate your DAC runs at. See <a href="#bundles">Bundles</a>.</li>
+  <li>Unzip it anywhere you like and run <code>aura-engine.exe</code>. There is no installer.</li>
+  <li>A console window opens minimized next to the app. That is the log, on purpose — see
+    <a href="#log">The log</a>.</li>
+</ol>
+
+<h3 id="get-linux">Linux</h3>
+<p>64-bit x86. Two packages: an <strong>AppImage</strong> (one file, any distribution) and a <strong>.deb</strong>
+  (Debian, Ubuntu and their relatives).</p>
+<pre><code>chmod +x aura-engine-v1.9.4-linux-x86_64.AppImage
+./aura-engine-v1.9.4-linux-x86_64.AppImage</code></pre>
+<p>Playback goes straight to the DAC through ALSA <code>hw:</code>, bit for bit, past the PulseAudio / PipeWire mixer. For
+  that your user must be in the <code>audio</code> group:</p>
+<pre><code>sudo usermod -aG audio $USER</code></pre>
+<p>Then log out and in again. The filters download inside the app the first time a setting needs them.</p>
+
+<h3 id="get-macos">macOS</h3>
+<p>One universal <strong>.dmg</strong> for Apple Silicon and Intel. Drag the app into Applications. It is not signed by
+  Apple, so the first start needs one of these:</p>
+<ul class="list">
+  <li>right-click the app → <strong>Open</strong>, and confirm; or</li>
+  <li>run once in Terminal: <code>xattr -cr "/Applications/Aura Engine.app"</code></li>
+</ul>
+<p>Playback uses CoreAudio in exclusive (hog) mode. The filters download inside the app on first use.</p>
+
+<h3 id="first-conversion">Your first conversion</h3>
+<ol class="steps">
+  <li><strong>Add music.</strong> Drop files or a folder on the window, or click the empty list to browse. WAV, FLAC,
+    MP3, OGG, AAC/M4A, DSF and DFF are read.</li>
+  <li><strong>Choose the output rate.</strong> Click <strong>FS Multiplier</strong> in the strip at the top and pick a rate
+    your DAC accepts — FS8 is 352.8 kHz for CD sources. Leave the rest as it is; the defaults are the recommended chain.</li>
+  <li><strong>Listen or convert.</strong> ▶ on a row plays the track through the chain at once. <strong>C</strong> on a row,
+    or <strong>Convert N</strong> above the list, writes a 24-bit FLAC next to the source file and checks it; the row
+    then shows <strong>VERIFIED</strong>.</li>
+</ol>
+<div class="shots one">
+  <figure><img src="media/shot-convert.webp" alt="The AuraEngine window converting five tracks: the settings strip, the Advanced DSP rack, the player and the list with per-file badges" width="1320" height="2796" loading="lazy"></figure>
+</div>
+<p>The app has a built-in tour: the round <strong>?</strong> next to the version shows where everything is, one step at a
+  time, with no files needed.</p>
+
+<h3 id="updates">Updates</h3>
+<p>At start the app looks for a newer release and offers it. The download is checked against a signature over its
+  version tag, file name and SHA-256 before anything is written, then the app restarts into the new version; your
+  settings are kept. It will not update while a conversion is running. Windows has updated itself since 1.5.0; Linux
+  and macOS (AppImage, .deb and .dmg) since 1.9.2 — from 1.9.0 or 1.9.1 there, install the current version by hand once.</p>
+<p>Only one copy runs at a time: a second launch brings the open window to the front, because the player needs the
+  output device to itself.</p>
+</section>
+
+<!-- ===== 2. CONVERTER ===== -->
+<section class="doc" id="converter">
+<h2>Converter</h2>
+<p>The top of the window holds everything that shapes the sound, in two parts: the <strong>settings strip</strong> (six
+  cells) and the <strong>Advanced DSP</strong> rack under it. Both apply to playing and converting alike. Settings are
+  remembered between runs. The <a href="#path">signal path</a> section shows the order the stages run in.</p>
+<p>Under the window title, the specs line sums up the current chain, for example
+  <code>FIR [Kaiser] 64-bit • 30M Taps</code> and <code>FS8 (352.8k/384k) • FLAC</code>.</p>
+
+<h3 id="strip">The settings strip</h3>
+<p>Click a cell to open its control under the strip; click it again, press Esc or click elsewhere to close it.
+  <strong>GPU</strong> switches at once. A cell turns amber when the filter the setting needs is not on this computer yet
+  (see <a href="#filter-download">Downloads inside the app</a>).</p>
+
+<h4 id="fs">FS Multiplier</h4>
+<p class="def">FS2 · FS4 · FS8 · FS16 · FS32 — recommended: the highest rate your DAC accepts</p>
+<p>The output rate is the source's family base times the multiplier: 44.1 kHz sources go to
+  88.2 / 176.4 / 352.8 / 705.6 / 1411.2 kHz, 48 kHz sources to 96 / 192 / 384 / 768 / 1536 kHz. The rate under the slider
+  shows both. A hi-res source keeps what it holds above the CD band: a 96 kHz file at FS8 is upsampled ×4, with the
+  filter made for ×4. Sources already at or above the target are skipped (<code>SKIP</code>).</p>
+<p><strong>FS32 is for the player and for DSD files.</strong> A FLAC header stores the rate in 20 bits, at most 1,048,575 Hz,
+  so the highest FLAC output is FS16 (705.6 / 768 kHz); with FLAC output, FS32 shows a note and the converter refuses
+  it.</p>
+
+<h4 id="taps">Resolution</h4>
+<p class="def">5k · 1M · 5M · 10M · 30M · 100M · 180M · 300M · 500M · 1G — 30M is marked <b>optimal</b></p>
+<p>The length of the main filter, counted at the output rate. More taps make the wall at the cutoff steeper and take
+  longer to prepare; the stop band is deepest at 30M (about −220 dB), and longer filters only make the cutoff steeper.
+  The rungs from 100M up are experimental, offered from FS4 (100M–300M) or FS8 (500M, 1G) and only ever chosen by you.
+  A dimmed, struck-through mark means that size is not on this computer yet. Details: <a href="#ladder">the ladder</a>.</p>
+<p>A fresh install opens on a filter that came with it — 1M with the Lite bundle. <strong>Custom Filter (.npy)</strong>
+  below the slider loads your own coefficients; <strong>Clear</strong> goes back to the built-in set. A custom filter
+  cannot be combined with Hybrid-Phase.</p>
+<div class="shots">
+  <figure><img src="media/shot-filters.webp" alt="The Resolution control: a slider from 5k to 1G taps, set to 5M, with the optimal mark over 30M and the Custom filter button" width="880" height="1864" loading="lazy"></figure>
+  <figure><img src="media/shot-format.webp" alt="The Convert format picker open: FLAC 24-bit, and DSD1024 down to DSD64 with their modulators" width="880" height="1864" loading="lazy"></figure>
+</div>
+
+<h4 id="gpu-switch">GPU</h4>
+<p class="def">On · Off — default <b>on</b>; shows <b>CPU</b> in red when no usable card was found</p>
+<p>Lets the filter run on a Vulkan graphics card with the same result as the CPU, to far below audibility. For
+  converting, the card runs the long filter — the first stage of the <a href="#paths">multistage</a> route, or the whole
+  filter on the single-stage one. For playing, the player uses a discrete card only when the
+  processor has too little margin for the chosen filter. Without a card everything runs on the CPU, which is the
+  reference. How the precision is kept: <a href="#gpu">the graphics card</a>.</p>
+
+<h4 id="apodizing">Apodizing</h4>
+<p class="def">Off · Gentle (20 kHz) · Moderate (19 kHz) · Strong (18 kHz) — shows <b>AA</b> while the Adaptive Apodizer is on</p>
+<p>A fixed minimum-phase low-pass that suppresses the pre-ringing a CD-era mastering converter left in the recording,
+  for 44.1/48 kHz sources only. While the <a href="#aa">Adaptive Apodizer</a> is on (the default), this control is
+  locked: AA measures each file and sets the cutoff itself. Switch AA off in Advanced DSP to choose a preset here.</p>
+
+<h4 id="headroom">Headroom</h4>
+<p class="def">Off · −0.5 dB · −1.0 dB · −3.0 dB — default <b>−0.5 dB</b></p>
+<p>The ceiling for the output's true peak. A file whose reconstructed peaks would come out above it is turned down,
+  as a whole, until the loudest one sits there — or, with <a href="#isp">Intersample Peak Correction</a> on, only those
+  peaks are held, when they are few and within 6 dB. Quieter files are passed through untouched; nothing is ever
+  raised. <strong>Off</strong> keeps the shipped −0.5 dBTP. It is a ceiling, not a gain: nothing is scaled before the
+  filter.</p>
+
+<h4 id="output">Output</h4>
+<p class="def">FLAC (24-bit) · DSF (DSD64 · DSD128 · DSD256 · DSD512 · DSD1024) — default <b>FLAC</b></p>
+<p>What the converter writes. FLAC is 24-bit, written natively and verified. <strong>DSF</strong> turns the chain's output
+  into one-bit DSD with a sigma-delta modulator of your choice (SDM5, SDM7 or SDM9, best first — LA looks ahead and is
+  heavier, Wide keeps the ultrasonic noise lower). The converter also offers the slow <strong>Trellis</strong>
+  modulators, marked <em>offline</em>: far slower than real time, a track may take minutes. For DSD the chain runs at the
+  DSD rate ÷ 8 at most — DSD64 at FS8 — or at your FS setting if that is lower. The same choice is on the arrow of the
+  <strong>Convert</strong> button. More on DSD: <a href="#dsd">DSD output</a> and
+  <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/20-dsd.md">doc 20</a>.</p>
+
+<h3 id="rack">Advanced DSP</h3>
+<p>The rack is three zones, with the stages in the order the chain runs them: <strong>1 Source</strong> (runs on the
+  source, before the filter sees it), <strong>2 Conversion</strong> (the filter itself and the phase it is rendered in)
+  and <strong>3 Output</strong> (runs on the finished render). Click a stage to switch it; right-click for
+  <strong>Enable/Disable</strong> and <strong>Only this one</strong>. Hover shows what it does.</p>
+<p>All stages ship on except Hybrid-Phase, Continuous Alpha and Crosstalk Cancel. The state column explains itself:
+  <code>ON</code>, <code>SET…</code> (needs setting up), <code>✕ TFS</code> (blocked by a conflicting stage),
+  <code>← HP</code> (needs another stage), or a cost such as <code>2×</code>. The rack is locked while a batch runs.</p>
+<p>The same short tags appear as badges under each file and under the player: <strong>lit</strong> when the stage ran
+  and changed the audio, <strong>dim</strong> when it ran and decided there was nothing to do, and waiting while its
+  turn has not come. The converted file's name lists the stages that actually fired, in order.</p>
+
+<h4 id="declip">Declip <span class="tag">DC</span></h4>
+<p class="def">Source · default <b>on</b></p>
+<p>A master pushed into the rail comes back with its peaks flattened. The flat top says nothing about how high the wave
+  was going; the flanks on either side do. Declip finds those runs and rebuilds the arc across them by constrained
+  autoregressive interpolation, with the rail treated as a lower bound. It refuses far more often than it fires: a run
+  shorter than 17 samples is a limiter working, not a clipper, and the stage stands down. MP3, AAC, Vorbis and Opus
+  sources are left as decoded, because their samples above full scale are the codec's. Rebuilt peaks are then taken down
+  by the output ceiling, so a declipped file arrives quieter — match levels before comparing.</p>
+<figure>
+  <img src="media/dsp-declip-repair.png" alt="A 57-sample flat run in a real track and the arc Declip puts back over it, peaking 6 dB above the rail" width="2011" height="1045" loading="lazy">
+  <figcaption>The longest flat run in a real track — 57 samples, 1.29 ms — and the arc put back over it.</figcaption>
+</figure>
+
+<h4 id="isp">Intersample Peak Correction <span class="tag">ISP</span></h4>
+<p class="def">Source · default <b>on</b></p>
+<p>Between its samples, a reconstructed wave can rise higher than any sample, and above full scale — this is where a
+  DAC or an encoder clips a file that never exceeds 0 dBFS. ISP scans at 4× with a Lanczos kernel and applies the
+  smallest correction that clears the overs, leaving alone the spans Declip has just rebuilt. Its second half, at the
+  end of the chain, is a limiter with ~1.5 ms dips that trims the overs the reconstruction itself makes, so a whole file
+  does not come down for a few milliseconds of peaks.</p>
+<figure>
+  <img src="media/dsp-intersample-peaks.png" alt="Twenty-three samples of a real track: every sample at or below full scale, while the signal between them reaches +3.68 dBTP" width="2002" height="966" loading="lazy">
+  <figcaption>Every sample at or below full scale; the signal between them reaches +3.68 dBTP.</figcaption>
+</figure>
+
+<h4 id="subsonic">Subsonic Filter <span class="tag">SUB</span></h4>
+<p class="def">Source · default <b>on, 15 Hz</b> · corner 20 / 15 / 10 Hz (click the chip on the row)</p>
+<p>A linear-phase FIR high-pass at the source rate: flat within 0.01 dB from the corner up and at least 100 dB down from
+  half the corner to DC. Removing the DC offset takes out a constant and nothing else; a slow wobble or infrasound a
+  disc carries goes straight through — this catches it. It is protection for speakers, not a sound improvement, and
+  linear phase means nothing above the corner moves in level or time. It runs a second time on the finished render,
+  after the output limiter, whose short dips would otherwise leave a shelf of infrasound. On a live stream its
+  look-ahead is a short wait before the first sound.</p>
+
+<h4 id="ahr">Adaptive Headroom <span class="tag">AHR</span></h4>
+<p class="def">Source · default <b>on</b> · needs Headroom set to something other than Off</p>
+<p>Decides whether to honour the <a href="#headroom">Headroom</a> setting on this file. It keeps the shipped −0.5 dBTP
+  when lowering the ceiling would cost level for nothing — the source peak already sits below the target, or the
+  effective bit depth says it is a clean high-resolution master — and otherwise lowers it as asked. With Headroom on Off
+  there is nothing to decide, and the row shows <code>← Headroom</code>.</p>
+
+<h4 id="aa">Adaptive Apodizer <span class="tag">AA</span></h4>
+<p class="def">Conversion · default <b>on</b> · any source rate</p>
+<p>Masters carry the fingerprints of every filter that touched them. The apodizer reads them per file: it finds the
+  strongest attacks, looks for high-frequency energy rising <em>before</em> them — the mark of a linear-phase brick wall
+  — measures the ring's exact frequency, and places a corrective minimum-phase low-pass just below it, deeper for a
+  strong ring than a mild one. A spectral-cliff detector unmasks fake hi-res (a 44.1/48 kHz master inside an 88.2 kHz+
+  container is treated against its original Nyquist), and a mirror-image probe catches bad upstream resamplers. Clean
+  and minimum-phase sources are diagnosed in the log and left untouched, and it stands down on a lossy file whose codec
+  has already cut everything where its filter would go. Details:
+  <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/14-adaptive-apodizer-v3.md">doc 14</a>.</p>
+
+<h4 id="pfr">Polyphase FIR <span class="tag">PFR</span></h4>
+<p class="def">Conversion · default <b>on</b> · the player always runs it</p>
+<p>The filter <em>is</em> the resampler: one exact convolution against the designed filter, no second resampler in the
+  chain, output exactly L times the input, integer ratios only. From 5M taps it is <strong>multistage</strong> — the long
+  filter runs once at the source rate and a short exact interpolator does the rest, for several times less work and the
+  same sound (difference −204 to −220 dBFS). 1M, 5k, custom filters and ×3/×6 stay single-stage, and the rungs of 100M
+  and up exist only this way. Off, the converter uses the <a href="#paths">standard path</a> instead.</p>
+
+<h4 id="hp">Hybrid-Phase <span class="tag">HP</span></h4>
+<p class="def">Conversion · default <b>off</b> · about 2× the time · cannot run together with TFS</p>
+<p>Linear phase through sustained passages, minimum phase across attacks, switched at a zero crossing with a short fade,
+  stereo-linked. It renders the track twice in full. Turning it on turns TFS off. How it works and its limits:
+  <a href="#hybrid">Hybrid-Phase</a>.</p>
+
+<h4 id="ahp">Continuous Alpha <span class="tag">αHP</span></h4>
+<p class="def">Conversion · default <b>off</b> · needs Hybrid-Phase (switching it on turns HP on)</p>
+<p>Drops Hybrid-Phase's hard switch for a per-sample crossfade between the two renders, driven by the transient envelope.</p>
+
+<h4 id="tfs">TFS Phase <span class="tag">TFS</span></h4>
+<p class="def">Conversion · default <b>on</b> · replaces Hybrid-Phase</p>
+<p>A different way to spend the phase: linear below 1.5 kHz, minimum above 4 kHz, blended between. The low end keeps
+  the exact timing of a linear-phase filter; the treble has no pre-ringing ahead of a transient. The magnitude matches
+  the linear-phase render to ±0.000003 dB over 20 Hz–20 kHz — only the phase differs, so an ordinary sweep cannot see
+  it. It needs both phase files of your filter size; it is derived from them on first use and cached (at 30M taps about
+  12 s and 4.5 GB of memory, once). With both TFS and Hybrid-Phase off, the filter is plain linear phase.</p>
+
+<h4 id="xtc">Crosstalk Cancel <span class="tag">XTC</span></h4>
+<p class="def">Output · default <b>off</b> · shows <code>SET…</code> until the listening geometry is entered</p>
+<p>Over speakers, each ear hears both. XTC cancels what each speaker sends to the wrong ear, so the stereo image is no
+  longer bounded by the speakers. It is built from the listening triangle you measure with a tape (the gear icon,
+  <strong>Listening geometry…</strong>), and is correct only for that seat: about 20 mm of head movement costs half the
+  cancellation. This is the one stage that deliberately colours the signal. Speakers only, never headphones.</p>
+<figure>
+  <img src="media/dsp-xtc-suppression.png" alt="Crosstalk suppression computed for a listening triangle, and how it falls with head movement" width="2200" height="880" loading="lazy">
+  <figcaption>Computed from a free-field model of the triangle, not measured in a room.</figcaption>
+</figure>
+
+<h4 id="album">Album Level <span class="tag">ALB</span></h4>
+<p class="def">Output · default <b>on</b> · conversion only</p>
+<p>The true-peak ceiling is one gain per file, and how deep it cuts depends on that file — converted one by one, an
+  album's tracks could change their balance. Queued files that share a folder <em>and</em> an Album tag are converted
+  as one album: every track is prepared first, and all take the deepest cut any of them needs. On a 12-track album the
+  level spread against the CD went from 6.15 dB to 0.02 dB. The price: the album comes out as quiet as its most
+  demanding track needs, and nothing is written until all are prepared. A file without the tag, or an album's only
+  queued track, converts as before. The player plays each track at its own level.</p>
+
+<h3 id="convert-all">Converting files</h3>
+<p>Each row of the list has four buttons:</p>
+<div class="tbl"><table>
+  <tr><th>Button</th><th>What it does</th></tr>
+  <tr><td class="n">▶</td><td>Plays the track through the rack as it is set. Green: a converted file matching the current rack exists, and it plays from disk.</td></tr>
+  <tr><td class="n">C</td><td>Converts this track with the rack as it is now. Hidden when the track is already converted with the current rack.</td></tr>
+  <tr><td class="n">M</td><td>Track memory: this track keeps its own rack. While on, rack changes go into this track and come back when it plays or converts.</td></tr>
+  <tr><td class="n">✕</td><td>Takes the track off the list (and cancels its conversion).</td></tr>
+</table></div>
+<p><strong>Convert N</strong> above the list converts every file not yet converted with the current rack (or with its own,
+  if the track keeps one); its arrow picks FLAC or a DSF rate and modulator. While it runs it shows the percentage —
+  <strong>hold it for 2 seconds to cancel</strong>. Several files convert at once, and a batch can run while the player
+  plays. <strong>Clear</strong> empties the list; running conversions stay. Rows can be dragged to change the order, and
+  the playlist name switches between several lists, adds and renames them.</p>
+<p>Each finished row shows ✓, how many times faster than real time it converted, and its badges, ending with
+  <strong>VERIFIED</strong> once the written file has been decoded back and matched the render sample for sample.
+  <code>BAD</code> marks a non-standard sample rate (only the 44.1 and 48 kHz families are supported), <code>SKIP</code>
+  a file with nothing to upsample. Dim badges mean the file was converted with different settings — press C to convert
+  it again with the current rack.</p>
+<p>The converted file goes next to the source, named after it with the chain in brackets, for example
+  <code>Track [AE · 44.1k→352.8k · Kaiser 30M · f64 · DC·ISP·SUB15·AA·PFR·TFS].flac</code>. A source with more than two
+  channels is narrowed to its front pair, and the name says so. Each file is stamped with the version and chain that made
+  it; after an update that changes the sound of a setting, older renders show as not converted, the source plays
+  meanwhile, and the old file is kept.</p>
+</section>
+<!-- ===== 3. PLAYER ===== -->
+<section class="doc" id="player">
+<h2>Player</h2>
+<p>Every row of the list has <strong>▶</strong> beside <strong>C</strong>. Both run one engine and one chain — the same
+  filters, phase engine, rack and output stages, from the same code. The converter has no deadline; the player prepares
+  ahead what a track needs whole and switches each stage in as soon as it is ready. Once every stage is in, what it sends
+  to the device matches the converted file to −120 dB (measured on 30M taps, FS8, TFS, XTC).</p>
+<div class="tbl"><table>
+  <tr><th></th><th>Converter</th><th>Player — a file</th><th>Player — a stream</th></tr>
+  <tr><td class="n">Chain</td><td>The whole rack, every stage at full length</td><td>The same rack; whole-track stages prepared ahead</td><td>The same rack as the stream arrives</td></tr>
+  <tr><td class="n">Whole-track stages</td><td>All, before anything is written</td><td>All — switched in as they get ready</td><td>Declip and the Adaptive Apodizer stand down</td></tr>
+  <tr><td class="n">Album Level</td><td>One level per album</td><td>Each track at its own level</td><td>—</td></tr>
+  <tr><td class="n">Output</td><td>24-bit FLAC, or DSF DSD64–DSD1024</td><td>Exclusive output at the output rate, DSD64–256 over DoP, or BIT-PERFECT</td><td>The same</td></tr>
+  <tr><td class="n">Best for</td><td>Music to keep and play anywhere</td><td>Hearing a setting first; listening at once</td><td>Internet radio</td></tr>
+</table></div>
+<p>Why convert, when the player matches it? Any filter on any machine, one level for a whole album, a file that plays
+  anywhere without a PC, and nothing to keep up with while you listen. Why play? To hear a setting before an evening goes
+  into converting, to listen at once without disk space for hi-res copies — and radio, which cannot be converted.</p>
+
+<h3 id="player-bar">The player bar</h3>
+<p>Previous, Play/Pause (<kbd>Space</kbd>), Stop, Next and Repeat (off · whole list · one track), the seek bar, and the
+  device row: the <strong>output device</strong>, the <strong>format</strong> button (PCM, or a DSD rate —
+  see <a href="#dsd">DSD output</a>), <strong>BIT-PERFECT</strong>, the volume (−60 to 0 dB) and the
+  <strong>Analyzer</strong> button with a small LUFS / LRA / true-peak readout. Under it, the stage badges: a lit badge
+  changes the sound, a dim one does not, and a thin bar under them shows a stage being switched in or out.</p>
+<p><strong>Listening mode</strong> folds the settings away and leaves the player and the picture; the sound does not
+  change. Click the thin strip on the player's top edge, press <kbd>L</kbd>, or right-click the player. It has full
+  screen (<kbd>Esc</kbd> leaves it), spectrum bars and the <a href="#visuals">scenes</a>, and it is remembered.</p>
+<p>The right-click menu of the player also holds <strong>Picture delay</strong> and <strong>Instant start</strong>. The
+  faint <code>CPU · GPU · RAM</code> badge beside the version shows the app's own load and memory; a click opens the
+  last hour of it.</p>
+<div class="shots one">
+  <figure><img src="media/aura-player-bars.png" alt="Listening mode with spectrum bars over the player" width="880" height="590" loading="lazy"></figure>
+</div>
+
+<h3 id="instant-start">When each stage is in the sound</h3>
+<p>Some stages need the whole track before they can decide. With <strong>Instant start</strong> (on by default) the sound
+  starts at once: Declip, ISP, the subsonic filter and Adaptive Headroom run over the track as it is decoded, ahead of
+  what you hear, and the level follows the loudest moments a few seconds ahead until the whole output is measured. The
+  badges light as stages come into the sound.</p>
+<p>With Instant start off, nothing plays until every stage is ready — on an i9-14900K, a four-minute CD track at FS2 in
+  about 1.7 s with 1M taps and 2.1 s with 30M on the graphics card. The whole-track analysis is kept on disk and the list
+  is analysed ahead, so a track that was played or analysed before starts faster.</p>
+
+<h3 id="seamless">Nothing cuts the sound</h3>
+<ul>
+  <li><strong>Seek:</strong> the old place keeps playing until the new one is ready; the sound then fades out and
+    back in over about 250 ms, with no click. Pause, Stop and a rack change fade the same way.</li>
+  <li><strong>Next track:</strong> prepared while this one plays (with 2 GB of memory free) and follows it without a gap;
+    a change of rate family costs only the device reopening, about 0.6 s.</li>
+  <li><strong>Rack change:</strong> the new chain is built while the old one plays and comes in with the same short fade, 1.5 s after
+    the last click.</li>
+</ul>
+
+<h3 id="output-device">The output and BIT-PERFECT</h3>
+<p>The device is opened exclusively at the output rate, so nothing else mixes into it and nothing resamples it:</p>
+<div class="tbl"><table>
+  <tr><th>System</th><th>Output</th></tr>
+  <tr><td class="n">Windows</td><td>WASAPI exclusive mode</td></tr>
+  <tr><td class="n">Linux</td><td>ALSA, straight to the card's <code>hw:</code> device (no dmix, no plug); your user must be in the <code>audio</code> group</td></tr>
+  <tr><td class="n">macOS</td><td>CoreAudio in exclusive (hog) mode; the device is given back as it was when playback stops</td></tr>
+</table></div>
+<p>The DAC must accept the rate: FS8 is 352.8 / 384 kHz, FS32 is 1411.2 / 1536 kHz. If the device refuses it, choose a
+  lower <a href="#fs">FS Multiplier</a>. A 16-bit device gets dither and noise shaping on its own grid. What reaches the
+  device is checked after the volume control: a block more than 12 dB louder than the volume allows becomes silence.</p>
+<p><strong>BIT-PERFECT</strong> sends the file as decoded — its own rate and depth, no rack, no volume, no dither — and
+  switches while a track plays. A DSF or DFF file goes out as it is, over DoP at its own rate. The format button is shut
+  while BIT-PERFECT is on.</p>
+
+<h3 id="player-gpu">The graphics card, when the CPU cannot keep up</h3>
+<p>The player measures, on your machine and for the chosen filter, whether the CPU convolves in real time with room to
+  spare, and uses a discrete graphics card only when it does not. That is rare: a 30M filter at ×4 takes about a quarter
+  of one core. On the card, 30M at ×8 takes about 170 MiB of video memory and matches the CPU to below −280 dBFS. If
+  neither keeps up, the tap count steps down once for that track, and the taps chip says so.</p>
+
+<h3 id="dsd">DSD output</h3>
+<p>Open the format button beside the device and choose <strong>DSD64</strong>, <strong>DSD128</strong> or
+  <strong>DSD256</strong>. The chain runs as for PCM up to the DoP carrier rate (176.4, 352.8 or 705.6 kHz; the FS
+  setting is set aside), and a sigma-delta modulator turns it into DSD, sent as <strong>DoP</strong> — DSD packed into
+  24-bit PCM — through the exclusive output. The volume still works. Your DAC must accept DoP at that rate.</p>
+<p>The list is ordered best first and opens on the best modulator this PC can run; leave it there unless the machine is
+  busy. One marked <em>· high CPU</em> runs but takes a large share of a core; one marked <em>· too heavy for this PC</em>
+  is greyed out. If the PC falls behind while playing, the player steps down to a lighter modulator and says so.
+  <strong>Re-check this PC…</strong> measures again. Noise plus distortion in the 20 kHz band for a −6 dB tone:</p>
+<div class="tbl"><table>
+  <tr><th>Modulator</th><th>DSD64</th><th>DSD128</th></tr>
+  <tr><td class="n">SDM7 LA+ (look-ahead, deeper)</td><td>−158.8 dB</td><td>−180.2 dB</td></tr>
+  <tr><td class="n">SDM7 LA (look-ahead)</td><td>−151.1 dB</td><td>−172.7 dB</td></tr>
+  <tr><td class="n">SDM7</td><td>−138.9 dB</td><td>−160 dB</td></tr>
+  <tr><td class="n">SDM5</td><td>−121 dB</td><td>−138 dB</td></tr>
+</table></div>
+<p>As rough guidance, SDM7 LA at DSD64 takes about a tenth of one core per channel. DSF and DFF files play through the
+  chain like any other file. Limits: DoP only — no native DSD, no ASIO output; the player goes up to DSD256 (DSD512 and
+  faster files play as PCM). The converter writes DSF from DSD64 to DSD1024, including the slow Trellis modulators the
+  player cannot run (see <a href="#output">Output</a>).</p>
+<div class="shots one">
+  <figure><img src="media/shot-play-dsd.webp" alt="The player's format menu open: PCM checked, DSD256 and DSD128 with their modulators, heavy ones marked high CPU" width="880" height="1864" loading="lazy"></figure>
+</div>
+
+<h3 id="radio">Internet radio</h3>
+<p>The narrow button first in the list head switches the list between <strong>F</strong>iles, <strong>R</strong>adio and
+  <strong>I</strong>nput (click: next; right-click or Shift+click: previous). The radio has four tabs:
+  <strong>Featured</strong>, <strong>Favorites</strong>, <strong>Recent</strong> and <strong>Search</strong> — the Radio
+  Browser catalog, tens of thousands of stations by name, genre, country, language and format, which can be filtered down
+  to lossless. You can also paste any stream's address.</p>
+<p>MP3, AAC, HE-AAC, FLAC, Vorbis and Opus over HTTP, .pls / .m3u playlists and HLS are decoded inside the program, at
+  44.1 or 48 kHz and their multiples. On a stream the bar has only ▶ and ■. The rack runs on a stream with these
+  differences:</p>
+<div class="tbl"><table>
+  <tr><th>Stage</th><th>On a file</th><th>On a live stream</th></tr>
+  <tr><td class="n">DC removal</td><td>Per-channel mean</td><td>The 2 Hz high-pass</td></tr>
+  <tr><td class="n">Declip · Adaptive Apodizer</td><td>Run</td><td>Stand down — they need the whole track</td></tr>
+  <tr><td class="n">ISP · Subsonic · XTC</td><td>Run</td><td>Run as the stream arrives</td></tr>
+  <tr><td class="n">Adaptive Headroom</td><td>Decides on the whole track</td><td>Decides on the first 10 s</td></tr>
+  <tr><td class="n">Linear phase</td><td>The full filter (42.5 s ahead at 30M ×8)</td><td>Its stream version, 50 ms ahead</td></tr>
+  <tr><td class="n">TFS · Hybrid-Phase · Continuous Alpha</td><td>Run</td><td>Run from the first sound</td></tr>
+</table></div>
+<p><strong>Long filters do not make a stream wait.</strong> A linear-phase filter looks ahead by half its length — 42 s
+  at 30M and FS8, more than any broadcast can give. A stream plays a version of the same filter with the same magnitude
+  and stop band, linear phase up to 20 kHz and minimum phase only in the last kilohertz under the wall. It looks 50 ms
+  ahead and differs from the full filter by less than −200 dBFS in the audio band on music.</p>
+<p><strong>A dropout without a seam.</strong> When the connection drops, the player reconnects, finds where the new
+  connection repeats what it already has and skips the repeat. The buffer starts at 8 s and grows when the network
+  empties it. The drift between the server's clock and the DAC's is held within a second by dropping or repeating a few
+  milliseconds in a quiet place — nothing is resampled. BIT-PERFECT works on a stream too.</p>
+<p class="note">Upsampling cannot add what the codec removed: a 128 kbps MP3 stream stays a 128 kbps MP3, played through a
+  better reconstruction filter. Stations that stream FLAC give the rack the most to work with.</p>
+<div class="shots one">
+  <figure><img src="media/shot-radio.webp" alt="The radio view: Featured, Favorites, Recent and Search tabs over a list of stations" width="880" height="1864" loading="lazy"></figure>
+</div>
+
+<h3 id="analyzer">The analyzer</h3>
+<p><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> or the Analyzer button opens a window on what you hear now; a row's
+  right-click menu opens one on the file, or on its converted copy. It measures three signals side by side:
+  <strong>S</strong>, the source; <strong>B</strong>, the source after the rack's repair stages, before the filter; and
+  <strong>O</strong>, the output of the whole chain, from a pass over the entire track.</p>
+<ul>
+  <li><strong>Numbers:</strong> integrated, short-term and momentary loudness, LRA, true peak (BS.1770 and the engine's
+    own 4× reading), DR, RMS, clipping runs and overs, DC offset, energy above and below the audio band — over the whole
+    track, a selected stretch, or live.</li>
+  <li><strong>Views:</strong> spectrum, loudness history, spectrogram, the waveform down to single samples, a histogram,
+    and a stereo view with a vectorscope and correlation. Each can compare S | O, O − S or B − S; in O − S, blue is where
+    the chain made it quieter and red where louder.</li>
+  <li><strong>Spectrogram:</strong> a 4096-point FFT at 44.1 / 48 kHz, Kaiser window, 512 log bands from 5 Hz to Nyquist
+    (below about 40 Hz from a 3 s window); Log, Lin, Mel and Bark scales.</li>
+  <li><strong>Export:</strong> the numbers as text in the formats forums use for DR and true-peak reports, or as TSV; the
+    loudness history as CSV; any view as PNG.</li>
+</ul>
+<p>The whole-track passes run only while the analyzer is open, so playback without it costs no extra CPU. On a radio
+  stream it measures live — for the song playing and for the whole session — and shows how far the stream's spectrum
+  really reaches: an MP3 at 128 kbps ends near 16 kHz, a lossless stream reaches half its sample rate.</p>
+<figure><img src="media/shot-analyzer.webp" alt="The analyzer window: loudness, true peak and DR numbers, a spectrum with the filter's response, and the chain's stage chips" width="1600" height="976" loading="lazy"></figure>
+
+<h3 id="visuals">Scenes and picture delay</h3>
+<p>In listening mode the player can draw what it plays: right-click → <strong>Visualization</strong> picks a scene, or
+  Off. A scene is a GLSL shader in an <code>.aura-vis</code> file; 19 come with the app. The player renders a few seconds
+  ahead of what you hear, so a scene can see a kick coming and have it land as it sounds.
+  <strong>Studio…</strong> opens a window that edits scenes, tunes their settings with sliders and takes Shadertoy's
+  multipass shaders, keeping each one's author, link and licence; its <strong>Copy prompt for AI</strong> button puts
+  the whole scene format and your idea on the clipboard, to paste into an AI chat.</p>
+<p><strong>Stage</strong>, <strong>Lineup</strong> and <strong>Diamond Dust Stage</strong> draw each instrument on its
+  own — the kit piece by piece, the bass, the voice, the guitars and the keys — using a 282 MB pack of models downloaded
+  once and checked file by file. Each track is analysed once, in the background: 15–25 s for a four-minute track on an
+  RTX 4090. On a radio stream they work on a graphics card, the instruments coming a few seconds after a station starts.</p>
+<p><strong>Picture delay</strong> (right-click the player), set per output device from −100 to +400 ms, holds the picture
+  back by what a DAC's filter or active speakers add and the system does not report. Eleven scenes are adaptations of
+  Shadertoy work, each under its own licence (CC BY-NC-SA 3.0, CC BY 3.0 or CC0), credited in the studio.</p>
+<div class="shots one">
+  <figure><img src="media/aura-scene-lineup.png" alt="The Lineup scene drawing each instrument of a song" width="880" height="590" loading="lazy"></figure>
+</div>
+</section>
+
+<!-- ===== 4. ASIO INPUT ===== -->
+<section class="doc" id="input">
+<h2 data-toc="ASIO input (Windows)">ASIO input <span class="tag">WINDOWS</span></h2>
+<p>The third view of the list switch, <strong>I</strong>, is the input: <strong>Aura Player ASIO</strong>, a virtual ASIO
+  device. Choose it as the output in foobar2000, JRiver, HQPlayer, Roon or any player that plays to an ASIO device, press
+  play, and the music goes through Aura Player's rack to your DAC — at the output rate, or bit-perfect if BIT-PERFECT is
+  on. The input needs Windows; on Linux and macOS the view is not offered.</p>
+
+<h3 id="input-setup">Setting it up</h3>
+<ol class="steps">
+  <li>Switch the list to <strong>I</strong> and press <strong>Install driver</strong>. Windows asks for permission once.
+    When a newer Aura Player brings a newer driver, the card shows <strong>Update driver</strong>.</li>
+  <li>The card says <em>Waiting for a player</em>. In your player, choose the output <strong>Aura Player ASIO</strong>:
+    <ul>
+      <li>foobar2000 (with its ASIO component): Preferences → Playback → Output → Device: ASIO: Aura Player ASIO</li>
+      <li>JRiver: Options → Audio → Audio Device: Aura Player ASIO [ASIO]</li>
+      <li>HQPlayer: Settings → Backend: ASIO → Device: Aura Player ASIO</li>
+      <li>Roon: Settings → Audio → This PC: Aura Player ASIO → Enable</li>
+    </ul></li>
+  <li>Press play there. If Aura Player is not listening yet, press <strong>Listen</strong> on the card — or tick
+    <strong>Switch to the input when a player starts playing</strong> to have it done for you.</li>
+</ol>
+<p>While it plays, the card and the strip show the player's name, what comes in (for example 96 kHz · 32-bit) and what
+  the rack plays it at. <strong>Remove driver</strong> uninstalls it.</p>
+
+<h3 id="input-timing">Aura Player sets the pace</h3>
+<p>Two channels, 44.1 to 768 kHz, 64- and 32-bit players. The driver calls the player once a buffer's time by the system
+  clock, trimmed at most 100 ppm a second to what the rack takes: nothing is cut or repeated. The sound leaves Aura Player
+  about 2.3–2.6 s after the player (1.5 s without the Subsonic Filter), so a pause or a seek is heard that much later.
+  On the input the bar has only ▶ and ■.</p>
+
+<h3 id="input-any-app">Spotify, or any Windows program</h3>
+<p>A program with no ASIO output of its own can reach the input through two programs from VB-Audio — Hi-Fi Cable and ASIO
+  Bridge. They are third-party (donationware, Windows); AuraEngine does not include them, and how they behave is theirs.</p>
+<ol class="steps">
+  <li>Install VB-Audio Hi-Fi Cable &amp; ASIO Bridge: run the setup as administrator, then restart Windows.</li>
+  <li>Install the driver in Aura Player's <strong>I</strong> view, if you have not.</li>
+  <li>In Windows sound settings, or in the program, play to <strong>Hi-Fi Cable Input</strong>.</li>
+  <li>In ASIO Bridge, choose <strong>Aura Player ASIO</strong> and press <strong>ASIO ON</strong>.</li>
+  <li>Play. The view shows <code>VBCABLE_AsioBridge</code>; press Listen if it does not switch by itself.</li>
+</ol>
+<div class="shots one">
+  <figure><img src="media/aura-asio-bridge.png" alt="VB-Audio ASIO Bridge set to send into Aura Player ASIO" width="818" height="319" loading="lazy"></figure>
+</div>
+<p>If the card reports a problem: <em>permission not given</em> — install again and allow it; <em>couldn't install</em> or
+  <em>couldn't download</em> — check the connection and try again; <em>the driver didn't match this version</em> — press
+  Update driver; <em>couldn't open its input</em> — restart the computer. The driver is GPL-3.0-only and the protocol
+  between it and Aura Player MIT; the player stays under PolyForm Noncommercial.</p>
+</section>
+<!-- ===== 5. FILTERS ===== -->
+<section class="doc" id="filters">
+<h2>Filters</h2>
+<p>Everything AuraEngine does rests on precomputed filter files: one per tap count, output rate and phase. They are the big
+  part of the download — the full set, with the rungs above 30M, runs to tens of gigabytes — so you only keep the ones
+  you use. The app never designs a filter while it runs; how the files are made is in
+  <a href="#design">Filter design</a>.</p>
+
+<h3 id="bundles">Bundles (Windows)</h3>
+<p>On Windows the app comes in four ZIPs, each with its filters inside. The app opens on a filter that came with it, so
+  there is no setup step.</p>
+<div class="tbl"><table>
+  <tr><th>Bundle</th><th>What is inside</th><th>Size</th></tr>
+  <tr><td><strong>Lite</strong> — start here</td><td>The app with 5k and 1M taps at every multiplier, FS2 to FS32</td><td class="n">~0.17 GB</td></tr>
+  <tr><td><strong>×8</strong></td><td>5k–30M taps at ×8 (352.8 / 384 kHz) and 5k–10M at ×4</td><td class="n">~2.0 GB</td></tr>
+  <tr><td><strong>×16</strong></td><td>5k–30M taps at ×16 (705.6 / 768 kHz) and 5k–10M at ×8</td><td class="n">~2.0 GB</td></tr>
+  <tr><td><strong>×32</strong></td><td>5k–30M taps at ×32 (1411.2 / 1536 kHz) and 5k–10M at ×16</td><td class="n">~2.0 GB</td></tr>
+</table></div>
+<p>Pick the bundle for the output rate your DAC runs at. Every bundle carries <strong>both phase types</strong> (so
+  Hybrid-Phase and TFS work) and <strong>both rate families</strong> (so 44.1 and 48 kHz sources convert alike). The app
+  on its own, without filters, is on the <a href="https://github.com/ToxaDev/aura-engine/releases/latest">releases page</a>.
+  On Linux and macOS there are no bundles: the app downloads what you choose.</p>
+<p><strong>Unzipping several bundles into one folder</strong> is fine and useful: the filter files merge, one copy of the
+  app serves them all, and the tap slider offers every size you have — so you can render the same track at 5k and at 30M
+  and hear for yourself what a tap count buys.</p>
+
+<h3 id="filter-download">Downloads inside the app</h3>
+<p>When a setting needs a filter you do not have — another multiplier, a longer filter, one of the rungs above 30M — a
+  one-line bar above the filter rack names what is missing and how big it is, and a dialog fetches it from the public
+  <code>filters</code> release. Every file is checked by size and SHA-256 against a signed manifest, and a cancelled
+  download resumes where it stopped. On the tap slider, a struck-through mark means that size is not on this computer
+  yet; choosing it names the download that would add it.</p>
+
+<h3 id="storage">The Storage tab</h3>
+<p>The download dialog has two tabs, <strong>Download</strong> and <strong>Storage</strong>. Storage shows the filters
+  folder, how much each rung takes (1G, 500M, 300M, 100M, “30M and less”), and the files <strong>not used by this
+  version</strong>, with a <strong>Move to Recycle Bin</strong> button. Nothing is deleted until you press it, and the
+  files can be brought back from the Recycle Bin (the Trash on macOS and Linux, whatever the button says).
+  <strong>Open folder</strong> shows the filters folder: <code>filters</code> inside the app's data folder —
+  <code>%LOCALAPPDATA%\AuraEngine</code> on Windows, <code>~/Library/Application Support/AuraEngine</code> on macOS,
+  <code>~/.local/share/AuraEngine</code> on Linux. The dialog opens from the bar above the rack, which appears while a
+  setting needs a filter that is not here; the Storage button also appears when a download finds too little free
+  space.</p>
+<p>In the download dialog itself, <strong>For sources</strong> picks which rate families to fetch: the 44.1k family (CD
+  and most music files), the 48k family (video, DVD, some streams) and hi-res sources (88.2k/96k and up — only if you
+  play hi-res files). The dialog shows the total size and the free space before anything starts; <strong>Hide</strong>
+  keeps the download going while the bar above the rack shows its progress.</p>
+
+<h3 id="ladder">The ladder: 5k to 1G taps</h3>
+<p>Ten sizes, counted at the <em>output</em> rate: 5k · 1M · 5M · 10M · 30M · 100M · 180M · 300M · 500M · 1G. Length is a
+  setting, not a quality tier. On music a 5k and a 30M render agree below 20 kHz; what more taps change is how steep the
+  wall at the cutoff is. The stop band gets deeper up to 30M — which already sits at the floor of double-precision
+  arithmetic, so the slider marks it <strong>optimal</strong> — and past 30M the extra taps only make the wall steeper.</p>
+<div class="tbl"><table>
+  <tr><th>Size</th><th>Offered at</th><th>Worst stop band<br><small>44.1 kHz ×8, linear</small></th><th>Kernel at ×8<br><small>352.8 kHz</small></th><th>Comes with</th></tr>
+  <tr><td class="n">5k</td><td>FS2–FS32</td><td class="n">−193 … −220 dB</td><td class="n">14.2 ms</td><td>Lite bundle</td></tr>
+  <tr><td class="n">1M</td><td>FS2–FS32</td><td class="n">−191 dB</td><td class="n">2.83 s</td><td>Lite bundle</td></tr>
+  <tr><td class="n">5M</td><td>FS2–FS32</td><td class="n">−205 dB</td><td class="n">14.2 s</td><td>download</td></tr>
+  <tr><td class="n">10M</td><td>FS2–FS32</td><td class="n">−211 dB</td><td class="n">28.3 s</td><td>×8 / ×16 / ×32 bundles</td></tr>
+  <tr><td class="n">30M</td><td>FS2–FS32</td><td class="n">−220.9 dB (optimal)</td><td class="n">1.42 min</td><td>×8 / ×16 / ×32 bundles</td></tr>
+  <tr><td class="n">100M</td><td>FS4–FS32</td><td class="n">−216 dB</td><td class="n">4.72 min</td><td>download</td></tr>
+  <tr><td class="n">180M</td><td>FS4–FS32</td><td class="n">−211 dB</td><td class="n">8.50 min</td><td>download</td></tr>
+  <tr><td class="n">300M</td><td>FS4–FS32</td><td class="n">−207 dB</td><td class="n">14.2 min</td><td>download</td></tr>
+  <tr><td class="n">500M</td><td>FS8–FS32</td><td class="n">—</td><td class="n">23.6 min</td><td>download</td></tr>
+  <tr><td class="n">1G</td><td>FS8–FS32</td><td class="n">—</td><td class="n">47.2 min</td><td>download</td></tr>
+</table></div>
+<p>A tap count is defined at the output rate: the 30M filter for 44.1 kHz ×8 runs at 352.8 kHz, so its kernel is 85 s
+  long, and 99.76 % of its energy lies within ±1 ms of the centre
+  (<a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/16-filter-length-and-rate.md">the arithmetic</a>).
+  The rungs from 100M up are stored as the one sub-filter the multistage path runs, L times smaller than the whole
+  filter, so they play and convert only through <a href="#pfr">multistage upsampling</a>; minimum phase is available
+  for them too. The app never moves to them by itself.</p>
+
+<h3 id="filters-by-hand">Installing filters by hand</h3>
+<p>The app downloads what it needs on its own, but the packs are also on the
+  <a href="https://github.com/ToxaDev/aura-engine/releases/tag/v1.0.0">filters release</a> for offline machines. On
+  Windows, extract a pack beside <code>aura-engine.exe</code> (its files go into <code>fir-optimizer/output/</code>); the
+  app finds it and the slider mark stops being struck through.</p>
+<p>The ×32 packs add the 1411.2 / 1536 kHz rates for one tap size, both phases:</p>
+<div class="tbl"><table>
+  <tr><th>Pack</th><th>Size</th></tr>
+  <tr><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-5k-x32.zip">aura-filters-5k-x32.zip</a></td><td class="n">~1 MB</td></tr>
+  <tr><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-1M-x32.zip">aura-filters-1M-x32.zip</a></td><td class="n">0.03 GB</td></tr>
+  <tr><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-5M-x32.zip">aura-filters-5M-x32.zip</a></td><td class="n">0.16 GB</td></tr>
+  <tr><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-10M-x32.zip">aura-filters-10M-x32.zip</a></td><td class="n">0.32 GB</td></tr>
+  <tr><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-30M-x32.zip">aura-filters-30M-x32.zip</a></td><td class="n">0.96 GB</td></tr>
+</table></div>
+<p>Each big-rung pack holds one rung at every multiplier it is offered at, for one rate family (<strong>44k</strong>: 44.1 kHz
+  sources, <strong>48k</strong>: 48 kHz) and one phase. Linear phase is what most people need; the minimum-phase pack only
+  matters for minimum-phase, TFS and Hybrid-Phase use.</p>
+<div class="tbl"><table>
+  <tr><th>Rung</th><th>Packs</th><th>Size each</th></tr>
+  <tr><td class="n">100M</td><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-100M-44k-family-linear.zip">44k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-100M-44k-family-minimum.zip">44k minimum</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-100M-48k-family-linear.zip">48k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-100M-48k-family-minimum.zip">48k minimum</a></td><td class="n">0.38 GB</td></tr>
+  <tr><td class="n">180M</td><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-180M-44k-family-linear.zip">44k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-180M-44k-family-minimum.zip">44k minimum</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-180M-48k-family-linear.zip">48k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-180M-48k-family-minimum.zip">48k minimum</a></td><td class="n">0.68 GB</td></tr>
+  <tr><td class="n">300M</td><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-300M-44k-family-linear.zip">44k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-300M-44k-family-minimum.zip">44k minimum</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-300M-48k-family-linear.zip">48k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-300M-48k-family-minimum.zip">48k minimum</a></td><td class="n">1.13 GB</td></tr>
+  <tr><td class="n">500M</td><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-500M-44k-family-linear.zip">44k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-500M-44k-family-minimum.zip">44k minimum</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-500M-48k-family-linear.zip">48k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-500M-48k-family-minimum.zip">48k minimum</a></td><td class="n">0.88 GB</td></tr>
+  <tr><td class="n">1G</td><td><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-1G-44k-family-linear.zip">44k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-1G-44k-family-minimum.zip">44k minimum</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-1G-48k-family-linear.zip">48k linear</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.0.0/aura-filters-1G-48k-family-minimum.zip">48k minimum</a></td><td class="n">1.75 GB</td></tr>
+</table></div>
+<p><strong>Your own filter.</strong> The tap control also takes a custom filter: a 1-D float64 <code>.npy</code>
+  coefficient file used instead of the built-in set. It runs single-stage.</p>
+</section>
+<!-- ===== 6. HOW IT WORKS ===== -->
+<section class="doc" id="how">
+<h2>How it works</h2>
+<p>This part is for those who want to know exactly what happens to the samples. Nothing here is needed to use the app.
+  Each claim links to the technical document in the repository that measures it.</p>
+
+<h3 id="why-offline">Why such long filters</h3>
+<p>Every DAC upsamples: rebuilding an analog wave from 44,100 samples a second needs an interpolation filter. A DAC chip
+  does it in real time with a few hundred to a few thousand taps. AuraEngine lifts that limit: it reconstructs the
+  signal with filters of 5 thousand to a billion taps, designed in 128-bit arithmetic and applied in 64-bit floating
+  point end to end, and hands the DAC a signal at 88.2 kHz to 1.536 MHz that is already reconstructed — the DAC's own
+  filter has almost nothing left to do.</p>
+
+<h3 id="hybrid">Hybrid-Phase</h3>
+<p>Every FIR filter forces a trade. Linear phase keeps the stereo image coherent but rings <em>before</em> every attack;
+  minimum phase hits cleanly but shifts timing between frequencies. Fixed “intermediate phase” filters carry a little of
+  both flaws all the time. Hybrid-Phase, made for this project, renders the track twice in full — linear and minimum
+  phase — and switches between the two renders at each transient.</p>
+<figure>
+  <video src="media/hybrid-phase.mp4" poster="media/m4-hybrid-stitch.png" controls muted loop playsinline preload="none" width="860" height="560"></video>
+  <figcaption>Slow motion ×20: the detector sees the hit coming, the engine switches at a zero crossing, the attack lands
+    with no pre-ringing while the sustain keeps linear-phase imaging.</figcaption>
+</figure>
+<ul class="list">
+  <li><strong>Stereo-linked.</strong> One switch plan is computed from the mid signal and applied to both channels at the
+    same sample, so the channels can never drift in phase against each other.</li>
+  <li><strong>Built to be inaudible.</strong> Switches happen only at zero crossings, through a 1 ms fade on a smooth curve,
+    with a 20 ms hold against chatter. The two renders are aligned sample-exact by band-weighted group delay
+    (200–6000 Hz) before blending.</li>
+  <li><strong>The detector.</strong> A native HPSS (harmonic/percussive separation) onset detector — STFT with time and
+    frequency median masks, 8-band spectral flux, an adaptive gate and an envelope follower with look-ahead — switches
+    to minimum phase one to two analysis frames (about 12–23 ms at 44.1 kHz) before each attack.</li>
+</ul>
+<p>What it keys on, honestly: the <em>start of a sound</em>, not a measurement of where the filter would ring. On music
+  the two coincide, because an attack is both a beginning and a broadband event. On synthetic signals they come apart —
+  a steady square wave with steep edges triggers nothing, because nothing begins. So the exact name is “minimum phase on
+  attacks”, and there is a known blind spot in the first ~24 ms of a file. Both are written up with numbers in
+  <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/06-hybrid-phase-proof.md">doc 06</a>.
+  <a href="#ahp">Continuous Alpha</a> replaces the hard switch with a smooth per-sample blend.</p>
+
+<h3 id="min-phase">Linear, minimum and TFS phase</h3>
+<p>The minimum-phase filters are derived by cepstral folding with FFTs zero-padded at least 16 times (no time-aliasing),
+  tail-faded with a Hann window and normalised back to unity DC gain. The impulse peaks at sample zero: mathematically
+  no pre-ringing. <a href="#tfs">TFS</a> is a third way: linear phase below 1.5 kHz, minimum phase above 4 kHz, blended
+  between, with a magnitude response that matches the linear one to ±0.000003 dB.</p>
+
+<h3 id="path">The signal path, in order</h3>
+<p>One file, start to finish. The whole CPU sample path is 64-bit floating point — there is no 32-bit truncation anywhere
+  between decoding and dither. Stages you can switch are described in <a href="#rack">Advanced DSP</a>; the rest always run.</p>
+<ol class="list">
+  <li><strong>Decode.</strong> FLAC, WAV, MP3, OGG (Vorbis, Opus), AAC/M4A, DSF and DFF are decoded inside the program
+    straight to 64-bit float — HE-AAC by the built-in FDK AAC decoder at its full rate. Integer PCM keeps every bit, and
+    a lossy decoder's output is kept as it comes, including samples above full scale, which MP3 and AAC legitimately
+    produce. Nothing is clipped on the way in. Encoder padding is trimmed from gapless metadata.</li>
+  <li><strong>DC removal</strong> — always on: the per-channel mean is taken out (a live stream uses a 2 Hz high-pass
+    instead). A fraction of a millivolt of offset would otherwise make a 30M-tap filter ring at infrasonic frequencies
+    and spoil the true-peak reading.</li>
+  <li><strong><a href="#declip">Declip</a></strong> — rebuilds flattened peaks.</li>
+  <li><strong><a href="#isp">Intersample peak correction</a></strong> — clears overs between the samples.</li>
+  <li><strong><a href="#subsonic">Subsonic filter</a></strong> — linear-phase high-pass at 10–20 Hz.</li>
+  <li><strong><a href="#aa">Adaptive Apodizer</a></strong> or a <a href="#apodizing">static apodizing</a> preset.</li>
+  <li><strong>Upsampling</strong> — the long FIR filter, <a href="#pfr">polyphase and multistage</a>, with the phase
+    chosen by <a href="#tfs">TFS</a>, <a href="#hp">Hybrid-Phase</a> or plain linear phase.</li>
+  <li><strong><a href="#xtc">Crosstalk cancellation</a></strong>, when set up.</li>
+  <li><strong>Output limiter</strong> — the second half of ISP, with ~1.5 ms dips, then a second subsonic pass at the output
+    rate so those dips cannot leave infrasound behind.</li>
+  <li><strong>True-peak ceiling</strong> — a 4× oversampled scan (8-tap Lanczos); if the reconstructed wave would exceed
+    the <a href="#headroom">Headroom</a> ceiling, one gain brings the whole file under it (with
+    <a href="#album">Album level</a>, the album's shared gain). A quieter file is left bit-exact.</li>
+  <li><strong>Dither and noise shaping</strong> — 24-bit TPDF dither from two independent random streams, one per channel.
+    Up to 48 kHz a 9th-order Wannamaker shaper moves the noise where hearing is least sensitive; from 88.2 to 1536 kHz
+    each rate has a minimum-phase shaper of its own (up to order 16), which lowers the noise in 0–20 kHz by 13–15 dB at
+    ×2, 31–35 at ×4, 57–59 at ×8, 61–62 at ×16 and 63–64 at ×32.</li>
+  <li><strong>Encode</strong> — 24-bit FLAC, written natively in the program while it renders (a 90-minute file needs no
+    more memory than a three-minute one), or a DSF from a <a href="#output">sigma-delta modulator</a>.</li>
+  <li><strong>Verification</strong> — the written file is decoded back and compared with the render. See
+    <a href="#trust">Verification</a>.</li>
+</ol>
+<p>Every filter is normalised to exactly unity DC gain, so nothing is louder or quieter by design. Only two things ever
+  change level: the true-peak ceiling (one gain per file, or per album) and the output limiter's millisecond dips.
+  Nothing ever raises a quiet file. Stage-by-stage measurements:
+  <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/18-dsp-stages.md">doc 18</a> and
+  <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/05-converter-pipeline.md">doc 05</a>.</p>
+
+<h3 id="paths">Two upsampling paths</h3>
+<p>Both share every preparation and output stage; the difference is what does the rate conversion. The polyphase path is
+  the default (<a href="#pfr">PFR</a>).</p>
+<div class="tbl"><table>
+  <tr><th></th><th>Polyphase FIR (default)</th><th>Standard</th></tr>
+  <tr><td>Resampler</td><td>The long FIR itself, split into L sub-filters at the source rate</td><td>Rubato 512-tap sinc, then the FIR as a post-filter at the output rate</td></tr>
+  <tr><td>Ratios</td><td>Integer only; non-integer targets snap down (44.1 kHz × FS8 → 352.8 kHz)</td><td>Any</td></tr>
+  <tr><td>Output length</td><td>Exactly input × L</td><td>~0.4 s of resampler padding</td></tr>
+  <tr><td>Compute</td><td>From 5M taps: multistage — one convolution at the source rate plus a short exact interpolator (≥210 dB). 1M, 5k, custom filters and ×3/×6: single-stage</td><td>One big convolution at the output rate</td></tr>
+  <tr><td>TFS</td><td>Runs</td><td>Stands down, and the row says so</td></tr>
+  <tr><td>Missing filter file</td><td>Error — never a silent downgrade</td><td>Post-filter skipped, logged</td></tr>
+</table></div>
+<p><strong>Multistage</strong> (the default since 1.7.0): only the sub-filter that lands on the source's own samples runs —
+  once, at the source rate — and a short linear-phase interpolator, designed to 218 dB with a stop band of at least
+  210 dB, does the rest. The long filter still decides the wall, the phase and the ringing; the work per output sample
+  falls several times. Against single-stage the difference is −204 to −220 dBFS, about 66 dB below the last bit of a
+  24-bit file (<a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/21-multistage-upsampling.md">doc 21</a>).</p>
+
+<h3 id="gpu">The graphics card, without precision loss</h3>
+<p>A graphics card is never required: the CPU path plays and converts everything by itself, and it is the reference. When
+  a card is there, it can take the convolution. The usual objection to GPU audio is that consumer cards compute in
+  32-bit float, a noise floor near −150 dB that a 30M-tap convolution would amplify. AuraEngine uses
+  <strong>double-single</strong> arithmetic instead: every value is a pair of 32-bit floats, a high word and an error
+  word, for about 48 bits of mantissa.</p>
+<p>That only works if the shader compiler leaves the correction terms alone, so the compute shaders are written in GLSL
+  with the <code>precise</code> qualifier, compiled to SPIR-V with <code>NoContraction</code> decorations (which Vulkan
+  drivers must honour) and loaded through SPIR-V passthrough, so no translator touches the arithmetic. The result nulls
+  against the 64-bit CPU path at about −260 dB, some 110 dB below the 24-bit floor.</p>
+<ul class="list">
+  <li><strong>Requirement:</strong> Vulkan with SPIR-V passthrough. Other adapters (DX12-only, for example) fall back to
+    the CPU automatically, and so does a card that runs out of memory part-way — per phase on the polyphase path.</li>
+  <li><strong>Converter:</strong> with multistage only the long first stage goes to the card; 30M ×8 needs about 170 MiB of
+    video memory. The card matters most for hi-res sources (176.4/192 kHz) and Hybrid-Phase pairs on a weak CPU.</li>
+  <li><strong>Player:</strong> uses a discrete card only when the CPU cannot run the chosen filter in real time with room to
+    spare, matches the CPU to below −280 dBFS, and hands back to the CPU without a gap if the card fails mid-track.</li>
+</ul>
+
+<h3 id="design">Filter design</h3>
+<p>Filters are designed offline by <code>fir-optimizer</code>, a Python suite that builds each Kaiser-windowed sinc
+  prototype (β = 14 from 1M taps up, fitted to the length at 5k) in 128-bit arithmetic (mpmath, 38 significant digits),
+  normalises the DC gain with extended-precision summation, and ships the result as 64-bit <code>.npy</code> files with
+  a JSON sidecar. There is one filter per ratio, never rescaled: passband up to source Nyquist − 2 kHz, stop band from
+  source Nyquist, so the program never stretches a filter to a rate it was not made for.</p>
+<p>The 30M filter measures a stop band of −220.9 dB or deeper, passband ripple of ±0.09 nano-dB, a unity-gain error of
+  1.1×10⁻¹⁵ and a transition 0.05 Hz wide. The log names the exact file used for each conversion.</p>
+<figure>
+  <img src="media/m3-resolution-ladder.png" alt="Measured stop band and transition for each tap count" width="1620" height="1539" loading="lazy">
+  <figcaption>The resolution ladder, measured. Plots, method and the script to reproduce them:
+    <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/15-measurements.md">doc 15</a>.</figcaption>
+</figure>
+
+<h3 id="laws">The laws of the DSP core</h3>
+<p>From <a href="https://github.com/ToxaDev/aura-engine/blob/master/DSP_MANIFESTO.md">DSP_MANIFESTO.md</a> — the rules
+  every change to the code is checked against.</p>
+<div class="tbl"><table>
+  <tr><th>§</th><th>Law</th><th>Meaning</th></tr>
+  <tr><td class="n">1.1</td><td>Unity DC gain</td><td>No filter may change loudness: <code>sum(h) == 1.0</code>, tested for every filter mode.</td></tr>
+  <tr><td class="n">1.2</td><td>Headroom is a ceiling</td><td>Headroom names the output ceiling in dBTP, enforced at the end. Nothing is scaled before the filter.</td></tr>
+  <tr><td class="n">1.3</td><td>True peak at the very end</td><td>The intersample scan sits right before quantisation, after every processing stage.</td></tr>
+  <tr><td class="n">2.1</td><td>No time-aliasing</td><td>Minimum-phase conversion uses FFTs zero-padded ≥16×, so tails never wrap around.</td></tr>
+  <tr><td class="n">3.1</td><td>Zero pre-ringing</td><td>Minimum-phase impulses peak at sample 0 with zeros before it.</td></tr>
+  <tr><td class="n">3.2</td><td>Stop band ≥ 140 dB down</td><td>Measured −185 to −221 dB across the set, −193 to −220 dB at 5k.</td></tr>
+  <tr><td class="n">4.1</td><td>64-bit end to end</td><td>Any 32-bit truncation in the sample path is a blocking bug; the GPU's double-single arithmetic exists for this law.</td></tr>
+  <tr><td class="n">4.2</td><td>FFT convolution only</td><td>Partitioned overlap-add/save, block sizes tuned to cache and video memory.</td></tr>
+</table></div>
+
+<h3 id="trust">Verification and the audit trail</h3>
+<ul class="list">
+  <li><strong>Every file.</strong> Each FLAC written is decoded back and compared sample by sample with the internal
+    64-bit render, within ±2 LSB at 24-bit. Only then does the row show <strong>VERIFIED</strong>; a file that fails is
+    renamed <code>_UNVERIFIED</code> and flagged. (705.6/768 kHz output exceeds what the FLAC format itself allows a
+    decoder to read back; without ffmpeg installed, the log says verification could not run at that rate instead of
+    calling a good file unverified.)</li>
+  <li><strong>Every render is stamped.</strong> The file records the version and the chain that made it, so the app can
+    tell whether a converted file still matches the current settings and version; an older render is shown as not
+    converted and the source plays meanwhile — the old file is kept.</li>
+  <li><strong>Every build.</strong> More than 900 unit tests pin the invariants — convolver latency, unity gain, bit-exact
+    polyphase reconstruction, stereo-linked switching, true-peak and dither behaviour, and the player's streaming stages
+    against the converter's whole-file code.</li>
+  <li id="log"><strong>The log.</strong> The console window next to the app prints the full DSP trace: which filter file
+    was used, the apodizer's verdicts, Hybrid-Phase coverage, true-peak decisions, verification results. It starts
+    minimized; on Windows the same log goes to <code>%LOCALAPPDATA%\AuraEngine\logs</code>. If you audit audio software,
+    start there, then read the
+    <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/09-audio-auditor-guide.md">auditor's guide</a>.</li>
+</ul>
+</section>
+<!-- ===== 7. PERFORMANCE & FAQ ===== -->
+<section class="doc" id="performance">
+<h2>Performance and FAQ</h2>
+<p>A 30-million-tap filter runs on a CPU, without a graphics card. The long filter runs once, at the source rate, and a
+  short linear-phase interpolator — designed to 218 dB, stop band at least 210 dB — takes the result the rest of the way
+  to ×2…×32 (<a href="#paths">multistage</a>). The long filter still decides the wall, the phase and the ringing; the work
+  per output sample falls several times. Multistage applies from 5M taps up; 1M, 5k and custom filters stay single-stage.</p>
+<p>Measured on an Intel Core i9-14900K. The <em>four efficiency cores</em> rows pin the process to four of its E-cores, as
+  a stand-in for a modest laptop CPU — not a real laptop. Source: 44.1 kHz CD material; filter: 30M taps, linear phase.</p>
+
+<h3 id="perf-player">Player: CPU per second of music</h3>
+<div class="tbl"><table>
+  <tr><th>ms of CPU per second of music</th><th>×4</th><th>×8</th><th>×16</th></tr>
+  <tr><td class="n">Four efficiency cores — multistage</td><td>50</td><td>27</td><td>23</td></tr>
+  <tr><td class="n">Four efficiency cores — single-stage</td><td>~160</td><td>~160</td><td>~160</td></tr>
+  <tr><td class="n">All cores — multistage</td><td>11</td><td>6.9</td><td>4.7</td></tr>
+  <tr><td class="n">All cores — single-stage</td><td>34</td><td>34</td><td>34</td></tr>
+</table></div>
+<p>On four efficiency cores a 30M ×8 stream runs about 35 times faster than real time. In a real window, 30M ×4 takes
+  about a quarter of one core.</p>
+
+<h3 id="perf-start">Player: from the press to the first sound</h3>
+<div class="tbl"><table>
+  <tr><th>30M, four-minute track, CPU only</th><th>×4</th><th>×16</th></tr>
+  <tr><td class="n">Four efficiency cores — multistage</td><td>1.51 s</td><td>1.15 s</td></tr>
+  <tr><td class="n">Four efficiency cores — single-stage</td><td>1.86 s</td><td>1.80 s</td></tr>
+  <tr><td class="n">All cores — multistage</td><td>0.40 s</td><td>0.62 s</td></tr>
+  <tr><td class="n">All cores — single-stage</td><td>0.79 s</td><td>0.77 s</td></tr>
+</table></div>
+<p>The time until the first 0.3 s of output is ready, with XTC and the subsonic filter on; opening the device not
+  included; median of three.</p>
+
+<h3 id="perf-converter">Converter and accuracy</h3>
+<div class="tbl"><table>
+  <tr><th>A 3:43 track, 30M, all cores, CPU only</th><th>×4</th><th>×8</th><th>×16</th></tr>
+  <tr><td class="n">Multistage, wall time</td><td>13 s</td><td>20 s</td><td>33 s</td></tr>
+  <tr><td class="n">Single-stage, wall time</td><td>23 s</td><td>29 s</td><td>45 s</td></tr>
+  <tr><td class="n">Multistage, times faster than real time</td><td>17×</td><td>11×</td><td>6.8×</td></tr>
+</table></div>
+<div class="tbl"><table>
+  <tr><th>Multistage against single-stage, 30M ×8</th><th>Difference (null)</th></tr>
+  <tr><td class="n">Linear phase</td><td>−212 … −220 dBFS</td></tr>
+  <tr><td class="n">Minimum phase</td><td>−212 … −219 dBFS</td></tr>
+  <tr><td class="n">TFS</td><td>−204 … −210.5 dBFS</td></tr>
+  <tr><td class="n">Hybrid-Phase</td><td>−219.8 dBFS</td></tr>
+</table></div>
+<p>The last bit of a 24-bit file is at −144 dBFS; the difference sits about 66 dB below it. Not bit-identical — rounded
+  to 24 bits, one sample in 20 000 to 90 000 differs by one LSB — but the wall (−6 dB at 21 050.01 Hz), the phase, the
+  ringing and the delay are unchanged, and in a blind A/B the listener could not tell the two apart.</p>
+
+<h3 id="faq">Frequently asked questions</h3>
+<dl class="faq">
+  <dt>Do I need a powerful PC or a graphics card?</dt>
+  <dd>No. Pinned to four efficiency cores of an i9-14900K, the player runs a 30M filter at ×8 on 27 ms of CPU per second
+    of music, with no graphics card. Any filter also converts on any machine; a long one just takes longer.</dd>
+  <dt>Do I have to wait for the conversion before I can listen?</dt>
+  <dd>No. ▶ plays the source through the same chain at once: the first sound of a 30M track is ready 1.2–1.5 s after the
+    press on four efficiency cores (0.4–0.6 s on all cores), and the stages that need the whole track switch in as they
+    get ready. Converting is for keeping a file, not for listening.</dd>
+  <dt>Is multistage upsampling lossy?</dt>
+  <dd>It is not bit-identical, but the difference to the single-stage output of the same 30M filter is −204 to −220 dBFS,
+    about 66 dB below the last bit of a 24-bit file; the wall, the phase and the delay are unchanged.</dd>
+  <dt>30 million taps ÷ 48 kHz = 10 minutes. Is the filter really that long?</dt>
+  <dd>No — a tap count here is counted at the <strong>output</strong> rate. The 30M filter for 44.1 kHz × 8 runs at
+    352.8 kHz, so its kernel is 85 s (39 s at 768 kHz), and 99.76 % of its energy lies within ±1 ms of the centre.</dd>
+  <dt>Is a billion-tap filter better than 30M?</dt>
+  <dd>Not by depth. The worst stop band (44.1 kHz × 8, linear phase) is −191 dB at 1M, −205 at 5M, −211 at 10M,
+    −220.9 dB at 30M, then −216 dB at 100M, −211 at 180M and −207 at 300M: 30M already sits at the floor of
+    double-precision arithmetic, which is why the slider marks it <em>optimal</em>. What 100M to 1G buy is a steeper wall
+    at the cutoff, at the price of a download of up to 1.75 GB per pack and of time.</dd>
+  <dt>Why will the converter not write FLAC at ×32?</dt>
+  <dd>A FLAC header stores the sample rate in 20 bits — at most 1 048 575 Hz — and ×32 is 1411.2 or 1536 kHz. ×32 works
+    for the player (if the device takes the rate) and for DSD256 and faster in the converter, where the result is a DSF.</dd>
+  <dt>Do I need the GPU?</dt>
+  <dd>No. The CPU path is the reference (f64, Kahan-compensated); the GPU path stays within about −260 dB of it. The card
+    still helps most with hi-res sources (176.4 / 192 kHz) and Hybrid-Phase on a weak CPU. For playback it matters only
+    when the CPU cannot run the chosen filter in real time — the player measures that and uses the card only then.</dd>
+  <dt>Can I run two copies side by side?</dt>
+  <dd>No. A second launch brings the open window forward: the player needs the output device to itself. Within one copy a
+    batch converts several files at once.</dd>
+  <dt>Why is there a console window next to the app on Windows?</dt>
+  <dd>It is the audit log, on purpose: filter selection, Hybrid-Phase coverage, true-peak action, verification verdicts.
+    It starts minimized. The same log is written to the <code>logs</code> folder of the app's data folder —
+    <code>%LOCALAPPDATA%\AuraEngine</code> on Windows, <code>~/Library/Application Support/AuraEngine</code> on macOS,
+    <code>~/.local/share/AuraEngine</code> on Linux.</dd>
+  <dt>Does it need ffmpeg or any other external tool?</dt>
+  <dd>No. Decoding and encoding are built in, and no other program is started during a conversion. The one exception is
+    <em>verifying</em> 705.6 / 768 kHz FLAC: those rates exceed the FLAC specification's own 655 350 Hz limit, so only
+    ffmpeg reads them back. Without it the log says plainly that verification could not run at that rate.</dd>
+  <dt>Can it damage loudness or dynamics?</dt>
+  <dd>No. The engine applies one gain to a whole file, in one place: the true-peak normaliser, when the reconstructed
+    waveform would exceed the ceiling (−0.5 dBTP, or whatever Headroom names). With Album Level on, the tracks of one album
+    share that gain. The only other is the ISP stage's limiter, which holds an over with a dip of about 1.5 ms. It never
+    raises a quiet file.</dd>
+  <dt>Which radio stations can it play?</dt>
+  <dd>Any stream at 44.1 or 48 kHz (or a multiple) in MP3, AAC, HE-AAC, FLAC, Vorbis or Opus — over plain HTTP, a .pls or
+    .m3u playlist, or HLS. Encrypted HLS does not play.</dd>
+</dl>
+</section>
+
+<!-- ===== 8. TROUBLESHOOTING ===== -->
+<section class="doc" id="troubleshooting">
+<h2>Troubleshooting</h2>
+
+<h4 id="t-start">Nothing happens when I start it</h4>
+<p>Start it from a terminal as <code>aura-engine.exe --selftest</code> (on Windows): it prints what the program needs from
+  the machine and what it found, without opening a window. If the app crashed, it leaves
+  <code>AuraEngine-crash.txt</code> next to the program (or in the logs folder when that folder is not writable). Attach
+  both to an <a href="https://github.com/ToxaDev/aura-engine/issues">issue</a>.</p>
+
+<h4 id="t-webview2">Windows says WebView2 is missing</h4>
+<p>The window is drawn by Microsoft Edge WebView2. Windows 11 has it; some Windows 10, LTSC and N editions do not. Install
+  the WebView2 Runtime from Microsoft and start the app again — the app's own message links to it.</p>
+
+<h4 id="t-rate">The DAC refuses the rate, or plays nothing</h4>
+<p>The device must accept the output rate (FS8 is 352.8 / 384 kHz). Choose a lower <a href="#fs">FS Multiplier</a>. For DSD
+  output, the DAC must accept DoP at the carrier rate (DSD64 is 176.4 kHz).</p>
+
+<h4 id="t-busy">The device is busy</h4>
+<p>The player takes the device exclusively. Another program playing to it — a browser, a system sound, a second player —
+  keeps it from opening. Stop that program, or choose another device.</p>
+
+<h4 id="t-linux">Linux: no <code>hw:</code> device, or permission denied</h4>
+<p>Add yourself to the <code>audio</code> group — <code>sudo usermod -aG audio $USER</code> — then log out and in again.
+  The AppImage needs <code>chmod +x</code> once.</p>
+
+<h4 id="t-mac">macOS: “damaged” or “can't be opened”</h4>
+<p>The app is not signed by Apple. Run <code>xattr -cr "/Applications/Aura Engine.app"</code> once in Terminal, then open
+  it again.</p>
+
+<h4 id="t-filter">A setting is amber, or a filter is missing</h4>
+<p>The filter that setting needs is not on this computer yet. Use the bar's <strong>Download</strong> — see
+  <a href="#filter-download">Downloads inside the app</a>. If there is not enough disk space, the dialog offers
+  <a href="#storage">Storage</a> to remove filters you do not use.</p>
+
+<h4 id="t-gpu">GPU is on, but the log says CPU</h4>
+<p>When the card is missing, too small or fails, the engine falls back to the CPU and says so. The result is the same; the
+  CPU path is the reference.</p>
+
+<h4 id="t-badges">BAD, SKIP or no VERIFIED badge</h4>
+<p><code>BAD</code>: a sample rate outside the 44.1 and 48 kHz families. <code>SKIP</code>: the source is already at or above
+  the target rate. A 705.6 / 768 kHz FLAC is verified only when ffmpeg is installed; without it the log says verification
+  could not run at that rate.</p>
+</section>
+
+<!-- ===== 9. WEB CONVERTER ===== -->
+<section class="doc" id="web">
+<h2>Web converter</h2>
+<p>The same engine runs in the browser on Hugging Face — <a href="https://huggingface.co/spaces/toxadev/aura-engine-audio-upscaler">the
+  AuraEngine Space</a>, also embedded on the <a href="./#web">home page</a> under “Try it here”. Upload a file, pick the
+  settings, download the result. Nothing to install.</p>
+<div class="tbl"><table>
+  <tr><th></th><th>Web converter</th><th>Desktop app</th></tr>
+  <tr><td class="n">Rate</td><td>FS2 – FS16</td><td>FS2 – FS32</td></tr>
+  <tr><td class="n">Filter</td><td>5k – 30M taps (default 30M)</td><td>5k – 1G taps, custom filters</td></tr>
+  <tr><td class="n">Output</td><td>FLAC, or DSF DSD64 – DSD256 (real-time modulators)</td><td>FLAC, or DSF DSD64 – DSD1024 with every modulator</td></tr>
+  <tr><td class="n">Rack</td><td>The desktop app's default chain</td><td>Every stage, track memory, Album Level</td></tr>
+  <tr><td class="n">Player, radio, ASIO input, analyzer</td><td>—</td><td>Yes</td></tr>
+</table></div>
+<p>Use the web converter to hear what the engine does with one of your files before installing anything; use the desktop
+  app for whole libraries, long filters and listening.</p>
+<figure><img src="media/hf-space.webp" alt="The web converter on Hugging Face: file upload, settings and the download of the result" width="1440" height="1100" loading="lazy"></figure>
+</section>
+
+</main>
+</div>
+
+<footer>
+  AuraEngine · <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/">PolyForm Noncommercial 1.0.0</a> (free for noncommercial use) ·
+  <a href="https://github.com/ToxaDev/aura-engine">GitHub</a> ·
+  <a href="https://github.com/ToxaDev/aura-engine/tree/master/docs">technical docs</a> ·
+  <a href="https://github.com/ToxaDev/aura-engine/blob/master/CHANGELOG.md">changelog</a><br>
+  Built with Rust, Tauri, rustfft, realfft, rubato, Symphonia, libopus, FDK AAC, wgpu and flacenc. Station catalog:
+  <a href="https://www.radio-browser.info/">Radio Browser</a>.
+</footer>
+
+<script>
+(function () {
+  var main = document.getElementById('main'), toc = document.getElementById('toc');
+  var q = document.getElementById('q'), res = document.getElementById('results');
+  var heads = [].slice.call(main.querySelectorAll('section.doc > h2, section.doc h3[id], section.doc h4[id]'));
+
+  // anchor links and the menu
+  var cur = null;
+  heads.forEach(function (h) {
+    var id = h.id || h.parentNode.id;
+    var a = document.createElement('a');
+    a.className = 'anchor'; a.href = '#' + id; a.textContent = '#'; a.setAttribute('aria-label', 'Link to this section');
+    h.insertBefore(a, h.firstChild);
+    var label = h.getAttribute('data-toc') || h.textContent.replace(/^#/, '').trim();
+    if (h.tagName === 'H2') {
+      cur = document.createElement('li');
+      cur.innerHTML = '<a href="#' + id + '"></a><ul></ul>';
+      cur.firstChild.textContent = label;
+      toc.appendChild(cur);
+    } else if (h.tagName === 'H3' && cur) {
+      var li = document.createElement('li');
+      li.innerHTML = '<a href="#' + id + '"></a>';
+      li.firstChild.textContent = label;
+      cur.lastChild.appendChild(li);
+    }
+  });
+
+  // which section is on screen
+  var links = [].slice.call(toc.querySelectorAll('a'));
+  var spy = heads.filter(function (h) { return h.tagName !== 'H4'; });
+  function mark() {
+    var y = window.scrollY + 90, on = spy[0];
+    for (var i = 0; i < spy.length; i++) { if (spy[i].getBoundingClientRect().top + window.scrollY <= y) on = spy[i]; else break; }
+    var id = '#' + (on.id || on.parentNode.id);
+    links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === id); });
+    [].forEach.call(toc.children, function (li) {
+      li.classList.toggle('open', !!li.querySelector('a[href="' + id + '"]'));
+    });
+  }
+  var tick = false;
+  window.addEventListener('scroll', function () { if (!tick) { tick = true; requestAnimationFrame(function () { tick = false; mark(); }); } });
+  mark();
+
+  // phone menu
+  var btn = document.querySelector('.toc-btn');
+  function closeToc() { document.body.classList.remove('toc-open'); btn.setAttribute('aria-expanded', 'false'); }
+  btn.addEventListener('click', function () {
+    var open = document.body.classList.toggle('toc-open');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  document.getElementById('side').addEventListener('click', function (e) { if (e.target.closest('a')) closeToc(); });
+
+  // search: each heading with the text up to the next heading
+  var blocks = heads.map(function (h) {
+    var text = '', n = h.nextElementSibling;
+    while (n && !/^H[234]$/.test(n.tagName) && !(n.tagName === 'SECTION')) { text += ' ' + n.textContent; n = n.nextElementSibling; }
+    if (h.tagName === 'H2') text = h.parentNode.querySelector('p') ? h.parentNode.querySelector('p').textContent + text : text;
+    return { el: h, id: h.id || h.parentNode.id, title: h.textContent.replace(/^#/, '').trim(), text: text.replace(/\s+/g, ' ') };
+  });
+  function esc(s) { return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function hl(s, words) {
+    var out = esc(s);
+    words.forEach(function (w) { out = out.replace(new RegExp('(' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig'), '<mark>$1</mark>'); });
+    return out;
+  }
+  var sel = -1;
+  function search() {
+    var v = q.value.trim().toLowerCase();
+    res.innerHTML = ''; sel = -1;
+    if (v.length < 2) { res.classList.remove('on'); toc.style.display = ''; return; }
+    var words = v.split(/\s+/).filter(Boolean), hits = [];
+    blocks.forEach(function (b) {
+      var t = b.title.toLowerCase(), x = b.text.toLowerCase(), score = 0;
+      for (var i = 0; i < words.length; i++) {
+        var w = words[i], inT = t.indexOf(w) >= 0, inX = x.indexOf(w) >= 0;
+        if (!inT && !inX) return;
+        score += inT ? 10 : 1;
+      }
+      var p = x.indexOf(words[0]), from = Math.max(0, p - 50);
+      var snip = (from ? '…' : '') + b.text.substr(from, 130).trim() + '…';
+      hits.push({ b: b, score: score, snip: p >= 0 ? snip : '' });
+    });
+    hits.sort(function (a, b) { return b.score - a.score; });
+    if (!hits.length) { res.innerHTML = '<li class="none">Nothing found.</li>'; }
+    hits.slice(0, 12).forEach(function (h) {
+      var li = document.createElement('li');
+      li.innerHTML = '<a href="#' + h.b.id + '"><b>' + hl(h.b.title, words) + '</b>' + (h.snip ? '<span>' + hl(h.snip, words) + '</span>' : '') + '</a>';
+      res.appendChild(li);
+    });
+    res.classList.add('on'); toc.style.display = 'none';
+  }
+  q.addEventListener('input', search);
+  q.addEventListener('keydown', function (e) {
+    var items = [].slice.call(res.querySelectorAll('a'));
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!items.length) return;
+      e.preventDefault();
+      sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items.forEach(function (a, i) { a.classList.toggle('sel', i === sel); });
+    } else if (e.key === 'Enter' && items.length) {
+      e.preventDefault(); items[Math.max(sel, 0)].click();
+    } else if (e.key === 'Escape') { q.value = ''; search(); q.blur(); }
+  });
+  res.addEventListener('click', function (e) {
+    var a = e.target.closest('a'); if (!a) return;
+    var t = document.getElementById(a.getAttribute('href').slice(1));
+    if (t) { t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash'); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '/' && document.activeElement !== q && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) {
+      e.preventDefault();
+      if (window.innerWidth <= 900) { document.body.classList.add('toc-open'); btn.setAttribute('aria-expanded', 'true'); }
+      q.focus();
+    }
+  });
+})();
+</script>
+</body>
+</html>

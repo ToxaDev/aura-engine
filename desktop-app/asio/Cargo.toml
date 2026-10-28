@@ -1,0 +1,14 @@
+# Aura Player's ASIO input: a driver other players play into, and the link
+# it hands their samples to Aura Player through. A workspace of its own (its
+# own target and lock), apart from the app's: the driver is built for x64 and
+# x86, and is under its own licence (driver/LICENSE).
+[workspace]
+members = ["link", "driver"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.88"
+
+[workspace.dependencies]
+windows-sys = "0.61"

@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AuraEngine — FIR upsampler and player for Windows, Linux and macOS</title>
+<meta name="description" content="Free FIR upsampler and player for Windows, Linux and macOS. Filters up to a billion taps, Hybrid-Phase, output up to 1536 kHz and DSD.">
+<link rel="canonical" href="https://aura-engine.app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AuraEngine">
+<meta property="og:title" content="AuraEngine — FIR upsampler and player">
+<meta property="og:description" content="Converts and plays through one engine: filters up to a billion taps, Hybrid-Phase, up to 1536 kHz and DSD. Free for Windows, Linux and macOS.">
+<meta property="og:url" content="https://aura-engine.app/">
+<meta property="og:image" content="https://aura-engine.app/media/og-image.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AuraEngine — FIR upsampler and player">
+<meta name="twitter:description" content="Converts and plays through one engine: filters up to a billion taps, Hybrid-Phase, up to 1536 kHz and DSD. Free for Windows, Linux and macOS.">
+<meta name="twitter:image" content="https://aura-engine.app/media/og-image.jpg">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48 64x64">
+<link rel="icon" type="image/png" sizes="256x256" href="media/aura-icon.png">
+<link rel="apple-touch-icon" href="media/apple-touch-icon.png">
+<meta name="theme-color" content="#02050c">
+<meta name="color-scheme" content="dark">
+<script>
+  // Old links pointed at sections of the single-page site; those sections now live on docs.html.
+  (function () {
+    var moved = ["philosophy","hybrid","path","paths","gpu","performance","filters","laws","trust","player","radio","input","analyzer","visuals","get","new"];
+    var h = location.hash.slice(1);
+    if (h && moved.indexOf(h) >= 0) location.replace("docs.html#" + h);
+  })();
+</script>
+<style>
+  :root {
+    --bg: #02050c;
+    --bg-2: #060d1c;
+    --panel: rgba(12, 22, 42, .62);
+    --panel-solid: #0a1426;
+    --line: rgba(56, 189, 248, .16);
+    --line-2: rgba(56, 189, 248, .32);
+    --text: #e6f1ff;
+    --dim: #94a3b8;
+    --faint: #5b6b86;
+    --sky: #38bdf8;
+    --sky-2: #0ea5e9;
+    --cyan: #67e8f9;
+    --violet: #a78bfa;
+    --violet-2: #7c3aed;
+    --pink: #f472b6;
+    --amber: #fbbf24;
+    --green: #34d399;
+    --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", monospace;
+    --sans: "SF Pro Display", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    --r: 16px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden;
+  }
+  a { color: var(--sky); text-decoration: none; }
+  a:hover { color: var(--cyan); }
+  code { font-family: var(--mono); font-size: .88em; color: var(--cyan); }
+  img { max-width: 100%; -webkit-user-drag: none; user-select: none; -webkit-user-select: none; }
+  /* screenshots and their tags are pictures, not text: a stray drag must not paint them blue */
+  .stage, .shot, .deck-wrap, .hf-shot, .float-tag, canvas { user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: var(--mono); }
+
+  /* ───────── top bar ───────── */
+  .nav {
+    position: fixed; inset: 0 0 auto 0; z-index: 50; height: 72px;
+    display: flex; align-items: center;
+    transition: background .3s, border-color .3s, backdrop-filter .3s;
+    border-bottom: 1px solid transparent;
+  }
+  .nav.solid { background: rgba(2, 5, 12, .72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-color: var(--line); }
+  .nav .wrap { display: flex; align-items: center; gap: 28px; width: 100%; }
+  .brand { display: flex; align-items: center; gap: 12px; color: var(--text); font-weight: 600; letter-spacing: .3px; font-size: 21px; }
+  .brand img { width: 46px; height: 46px; filter: drop-shadow(0 0 12px rgba(56,189,248,.6)); }
+  .brand b { color: var(--sky); font-weight: 600; }
+  .nav-links { display: flex; gap: 22px; margin-left: auto; align-items: center; }
+  .nav-links a { color: var(--dim); font-size: 14.5px; display: inline-flex; align-items: center; gap: 7px; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-links svg { width: 18px; height: 18px; }
+  .nav-dl {
+    padding: 8px 16px; border-radius: 999px; color: #001018 !important; font-weight: 600;
+    background: linear-gradient(90deg, var(--cyan), var(--sky));
+    box-shadow: 0 0 18px rgba(56,189,248,.45);
+  }
+  .nav-dl:hover { box-shadow: 0 0 26px rgba(103,232,249,.7); }
+  @media (max-width: 860px) { .nav-links .opt { display: none; } }
+
+  /* ───────── hero ───────── */
+  .hero { position: relative; min-height: 100vh; min-height: 100svh; overflow: hidden; isolation: isolate; }
+  /* the sky and the engine behind the whole page; lvh = the tallest phone viewport, so the address bar never uncovers an edge */
+  #scene { position: fixed; left: 0; top: 0; width: 100%; height: 100vh; height: 100lvh; z-index: -1; display: block; pointer-events: none; }
+  /* the far rivers: their own canvases over the sky, out of focus by a true Gaussian blur, their light added to the sky's */
+  .scene-l { position: fixed; left: 0; top: 0; width: 100%; height: 100vh; height: 100lvh; z-index: -1; display: block; pointer-events: none;
+    mix-blend-mode: screen; mix-blend-mode: plus-lighter; }
+  .hero-main {
+    display: flex; flex-direction: column; justify-content: center;
+    padding-top: 104px; padding-bottom: 44px; min-height: 100vh; min-height: 100svh;
+  }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 44px; align-items: center; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 10px; padding: 6px 14px 6px 8px; border-radius: 999px;
+    border: 1px solid var(--line-2); background: rgba(6, 16, 34, .55); backdrop-filter: blur(6px);
+    font: 12.5px/1 var(--mono); letter-spacing: .8px; color: var(--dim); text-transform: uppercase;
+  }
+  .badge i {
+    font-style: normal; padding: 4px 8px; border-radius: 999px; color: #001018; font-weight: 700;
+    background: var(--cyan); box-shadow: 0 0 12px rgba(103,232,249,.7);
+  }
+  h1 {
+    margin: 22px 0 clamp(18px, 2.2vw, 30px); font-size: clamp(48px, 6.6vw, 94px); line-height: .95; font-weight: 700; letter-spacing: -2px;
+  }
+  h1 .a { color: #fff; text-shadow: 0 0 34px rgba(56,189,248,.35); }
+  h1 .e {
+    background: linear-gradient(100deg, var(--cyan) 0%, var(--sky) 40%, var(--violet) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 22px rgba(56,189,248,.45));
+  }
+  .lead { font-size: clamp(18px, 2vw, 22px); color: #cfe3fb; max-width: 560px; margin: 8px 0 14px; font-weight: 300; }
+  .lead b { color: #fff; font-weight: 600; }
+  .specs { font: 12.5px/1.8 var(--mono); color: var(--sky); letter-spacing: 1.2px; text-transform: uppercase; opacity: .9; margin-bottom: 6px; }
+  .specs span { color: var(--faint); margin: 0 6px; }
+
+  /* three download cards in a row, centred under the hero */
+  .hero-dl { margin-top: 46px; }
+  .dl-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 960px; margin: 0 auto; }
+  .dl-card {
+    position: relative; display: flex; align-items: center; gap: 14px; padding: 14px 14px 14px 18px;
+    border-radius: 16px; color: var(--text); border: 1px solid var(--line-2);
+    background: linear-gradient(180deg, rgba(20, 38, 70, .62), rgba(8, 16, 32, .74));
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    transition: transform .2s, box-shadow .2s, border-color .2s;
+  }
+  .dl-card:hover { transform: translateY(-2px); color: #fff; border-color: var(--sky); box-shadow: 0 0 0 1px rgba(56,189,248,.3), 0 12px 34px rgba(14,165,233,.25); }
+  .dl-card > svg { width: 34px; height: 34px; flex: none; }
+  .dl-card .t { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+  .dl-card .t b { font-size: 17px; font-weight: 600; }
+  .dl-card .t small { font: 11px/1.5 var(--mono); color: var(--dim); letter-spacing: .4px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dl-card .go {
+    margin-left: auto; flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+    border: 1px solid var(--line-2); color: var(--cyan); transition: background .2s, color .2s;
+  }
+  .dl-card .go svg { width: 18px; height: 18px; }
+  .dl-card:hover .go { background: rgba(56,189,248,.14); }
+  .dl-card.me { border-color: rgba(103,232,249,.75); box-shadow: 0 0 0 1px rgba(103,232,249,.3), 0 0 36px rgba(56,189,248,.25); }
+  .dl-card.me .go { background: linear-gradient(135deg, var(--cyan), var(--sky)); color: #001018; border-color: transparent; box-shadow: 0 0 18px rgba(56,189,248,.6); }
+  .dl-card.me::before {
+    content: "Your system"; position: absolute; top: -9px; left: 18px; padding: 2px 9px; border-radius: 999px;
+    font: 700 10px/1.4 var(--mono); letter-spacing: 1px; text-transform: uppercase; color: #001018;
+    background: var(--cyan); box-shadow: 0 0 12px rgba(103,232,249,.6);
+  }
+  .dl-meta { margin-top: 16px; font-size: 13.5px; color: var(--faint); text-align: center; }
+  .dl-meta a { color: var(--dim); border-bottom: 1px dotted var(--faint); }
+  @media (max-width: 860px) { .dl-row { grid-template-columns: 1fr; max-width: 420px; } }
+
+  .hf-pill {
+    display: inline-flex; align-items: center; gap: 10px; margin-top: 24px; padding: 8px 16px 8px 9px; border-radius: 999px;
+    color: var(--text); border: 1px solid rgba(255, 210, 30, .32); background: rgba(40, 30, 0, .32);
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .hf-pill:hover { color: #fff; border-color: #ffd21e; box-shadow: 0 0 24px rgba(255,210,30,.25); }
+  .hf-pill svg { width: 26px; height: 26px; }
+  .hf-pill small { color: var(--dim); font-size: 13px; }
+  button.hf-pill, button.btn-hf { font: inherit; cursor: pointer; }
+  button.hf-pill { margin-top: 0; }
+  .hf-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; margin-top: 24px; }
+  .hf-ext { color: var(--dim); font-size: 13.5px; border-bottom: 1px dotted var(--faint); }
+  .hf-ext:hover { color: #ffd21e; }
+  @media (max-width: 980px) { .hero .hf-row { justify-content: center; } }
+
+  /* the web converter laid over the page: no window around it — the page dims, the converter itself floats in the
+     middle, cut out by its shadow. The Space (?embed=1) reports its height; the converter is scaled to fit the screen
+     whole. The iframe is made only on the first click, never on page load */
+  .hfm { position: fixed; inset: 0; z-index: 2000; overflow-y: auto; overscroll-behavior: contain; display: grid; place-items: center;
+    padding: 16px 12px; background: rgba(1, 4, 10, .8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .hfm[hidden] { display: none; }
+  .hfm-stage { position: relative; }
+  .hfm-stage iframe { position: absolute; left: 0; top: 0; border: 0; border-radius: 18px; background: #040a17; transform-origin: 0 0;
+    box-shadow: 0 0 0 1px rgba(103,232,249,.10), 0 40px 120px 10px rgba(0,0,0,.9), 0 0 90px rgba(56,189,248,.22), 0 0 160px rgba(124,58,237,.16);
+    opacity: 0; transition: opacity .5s; }
+  .hfm.ready .hfm-stage iframe { opacity: 1; }
+  .hfm-wait { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; color: var(--dim); font: 13px/1.5 var(--mono); text-align: center; padding: 0 20px; pointer-events: none; }
+  .hfm.ready .hfm-wait { display: none; }
+  .hfm-spin { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(56,189,248,.2); border-top-color: var(--cyan); animation: hfm-spin 1s linear infinite; }
+  @keyframes hfm-spin { to { transform: rotate(360deg); } }
+  .hfm-under { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--faint); }
+  .hfm-x { position: fixed; top: 16px; right: 18px; z-index: 1; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line-2);
+    background: rgba(4, 12, 26, .6); color: var(--text); padding: 0; display: grid; place-items: center; cursor: pointer; }
+  .hfm-x svg { width: 15px; height: 15px; display: block; }
+  .hfm-x:hover { border-color: var(--cyan); color: var(--cyan); }
+  html.hf-lock, html.hf-lock body { overflow: hidden; }
+
+  /* the app window: the real 440×932 window standing upright, barely tilted so it stays crisp */
+  .stage { perspective: 2200px; display: flex; justify-content: center; position: relative; }
+  .device {
+    position: relative; transform-style: preserve-3d; width: auto;
+    transform: rotateX(var(--rx, 2deg)) rotateY(var(--ry, -5deg)) translateZ(var(--lift, 0px));
+    transition: transform .5s cubic-bezier(.2,.7,.3,1);
+  }
+  .glare {                    /* soft light on the glass where the pointer is */
+    position: absolute; inset: 0; border-radius: 14px; pointer-events: none; z-index: 3; opacity: var(--go, 0); transition: opacity .4s;
+    background: radial-gradient(circle at var(--gx, 50%) var(--gy, 30%), rgba(186,230,253,.13), transparent 45%); mix-blend-mode: screen;
+  }
+  .device > img {
+    display: block; height: min(80vh, 780px); width: auto; aspect-ratio: 440 / 1090; border-radius: 14px;
+    border: 1px solid rgba(56,189,248,.45);
+    box-shadow:
+      0 0 0 1px rgba(124,58,237,.25),
+      0 30px 80px rgba(0,0,0,.75),
+      0 0 60px rgba(56,189,248,.22),
+      0 0 140px rgba(124,58,237,.18);
+  }
+  .device::before {           /* a narrow glint crosses the glass, then rests off-screen: both ends are invisible, so the loop never jumps */
+    content: ""; position: absolute; inset: 0; border-radius: 14px; pointer-events: none; z-index: 2;
+    background: linear-gradient(110deg, transparent 46.5%, rgba(186,230,253,.14) 50%, transparent 53.5%) no-repeat;
+    background-size: 300% 100%; animation: sweep 11s ease-in-out infinite; mix-blend-mode: screen;
+  }
+  @keyframes sweep { 0% { background-position: 87.5% 0; } 42%, 100% { background-position: 12.5% 0; } }
+  .device::after {            /* floor glow under the window */
+    content: ""; position: absolute; left: 8%; right: 8%; bottom: -46px; height: 60px; border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(56,189,248,.45), transparent); filter: blur(10px);
+    transform: translateZ(-80px) rotateX(80deg);
+  }
+  .float-tag {
+    position: absolute; z-index: 2; padding: 8px 12px; border-radius: 10px; font: 12px/1.35 var(--mono); letter-spacing: .5px;
+    background: rgba(4, 12, 26, .82); border: 1px solid var(--line-2); backdrop-filter: blur(8px); color: var(--dim);
+    box-shadow: 0 10px 30px rgba(0,0,0,.5); transform: translateZ(60px); white-space: nowrap;
+  }
+  .float-tag b { display: block; font-size: 15px; color: #fff; font-family: var(--sans); letter-spacing: 0; }
+  .float-tag.t1 { top: 30%; left: -22%; border-color: rgba(167,139,250,.5); }
+  .float-tag.t1 b { color: var(--violet); }
+  .float-tag.t2 { bottom: 16%; right: -26%; }
+  .float-tag.t2 b { color: var(--cyan); }
+  .device > img { position: relative; z-index: 1; }
+  @media (max-width: 980px) {
+    .hero-grid { grid-template-columns: 1fr; text-align: center; }
+    .lead { margin-left: auto; margin-right: auto; }
+    .float-tag { display: none; }
+    .device > img { height: min(72vh, 600px); }
+  }
+
+  /* ───────── sections ───────── */
+  section { position: relative; padding: 110px 0; }
+  .kicker { font: 12.5px/1 var(--mono); letter-spacing: 3px; text-transform: uppercase; color: var(--sky); margin-bottom: 16px; display: flex; align-items: center; gap: 12px; }
+  .kicker::before { content: ""; width: 26px; height: 1px; background: var(--sky); box-shadow: 0 0 8px var(--sky); }
+  h2 { font-size: clamp(32px, 4.4vw, 52px); line-height: 1.08; margin: 0 0 18px; font-weight: 700; letter-spacing: -1px; }
+  h2 .glow { color: var(--cyan); text-shadow: 0 0 24px rgba(103,232,249,.45); }
+  h2 .glow-v { color: var(--violet); text-shadow: 0 0 24px rgba(167,139,250,.45); }
+  .sub { color: var(--dim); font-size: 18px; max-width: 720px; margin: 0 0 44px; }
+  .center { text-align: center; }
+  .center .sub { margin-left: auto; margin-right: auto; }
+  .center .kicker { justify-content: center; }
+
+  .card {
+    position: relative; border-radius: var(--r); padding: 28px; overflow: hidden;
+    background: linear-gradient(180deg, rgba(18, 32, 58, .55), rgba(8, 15, 30, .55));
+    border: 1px solid var(--line);
+    transition: border-color .25s, transform .25s, box-shadow .25s;
+  }
+  .card:hover { border-color: var(--line-2); transform: translateY(-3px); box-shadow: 0 18px 50px rgba(0,0,0,.45), 0 0 30px rgba(56,189,248,.08); }
+  .card h3 { margin: 0 0 8px; font-size: 21px; }
+  .card p { margin: 0; color: var(--dim); }
+  .card .ico { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 18px;
+    background: rgba(56,189,248,.1); border: 1px solid rgba(56,189,248,.3); color: var(--cyan); box-shadow: 0 0 18px rgba(56,189,248,.15); }
+  .card .ico svg { width: 24px; height: 24px; }
+  .card.v .ico { background: rgba(167,139,250,.1); border-color: rgba(167,139,250,.35); color: var(--violet); box-shadow: 0 0 18px rgba(167,139,250,.15); }
+  .card.a .ico { background: rgba(251,191,36,.08); border-color: rgba(251,191,36,.35); color: var(--amber); box-shadow: 0 0 18px rgba(251,191,36,.12); }
+  .card.g .ico { background: rgba(52,211,153,.08); border-color: rgba(52,211,153,.35); color: var(--green); box-shadow: 0 0 18px rgba(52,211,153,.12); }
+
+  /* two ways */
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  .two .card { padding: 34px; }
+  /* a slice of the real (narrow) window at its own proportions, not stretched */
+  .two .shot { margin: 26px -34px -34px; border-top: 1px solid var(--line); background: #030914; aspect-ratio: 4 / 3; overflow: hidden; }
+  .two .shot img { width: 100%; height: 100%; object-fit: cover; object-position: 50% var(--y, 0%); display: block; opacity: .95; transition: transform .6s; transform-origin: 50% 30%; }
+  .two .card:hover .shot img { transform: scale(1.03); }
+  .vs { font: 13px/1.6 var(--mono); color: var(--faint); margin-top: 14px; }
+  .vs b { color: var(--text); font-weight: 500; }
+
+  /* the ASIO input: another player plays through the rack — text on the left, the signal's path on the right */
+  .inp { display: grid; grid-template-columns: 1.08fr .92fr; gap: 64px; align-items: center; }
+  .inp .sub { margin-bottom: 26px; }
+  .inp ul { list-style: none; margin: 0 0 26px; padding: 0; display: grid; gap: 12px; }
+  .inp li { position: relative; padding-left: 26px; color: var(--dim); }
+  .inp li::before { content: ""; position: absolute; left: 4px; top: .62em; width: 8px; height: 8px; border-radius: 50%; background: var(--violet); box-shadow: 0 0 10px var(--violet); }
+  .inp li b { color: var(--text); font-weight: 600; }
+  .inp .note { font: 13px/1.6 var(--mono); color: var(--faint); margin: 0 0 22px; }
+  .flow { display: flex; flex-direction: column; align-items: center; padding: 30px 26px; border-radius: 22px;
+    border: 1px solid var(--line); background: linear-gradient(180deg, rgba(12,22,42,.55), rgba(6,13,28,.35)); backdrop-filter: blur(6px); }
+  .fl-src { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .fl-src span { font: 13px/1 var(--sans); padding: 9px 14px; border-radius: 999px; border: 1px solid var(--line-2); background: rgba(4,12,26,.7); color: var(--text); }
+  .fl-src span.via { border-style: dashed; color: var(--dim); }
+  .fl-src span.via small { color: var(--faint); font-size: 11px; }
+  .fl-pipe { position: relative; width: 2px; height: 46px; background: linear-gradient(var(--line-2), rgba(167,139,250,.45)); }
+  .fl-pipe i { position: absolute; left: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan);
+    box-shadow: 0 0 12px var(--cyan), 0 0 24px rgba(103,232,249,.5); animation: flowdot 1.8s linear infinite; }
+  .fl-pipe:nth-of-type(4) i { animation-delay: .6s; } .fl-pipe:nth-of-type(6) i { animation-delay: 1.2s; }
+  @keyframes flowdot { 0% { top: -4px; opacity: 0; } 15%, 85% { opacity: 1; } 100% { top: 42px; opacity: 0; } }
+  .fl-node { text-align: center; padding: 14px 26px; border-radius: 14px; border: 1px solid var(--line-2); background: rgba(4,12,26,.82); min-width: 250px; }
+  .fl-node b { display: block; font-size: 17px; }
+  .fl-node small { display: block; font: 12px/1.5 var(--mono); color: var(--dim); margin-top: 4px; letter-spacing: .3px; }
+  .fl-node.asio { border-color: rgba(167,139,250,.6); box-shadow: 0 0 30px rgba(124,58,237,.25); }
+  .fl-node.asio b { color: var(--violet); }
+  .fl-node.dac b { color: var(--cyan); }
+  .fl-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 9px; }
+  .fl-tags i { font: 600 10.5px/1 var(--mono); font-style: normal; padding: 4px 6px; border-radius: 5px; border: 1px solid currentColor; opacity: .9; }
+  @media (max-width: 980px) { .inp { grid-template-columns: 1fr; gap: 40px; } .fl-node { min-width: 0; width: 100%; } }
+  .same {
+    margin: 22px auto 0; max-width: 760px; text-align: center; color: var(--dim); font-size: 15.5px;
+    padding: 14px 20px; border-radius: 12px; border: 1px dashed var(--line-2); background: rgba(56,189,248,.04);
+  }
+  @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+
+  /* hybrid phase */
+  .hp { display: grid; grid-template-columns: .9fr 1.1fr; gap: 48px; align-items: center; }
+  .hp-list { list-style: none; padding: 0; margin: 26px 0 0; display: grid; gap: 14px; }
+  .hp-list li { display: grid; grid-template-columns: 14px 1fr; gap: 14px; color: var(--dim); }
+  .hp-list li::before { content: ""; width: 10px; height: 10px; margin-top: 8px; border-radius: 50%; background: var(--c, var(--sky)); box-shadow: 0 0 10px var(--c, var(--sky)); }
+  .hp-list b { color: var(--text); font-weight: 600; }
+  .scope {
+    border-radius: 18px; padding: 18px 18px 12px; border: 1px solid var(--line-2);
+    background: radial-gradient(120% 90% at 50% 0%, rgba(14,165,233,.10), transparent 60%), #030914;
+    box-shadow: 0 0 0 1px rgba(124,58,237,.18), 0 30px 70px rgba(0,0,0,.6), inset 0 0 60px rgba(56,189,248,.05);
+  }
+  .scope-head { display: flex; justify-content: space-between; font: 11.5px/1 var(--mono); letter-spacing: 1.5px; color: var(--faint); text-transform: uppercase; margin-bottom: 10px; }
+  .scope-head .live { color: var(--green); }
+  .scope-head .live::before { content: "●"; margin-right: 6px; animation: blink 1.4s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  #hpCanvas { width: 100%; height: 340px; display: block; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; font: 12px/1 var(--mono); color: var(--dim); padding: 8px 0 4px; }
+  .legend span::before { content: ""; display: inline-block; width: 16px; height: 3px; border-radius: 2px; margin-right: 8px; vertical-align: middle; background: var(--c); box-shadow: 0 0 8px var(--c); }
+  .hp-video { margin-top: 18px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+  .hp-video video { display: block; width: 100%; }
+  .hp-cap { font-size: 13px; color: var(--faint); margin-top: 8px; text-align: center; }
+  @media (max-width: 960px) { .hp { grid-template-columns: 1fr; } }
+
+  /* stats */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; margin-bottom: 26px;
+    background: linear-gradient(90deg, rgba(56,189,248,.06), rgba(124,58,237,.06)); }
+  .stat { padding: 26px 22px; border-right: 1px solid var(--line); }
+  .stat:last-child { border-right: 0; }
+  .stat .n { font-size: clamp(30px, 3.6vw, 44px); font-weight: 700; letter-spacing: -1px; line-height: 1;
+    background: linear-gradient(90deg, #fff, var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .stat .l { margin-top: 8px; color: var(--dim); font-size: 14px; }
+  @media (max-width: 860px) { .stats { grid-template-columns: 1fr 1fr; } .stat:nth-child(2) { border-right: 0; } .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); } }
+
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 960px) { .grid3 { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 620px) { .grid3 { grid-template-columns: 1fr; } }
+
+  /* gallery: screenshots stacked one behind another; point at a caption (or a card) to bring it forward */
+  /* the analyzer window is landscape: one wide frame of its own */
+  .wide-shot { max-width: 980px; margin: 70px auto 0; }
+  .wide-shot img { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid var(--line-2);
+    box-shadow: 0 30px 70px rgba(0,0,0,.6), 0 0 50px rgba(56,189,248,.12); }
+  .wide-shot figcaption { margin-top: 12px; text-align: center; font-size: 14px; color: var(--dim); }
+  .wide-shot figcaption b { color: var(--text); font-weight: 600; }
+  /* the main window is tall and narrow: its cards fan out to the right of the front one */
+  .deck-wrap { max-width: 900px; margin: 60px auto 0; padding: 0 24px; display: grid; grid-template-columns: auto 1fr; gap: 56px; align-items: center; }
+  .deck { position: relative; width: min(300px, 62vw); aspect-ratio: 440 / 932; margin-right: 110px; perspective: 1800px; }
+  .deck-card {
+    position: absolute; inset: 0; margin: 0; border-radius: 14px; overflow: hidden; cursor: pointer;
+    border: 1px solid var(--line-2); background: #030914;
+    box-shadow: 0 30px 70px rgba(0,0,0,.65), 0 0 40px rgba(56,189,248,.10);
+    transform: translate3d(calc(var(--k, 0) * 52px), calc(var(--k, 0) * 14px), calc(var(--k, 0) * -60px)) rotate(calc(var(--k, 0) * 3deg));
+    transform-origin: 50% 100%;
+    opacity: calc(1 - var(--k, 0) * .22);
+    filter: brightness(calc(1 - var(--k, 0) * .25));
+    transition: transform .7s cubic-bezier(.2, .8, .2, 1), opacity .7s, filter .7s;
+  }
+  .deck-card img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+  .deck-card.on { cursor: default; border-color: rgba(103,232,249,.55); box-shadow: 0 30px 70px rgba(0,0,0,.65), 0 0 50px rgba(56,189,248,.18); }
+  .deck-tabs { display: grid; grid-template-columns: 1fr; gap: 18px; }
+  .deck-tab {
+    position: relative; text-align: left; padding: 14px 4px 0; border: 0; background: none; cursor: pointer;
+    color: var(--dim); font: 14px/1.4 var(--sans); border-top: 2px solid var(--line);
+    transition: color .3s, border-color .3s;
+  }
+  .deck-tab b { display: block; color: var(--text); font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+  .deck-tab::before {            /* autoplay progress */
+    content: ""; position: absolute; left: 0; top: -2px; height: 2px; width: 0; background: var(--cyan); box-shadow: 0 0 10px var(--cyan);
+  }
+  .deck-tab.on { color: var(--text); }
+  .deck-tab.on b { color: var(--cyan); }
+  .deck-tab.on::before { width: 100%; transition: width var(--dur, 5s) linear; }
+  .deck-wrap.hold .deck-tab.on::before { transition: none; }
+  @media (max-width: 760px) {
+    .deck-wrap { grid-template-columns: 1fr; gap: 34px; justify-items: center; }
+    .deck { width: min(240px, 56vw); margin-right: 80px; }
+    .deck-card { transform: translate3d(calc(var(--k, 0) * 38px), calc(var(--k, 0) * 10px), calc(var(--k, 0) * -60px)) rotate(calc(var(--k, 0) * 3deg)); }
+    .deck-tabs { width: 100%; }
+  }
+
+  /* hugging face */
+  .hf {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; padding: 46px; border-radius: 24px;
+    border: 1px solid rgba(255, 210, 30, .28);
+    background: radial-gradient(80% 120% at 0% 0%, rgba(255, 210, 30, .10), transparent 60%),
+                radial-gradient(80% 120% at 100% 100%, rgba(56, 189, 248, .10), transparent 60%), #050b16;
+    box-shadow: 0 30px 80px rgba(0,0,0,.5);
+  }
+  .hf h2 { font-size: clamp(28px, 3.4vw, 42px); }
+  .hf .face { width: 64px; height: 64px; margin-bottom: 14px; filter: drop-shadow(0 0 18px rgba(255,210,30,.4)); }
+  .hf ul { padding: 0; margin: 18px 0 26px; list-style: none; color: var(--dim); display: grid; gap: 8px; }
+  .hf li::before { content: "→"; color: #ffd21e; margin-right: 10px; }
+  .btn-hf { display: inline-flex; align-items: center; gap: 10px; padding: 13px 22px; border-radius: 12px; font-weight: 600; color: #1d1600 !important;
+    background: linear-gradient(90deg, #ffd21e, #ff9d00); box-shadow: 0 0 26px rgba(255,180,0,.35); }
+  .btn-hf:hover { box-shadow: 0 0 40px rgba(255,190,0,.6); }
+  .hf-shot { border-radius: 14px; overflow: hidden; border: 1px solid rgba(255,210,30,.3); box-shadow: 0 20px 60px rgba(0,0,0,.6); transform: perspective(1000px) rotateY(-8deg) rotateX(4deg); }
+  .hf-shot img { display: block; width: 100%; max-height: 460px; object-fit: cover; object-position: top; }
+  .hf-mock { padding: 22px; font: 13px/1.7 var(--mono); color: var(--dim); background: #0b0f19; }
+  .hf-mock .row { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.06); padding: 7px 0; }
+  .hf-mock .row b { color: #ffd21e; font-weight: 500; }
+  .hf-mock .bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); margin-top: 14px; overflow: hidden; }
+  .hf-mock .bar i { display: block; height: 100%; width: 64%; background: linear-gradient(90deg, #ff9d00, #ffd21e); animation: fill 4s ease-in-out infinite; }
+  @keyframes fill { 0% { width: 8%; } 80%, 100% { width: 100%; } }
+  @media (max-width: 900px) { .hf { grid-template-columns: 1fr; padding: 30px; } .hf-shot { transform: none; } }
+
+  /* docs */
+  .docs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .doc { display: block; padding: 22px; border-radius: 14px; border: 1px solid var(--line); background: rgba(8, 16, 32, .6); color: var(--text); transition: .25s; }
+  .doc:hover { color: var(--text); border-color: var(--sky); background: rgba(14, 40, 70, .5); box-shadow: 0 0 30px rgba(56,189,248,.12); }
+  .doc .no { font: 12px/1 var(--mono); color: var(--sky); letter-spacing: 1.5px; }
+  .doc h3 { margin: 10px 0 6px; font-size: 17px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .doc p { margin: 0; color: var(--dim); font-size: 14px; }
+  .doc .go { display: inline-block; margin-top: 12px; color: var(--sky); font-size: 13.5px; }
+  .docs-cta { margin-top: 30px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn-ghost { display: inline-flex; align-items: center; gap: 10px; padding: 13px 22px; border-radius: 12px; border: 1px solid var(--line-2); color: var(--text); font-weight: 600; }
+  .btn-ghost:hover { border-color: var(--sky); color: #fff; box-shadow: 0 0 24px rgba(56,189,248,.2); }
+  .btn-ghost svg { width: 18px; height: 18px; }
+  @media (max-width: 960px) { .docs { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .docs { grid-template-columns: 1fr; } }
+
+  /* download */
+  .os { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .os .card { display: flex; flex-direction: column; }
+  .os .head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+  .os .head svg { width: 40px; height: 40px; }
+  .os .req { font: 11.5px/1.5 var(--mono); color: var(--faint); letter-spacing: .8px; margin-bottom: 18px; }
+  .os .main { display: block; text-align: center; padding: 13px 16px; border-radius: 12px; font-weight: 600; color: #001018;
+    background: linear-gradient(90deg, var(--cyan), var(--sky)); box-shadow: 0 0 22px rgba(56,189,248,.35); }
+  .os .main small { display: block; font: 11px/1.4 var(--mono); color: rgba(0,16,24,.7); letter-spacing: .6px; }
+  .os .main:hover { color: #001018; box-shadow: 0 0 36px rgba(103,232,249,.6); }
+  .os ul { padding: 0 0 0 18px; margin: 18px 0 10px; color: var(--dim); font-size: 14.5px; }
+  .os li { margin: 5px 0; }
+  .os .note { margin-top: auto; font-size: 13px; color: var(--faint); border-top: 1px solid var(--line); padding-top: 12px; }
+  .os .card.me { border-color: var(--sky); box-shadow: 0 0 0 1px rgba(56,189,248,.3), 0 0 40px rgba(56,189,248,.12); }
+  @media (max-width: 960px) { .os { grid-template-columns: 1fr; } }
+
+  /* support */
+  .support { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  @media (max-width: 1060px) { .support { grid-template-columns: 1fr 1fr; } }
+  .coin { display: flex; flex-direction: column; gap: 12px; }
+  .coin .head { display: flex; align-items: center; gap: 12px; }
+  .coin .head .sym { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font: 700 15px/1 var(--sans); color: #fff; flex: none; }
+  .coin .head h3 { margin: 0; font-size: 19px; }
+  .coin .head small { display: block; font: 11px/1.4 var(--mono); color: var(--dim); letter-spacing: .6px; text-transform: uppercase; }
+  .addr { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 12px; background: rgba(2, 8, 20, .7); border: 1px solid var(--line); }
+  .addr code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13.5px; color: var(--text); letter-spacing: .3px; }
+  .copy { flex: none; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line-2); background: rgba(56,189,248,.08); color: var(--cyan); font: 600 13px/1 var(--sans); cursor: pointer; transition: background .2s, color .2s; }
+  .copy:hover { background: rgba(56,189,248,.18); color: #fff; }
+  .copy.ok { background: var(--green); border-color: var(--green); color: #00140c; }
+  .coin .warn { font-size: 13px; color: var(--faint); margin: 0; }
+  .support-note { text-align: center; color: var(--faint); font-size: 14px; margin-top: 22px; }
+  @media (max-width: 760px) { .support { grid-template-columns: 1fr; } }
+
+  footer { border-top: 1px solid var(--line); padding: 40px 0 60px; color: var(--faint); font-size: 14px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 18px 40px; justify-content: space-between; }
+  footer a { color: var(--dim); }
+  footer nav { display: flex; gap: 22px; flex-wrap: wrap; }
+
+  /* reveal on scroll */
+  .rv { opacity: 0; transform: translateY(26px); transition: opacity .8s ease, transform .8s ease; }
+  .rv.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .rv { opacity: 1; transform: none; transition: none; }
+    .device::before, .scroll-cue::after, .hf-mock .bar i { animation: none; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "AuraEngine",
+  "description": "FIR audio upsampler and player for Windows, Linux and macOS. Filters of 5 thousand to a billion taps, Hybrid-Phase, output up to 1536 kHz FLAC and DSD; multistage upsampling plays 30M-tap filters on an ordinary CPU.",
+  "applicationCategory": "MultimediaApplication",
+  "operatingSystem": "Windows 10, Windows 11, Linux, macOS",
+  "softwareVersion": "1.9.4",
+  "url": "https://aura-engine.app/",
+  "downloadUrl": "https://github.com/ToxaDev/aura-engine/releases/latest",
+  "image": "https://aura-engine.app/media/og-image.jpg",
+  "author": { "@type": "Person", "name": "ToxaDev", "url": "https://github.com/ToxaDev" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "isAccessibleForFree": true,
+  "sameAs": ["https://github.com/ToxaDev/aura-engine", "https://huggingface.co/spaces/toxadev/aura-engine-audio-upscaler"]
+}
+</script>
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "@type": "WebSite", "name": "AuraEngine", "url": "https://aura-engine.app/" }
+</script>
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+
+<!-- icon sprites -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-win" viewBox="0 0 40 40"><path fill="currentColor" d="M4 7.5 17.5 5.6v13H4zM19.5 5.3 36 3v15.6H19.5zM4 21h13.5v13.3L4 32.4zM19.5 21H36v16l-16.5-2.3z"/></symbol>
+    <symbol id="i-apple" viewBox="0 0 40 40"><path fill="currentColor" d="M27.6 21.3c0-3.9 3.2-5.8 3.3-5.9-1.8-2.6-4.6-3-5.6-3-2.4-.2-4.6 1.4-5.8 1.4-1.2 0-3-1.4-5-1.3-2.6 0-4.9 1.5-6.2 3.8-2.7 4.6-.7 11.4 1.9 15.2 1.3 1.8 2.8 3.9 4.7 3.8 1.9-.1 2.6-1.2 4.9-1.2s2.9 1.2 4.9 1.2c2 0 3.3-1.9 4.6-3.7 1.4-2.1 2-4.1 2-4.2-.1 0-3.7-1.4-3.7-6.1zM23.9 9.9c1-1.3 1.8-3.1 1.6-4.9-1.5.1-3.4 1-4.5 2.3-1 1.1-1.9 3-1.6 4.7 1.7.1 3.4-.9 4.5-2.1z"/></symbol>
+    <symbol id="i-linux" viewBox="0 0 40 40">
+      <ellipse cx="20" cy="22" rx="10.5" ry="14" fill="#0b0f17" stroke="currentColor" stroke-width="1.6"/>
+      <ellipse cx="20" cy="25" rx="7" ry="9.5" fill="#f1f5f9"/>
+      <circle cx="16.4" cy="14" r="2.3" fill="#f1f5f9"/><circle cx="23.6" cy="14" r="2.3" fill="#f1f5f9"/>
+      <circle cx="16.8" cy="14.3" r="1.1" fill="#0b0f17"/><circle cx="23.2" cy="14.3" r="1.1" fill="#0b0f17"/>
+      <path d="M16.6 17.6 20 16.4l3.4 1.2L20 20z" fill="#fbbf24"/>
+      <ellipse cx="13.6" cy="35.6" rx="5" ry="2.2" fill="#fbbf24"/><ellipse cx="26.4" cy="35.6" rx="5" ry="2.2" fill="#fbbf24"/>
+    </symbol>
+    <symbol id="i-gh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.2c0 .3.2.7.8.6A11.5 11.5 0 0 0 12 .5z"/></symbol>
+    <symbol id="i-hf" viewBox="0 0 28 28">
+      <path d="M1.2 17 l4.4 -2.6 1.7 3 -4.4 2.6 z" fill="#ff9d00"/><path d="M26.8 17 l-4.4 -2.6 -1.7 3 4.4 2.6 z" fill="#ff9d00"/>
+      <circle cx="14" cy="14" r="12.4" fill="#ffd21e"/><circle cx="9.4" cy="11.4" r="2" fill="#3b2f00"/><circle cx="18.6" cy="11.4" r="2" fill="#3b2f00"/>
+      <path d="M8 16.6 a6.4 6.4 0 0 0 12 0" fill="none" stroke="#3b2f00" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0 5-5m-5 5-5-5M5 20h14"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5zM4 21.5A2.5 2.5 0 0 1 6.5 19H20v3H6.5"/></symbol>
+  </defs>
+</svg>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="media/aura-icon-96.png" alt="" width="46" height="46"><span>Aura<b>Engine</b></span></a>
+    <nav class="nav-links">
+      <a class="opt" href="#features">Features</a>
+      <a class="opt" href="#input">ASIO input</a>
+      <a class="opt" href="#hybrid-phase">Hybrid-Phase</a>
+      <a class="opt" href="docs.html"><svg><use href="#i-book"/></svg>Docs</a>
+      <a class="opt" href="#web"><svg><use href="#i-hf"/></svg>Hugging Face</a>
+      <a href="https://github.com/ToxaDev/aura-engine" aria-label="Source on GitHub"><svg><use href="#i-gh"/></svg><span class="opt">GitHub</span></a>
+      <a class="opt" href="#support" style="color:var(--pink)">&#9829; Support</a>
+      <a class="nav-dl" href="#download">Download</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ═══════════════ HERO ═══════════════ -->
+<div class="hero" id="top">
+  <div class="wrap hero-main">
+  <div class="hero-grid">
+    <div>
+      <div class="badge"><i>1.9.4</i> Windows · Linux · macOS · free</div>
+      <h1><span class="a">Aura</span><span class="e">Engine</span><span class="sr-only"> — FIR upsampler and player</span></h1>
+      <p class="lead">An FIR upsampler that <b>converts and plays</b> through one engine.
+        Filters up to a billion taps, Hybrid-Phase, up to 1536&nbsp;kHz and DSD &mdash; on an ordinary CPU.</p>
+      <div class="specs">5K&ndash;1G taps<span>/</span>FS×2&ndash;×32<span>/</span>FLAC 24-bit · DSD<span>/</span>verified</div>
+      <div class="hf-row">
+        <button class="hf-pill" type="button" data-hf-open>
+          <svg><use href="#i-hf"/></svg><span>Try it here <small>&nbsp;the web converter, right on this page</small></span></button>
+        <a class="hf-ext" href="https://huggingface.co/spaces/toxadev/aura-engine-audio-upscaler" target="_blank" rel="noopener">Open on Hugging Face &#8599;</a>
+      </div>
+    </div>
+    <div class="stage" id="stage">
+      <div class="device" id="device">
+        <span class="glare" aria-hidden="true"></span>
+        <img fetchpriority="high" src="media/shot-hero-680.webp" srcset="media/shot-hero-340.webp 340w, media/shot-hero-420.webp 420w, media/shot-hero-520.webp 520w, media/shot-hero-680.webp 680w, media/shot-hero-880.webp 880w, media/shot-hero-1320.webp 1320w"
+          sizes="(max-width: 980px) min(34vh, 284px), min(37.8vh, 369px)" width="880" height="1864" alt="AuraEngine playing a track: FS×2 to 88.2 kHz, 5M taps, Hybrid-Phase on">
+        <div class="float-tag t1">PHASE<b>Hybrid</b></div>
+        <div class="float-tag t2">OUTPUT<b>88.2 kHz · 5M taps</b></div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-dl">
+    <div class="dl-row" id="heroDl">
+      <a class="dl-card" data-os="win" href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-bundle-lite-windows-x64.zip">
+        <svg><use href="#i-win"/></svg><span class="t"><b>Windows</b><small>10 / 11 · x64 · ZIP 0.17 GB</small></span>
+        <span class="go"><svg><use href="#i-down"/></svg></span></a>
+      <a class="dl-card" data-os="mac" href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-macos-universal.dmg">
+        <svg><use href="#i-apple"/></svg><span class="t"><b>macOS</b><small>Apple Silicon + Intel · DMG</small></span>
+        <span class="go"><svg><use href="#i-down"/></svg></span></a>
+      <a class="dl-card" data-os="linux" href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-linux-x86_64.AppImage">
+        <svg><use href="#i-linux"/></svg><span class="t"><b>Linux</b><small>x86-64 · AppImage · .deb</small></span>
+        <span class="go"><svg><use href="#i-down"/></svg></span></a>
+    </div>
+    <div class="dl-meta">Free · version 1.9.4 · <a href="#download">all packages &amp; checksums</a> · <a href="https://github.com/ToxaDev/aura-engine/blob/master/CHANGELOG.md">what&rsquo;s new</a></div>
+  </div>
+  </div>
+</div>
+
+<!-- ═══════════════ TWO WAYS ═══════════════ -->
+<section id="features">
+  <div class="wrap">
+    <div class="center rv">
+      <div class="kicker">One engine, two ways</div>
+      <h2>Convert it. <span class="glow">Or just press play.</span></h2>
+      <p class="sub">Every file in the list has <b>▶</b> beside <b>C</b>. Both run the same chain &mdash; the same filters,
+        phase engine, rack and output stages, from the same code.</p>
+    </div>
+    <div class="two">
+      <div class="card rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg></div>
+        <h3>Convert</h3>
+        <p>Renders hi-res files to keep and play anywhere &mdash; 24-bit FLAC checked against the 64-bit render, or DSF from DSD64 to DSD1024.
+          No deadline: any filter, on any machine, one level per album.</p>
+        <div class="vs"><b>Output</b> FLAC 24-bit · DSF &nbsp; <b>Rates</b> up to 1536 kHz</div>
+        <div class="shot"><img src="media/shot-convert.webp" width="1320" height="2796" alt="Five tracks converting to FLAC, each with its chain and a VERIFIED mark" loading="lazy" id="shotConvert" style="--y:68%"></div>
+      </div>
+      <div class="card v rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z"/></svg></div>
+        <h3>Play</h3>
+        <p>Plays the source through the same chain at once &mdash; to hear a setting before an evening goes into converting,
+          or to listen without disk space for hi-res copies. Internet radio too.</p>
+        <div class="vs"><b>Output</b> WASAPI exclusive · ASIO · ALSA hw: · CoreAudio · DoP</div>
+        <div class="shot"><img src="media/shot-play-dsd.webp" width="1320" height="2796" alt="The player's output menu: PCM or native DSD256 / DSD128" loading="lazy" style="--y:70%"></div>
+      </div>
+    </div>
+    <div class="same rv">Once every stage is in, what the player sends to the DAC matches the converted file to
+      <b style="color:var(--cyan)">&minus;120&nbsp;dB</b> (measured on 30M taps, FS×8).</div>
+  </div>
+</section>
+
+<!-- ═══════════════ ASIO INPUT ═══════════════ -->
+<section id="input">
+  <div class="wrap inp">
+    <div class="rv">
+      <div class="kicker">The third way · Windows</div>
+      <h2>Keep your player. <span class="glow-v">Play it through AuraEngine.</span></h2>
+      <p class="sub">AuraEngine installs a virtual ASIO device, <b>Aura Player ASIO</b>. Choose it as the output in
+        foobar2000, JRiver, HQPlayer or Roon, press play &mdash; and the music goes through the same rack to your DAC,
+        at the output rate, BIT-PERFECT if you switch it on.</p>
+      <ul>
+        <li><b>One click to install.</b> The driver goes in once &mdash; Windows asks for permission; update and removal are in the same view.</li>
+        <li><b>44.1 to 768 kHz</b>, two channels, 64- and 32-bit players. When the player changes rate, AuraEngine follows.</li>
+        <li><b>Switches by itself.</b> The <b>I</b> view of the list listens as soon as a player starts and shows what comes in.</li>
+        <li><b>Spotify or any Windows program</b> gets there too, through VB-Audio Hi-Fi Cable &amp; ASIO Bridge (third-party, donationware).</li>
+      </ul>
+      <p class="note">The sound comes out about 2.5 s after the player, so a pause or a seek there is heard that much later.</p>
+      <a class="btn-ghost" href="docs.html#input"><svg><use href="#i-book"/></svg>How to set it up</a>
+    </div>
+    <div class="flow rv" role="img" aria-label="foobar2000, JRiver, HQPlayer, Roon, or Spotify through VB-Audio, play into Aura Player ASIO, then through the rack to your DAC">
+      <div class="fl-src"><span>foobar2000</span><span>JRiver</span><span>HQPlayer</span><span>Roon</span><span class="via">Spotify · any app <small>via VB-Audio</small></span></div>
+      <div class="fl-pipe"><i></i></div>
+      <div class="fl-node asio"><b>Aura Player ASIO</b><small>virtual ASIO device · 44.1–768 kHz</small></div>
+      <div class="fl-pipe"><i></i></div>
+      <div class="fl-node"><b>The rack</b><small>the same filters · Hybrid-Phase</small>
+        <div class="fl-tags"><i style="color:#f87171">DC</i><i style="color:#fb923c">ISP</i><i style="color:#60a5fa">SUB</i><i style="color:#f472b6">AHR</i><i style="color:#fbbf24">PFR</i><i style="color:#a78bfa">HP</i></div></div>
+      <div class="fl-pipe"><i></i></div>
+      <div class="fl-node dac"><b>Your DAC</b><small>WASAPI exclusive · ASIO · BIT-PERFECT</small></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ HYBRID PHASE ═══════════════ -->
+<section id="hybrid-phase">
+  <div class="wrap hp">
+    <div class="rv">
+      <div class="kicker">The signature</div>
+      <h2>Hybrid-Phase: <span class="glow-v">no trade-off</span></h2>
+      <p class="sub" style="margin-bottom:0">Every FIR filter forces a choice. Linear phase keeps the stereo image coherent but pre-rings
+        before every attack; minimum phase hits clean but warps timing. AuraEngine renders the track <b style="color:var(--text)">twice in full</b>
+        and switches between the two renders per transient.</p>
+      <ul class="hp-list">
+        <li style="--c: var(--violet)"><span><b>Sustain &mdash; linear phase.</b> The image stays put, nothing smears between the channels.</span></li>
+        <li style="--c: var(--amber)"><span><b>Attacks &mdash; minimum phase.</b> The hit lands with no pre-ringing in front of it.</span></li>
+        <li style="--c: var(--cyan)"><span><b>Inaudible switching.</b> At zero crossings, a 1&nbsp;ms smooth fade, one switch plan for both channels &mdash; they can never de-phase.</span></li>
+      </ul>
+      <p style="margin-top:26px"><a href="docs.html#hybrid">How it works and how it was verified &rarr;</a></p>
+    </div>
+    <div class="rv">
+      <div class="scope">
+        <div class="scope-head"><span>Phase engine</span><span class="live">Live</span></div>
+        <canvas id="hpCanvas"></canvas>
+        <div class="legend">
+          <span style="--c: var(--violet)">linear phase</span>
+          <span style="--c: var(--amber)">minimum phase</span>
+          <span style="--c: var(--pink)">pre-ringing avoided</span>
+        </div>
+      </div>
+      <div class="hp-video">
+        <video src="media/hybrid-phase.mp4" autoplay muted loop playsinline preload="metadata"></video>
+      </div>
+      <div class="hp-cap">Slow motion ×20: the detector sees the hit coming, the switch lands at a zero crossing.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ WHY ═══════════════ -->
+<section id="why">
+  <div class="wrap">
+    <div class="rv">
+      <div class="kicker">Why AuraEngine</div>
+      <h2>Studio-grade filters. <span class="glow">Ordinary hardware.</span></h2>
+      <p class="sub">Multistage upsampling runs a 30M-tap filter at ×8 on 27&nbsp;ms of CPU per second of music on four efficiency cores &mdash;
+        no graphics card needed, matching the single-stage output to &minus;204&nbsp;dBFS.</p>
+    </div>
+    <div class="stats rv">
+      <div class="stat"><div class="n">1&nbsp;G</div><div class="l">taps &mdash; filters from 5K to a billion</div></div>
+      <div class="stat"><div class="n">1536&nbsp;k</div><div class="l">Hz &mdash; rates up to ×32</div></div>
+      <div class="stat"><div class="n">&minus;204</div><div class="l">dBFS &mdash; multistage vs single-stage</div></div>
+      <div class="stat"><div class="n">3</div><div class="l">systems &mdash; one source, one sound</div></div>
+    </div>
+    <div class="grid3">
+      <div class="card rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 12h2l2-7 3 14 3-10 2 6 2-3h4"/></svg></div>
+        <h3>Billion-tap FIR</h3>
+        <p>Kaiser filters designed offline in 128-bit, run in 64-bit. Pick 5K for speed or go to 1G taps.</p>
+      </div>
+      <div class="card v rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/></svg></div>
+        <h3>CPU first, GPU optional</h3>
+        <p>Plays 30M taps on about a quarter of a core. A discrete graphics card helps, without precision loss &mdash; never required.</p>
+      </div>
+      <div class="card a rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 18V6M8 18V9M12 18V4M16 18v-7M20 18v-4"/></svg></div>
+        <h3>DSD to DSD1024</h3>
+        <p>DSF files from DSD64 to DSD1024; live DSD64&ndash;256 over DoP. Shaped noise above 48&nbsp;kHz.</p>
+      </div>
+      <div class="card g rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.7 7 9 4-1.3 7-4.5 7-9V6z"/><path d="m9 12 2 2 4-4"/></svg></div>
+        <h3>Verified, bit for bit</h3>
+        <p>Every FLAC is checked against the render it came from. Bit-perfect output on all three systems.</p>
+      </div>
+      <div class="card rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 0 1 0 8.4M7.8 16.2a6 6 0 0 1 0-8.4M19 5a10 10 0 0 1 0 14M5 19A10 10 0 0 1 5 5"/></svg></div>
+        <h3>Internet radio</h3>
+        <p>Thousands of stations through the same rack, live. Plus an ASIO input for anything else on the PC.</p>
+      </div>
+      <div class="card v rv">
+        <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 3 5-6"/></svg></div>
+        <h3>Analyzer &amp; scenes</h3>
+        <p>A real-time analyzer from 5&nbsp;Hz, and GLSL scenes that draw the music while it plays.</p>
+      </div>
+    </div>
+  </div>
+  <figure class="wrap wide-shot rv"><img src="media/shot-analyzer.webp" width="1600" height="976" alt="The live analyzer window: loudness metrics, spectrum and the filter response" loading="lazy">
+    <figcaption><b>Live analyzer</b> &mdash; LUFS, true peak, PLR and DR, the spectrum and the filter&rsquo;s response, measured as it plays</figcaption></figure>
+  <div class="deck-wrap rv" id="deckWrap" aria-label="Screenshots">
+    <div class="deck" id="deck">
+      <figure class="deck-card"><img src="media/shot-format.webp" width="880" height="1864" alt="Choosing FLAC 24-bit or DSD up to DSD1024 for conversion" loading="lazy"></figure>
+      <figure class="deck-card"><img src="media/shot-filters.webp" width="880" height="1864" alt="The filter length slider set to 5M taps" loading="lazy"></figure>
+      <figure class="deck-card"><img src="media/shot-radio.webp" width="880" height="1864" alt="Internet radio stations" loading="lazy"></figure>
+    </div>
+    <div class="deck-tabs" id="deckTabs">
+      <button class="deck-tab" type="button"><b>FLAC or DSD</b>Pick the output format per conversion</button>
+      <button class="deck-tab" type="button"><b>5K to 1G taps</b>One slider for the filter length</button>
+      <button class="deck-tab" type="button"><b>Internet radio</b>Stations through the same chain, live</button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ HUGGING FACE ═══════════════ -->
+<section id="web">
+  <div class="wrap">
+    <div class="hf rv">
+      <div>
+        <svg class="face"><use href="#i-hf"/></svg>
+        <h2>No install? <span style="color:#ffd21e">Try it in the browser.</span></h2>
+        <p style="color:var(--dim); margin:0">The same engine runs on Hugging Face: drop a file, pick a filter, get a hi-res FLAC back.</p>
+        <ul>
+          <li>Filters up to 30M taps, FLAC or DSD up to DSD256</li>
+          <li>The default chain of the desktop app, engine 1.9.2</li>
+          <li>Free, nothing to install</li>
+        </ul>
+        <div class="hf-row">
+          <button class="btn-hf" type="button" data-hf-open><svg width="22" height="22"><use href="#i-hf"/></svg>Try it here</button>
+          <a class="hf-ext" href="https://huggingface.co/spaces/toxadev/aura-engine-audio-upscaler" target="_blank" rel="noopener">Open on Hugging Face &#8599;</a>
+        </div>
+      </div>
+      <div class="hf-shot" id="hfShot">
+        <img src="media/hf-space.webp" width="1440" height="1100" alt="The AuraEngine web converter on Hugging Face" loading="lazy">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ DOCS ═══════════════ -->
+<section id="docs">
+  <div class="wrap">
+    <div class="center rv">
+      <div class="kicker">Go deeper</div>
+      <h2>Every stage, <span class="glow">every parameter, and why.</span></h2>
+      <p class="sub">An upsampler is only worth trusting if its signal path is fully documented. Ours is &mdash; with measurements.</p>
+    </div>
+    <div class="docs">
+      <a class="doc rv" href="docs.html#path"><div class="no">01</div><h3>The signal path</h3><p>Each DSP stage with its parameters and rationale.</p><span class="go">Read &rarr;</span></a>
+      <a class="doc rv" href="docs.html#hybrid"><div class="no">02</div><h3>Hybrid-Phase</h3><p>The detector, the switch, the proof.</p><span class="go">Read &rarr;</span></a>
+      <a class="doc rv" href="docs.html#performance"><div class="no">03</div><h3>Modest hardware</h3><p>Multistage upsampling, measured.</p><span class="go">Read &rarr;</span></a>
+      <a class="doc rv" href="docs.html#filters"><div class="no">04</div><h3>Filter design</h3><p>128-bit offline, 64-bit at runtime.</p><span class="go">Read &rarr;</span></a>
+      <a class="doc rv" href="docs.html#gpu"><div class="no">05</div><h3>GPU precision</h3><p>Acceleration without precision loss.</p><span class="go">Read &rarr;</span></a>
+      <a class="doc rv" href="docs.html#trust"><div class="no">06</div><h3>Verification</h3><p>The audit trail behind every render.</p><span class="go">Read &rarr;</span></a>
+      <a class="doc rv" href="docs.html#laws"><div class="no">07</div><h3>The laws of the DSP core</h3><p>The axioms every stage obeys.</p><span class="go">Read &rarr;</span></a>
+      <a class="doc rv" href="docs.html#player"><div class="no">08</div><h3>Player, radio, input</h3><p>Convert or play, and what differs.</p><span class="go">Read &rarr;</span></a>
+    </div>
+    <div class="docs-cta rv">
+      <a class="btn-ghost" href="docs.html"><svg><use href="#i-book"/></svg>Open the documentation</a>
+      <a class="btn-ghost" href="https://github.com/ToxaDev/aura-engine/tree/master/docs"><svg><use href="#i-gh"/></svg>Docs on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════ DOWNLOAD ═══════════════ -->
+<section id="download">
+  <div class="wrap">
+    <div class="center rv">
+      <div class="kicker">Download</div>
+      <h2>Free. <span class="glow">Three systems, one app.</span></h2>
+      <p class="sub">Version 1.9.4. The app updates itself; filters download inside it on first use.</p>
+    </div>
+    <div class="os">
+      <div class="card rv" data-os="win">
+        <div class="head"><svg><use href="#i-win"/></svg><h3>Windows</h3></div>
+        <div class="req">WINDOWS 10 / 11 · X64</div>
+        <a class="main" href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-bundle-lite-windows-x64.zip">Download for Windows<small>LITE BUNDLE · ~0.17 GB · ZIP</small></a>
+        <ul>
+          <li><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-windows-x64.zip">App only (no filters)</a></li>
+          <li>Bigger bundles: <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-bundle-x8-windows-x64.zip">&times;8</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-bundle-x16-windows-x64.zip">&times;16</a> · <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-bundle-x32-windows-x64.zip">&times;32</a></li>
+          <li><a href="docs.html#get">Filter packs</a> (100M&ndash;1G)</li>
+        </ul>
+        <div class="note">Unzip, run <code>aura-engine.exe</code>.</div>
+      </div>
+      <div class="card rv" data-os="mac">
+        <div class="head"><svg><use href="#i-apple"/></svg><h3>macOS</h3></div>
+        <div class="req">APPLE SILICON + INTEL · COREAUDIO</div>
+        <a class="main" href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-macos-universal.dmg">Download for macOS<small>UNIVERSAL DMG</small></a>
+        <ul>
+          <li>Exclusive (hog) mode, bit-perfect</li>
+        </ul>
+        <div class="note">Not signed by Apple: right-click &rarr; Open, or run <code>xattr -cr "/Applications/Aura Engine.app"</code>.</div>
+      </div>
+      <div class="card rv" data-os="linux">
+        <div class="head"><svg><use href="#i-linux"/></svg><h3>Linux</h3></div>
+        <div class="req">64-BIT X86 · ALSA · BIT-PERFECT hw:</div>
+        <a class="main" href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-linux-x86_64.AppImage">Download for Linux<small>APPIMAGE · ONE FILE</small></a>
+        <ul>
+          <li><a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/aura-engine-v1.9.4-linux-amd64.deb">.deb package</a> (Debian / Ubuntu)</li>
+        </ul>
+        <div class="note"><code>chmod +x</code> the AppImage and run it. For direct <code>hw:</code> output your user must be in the <code>audio</code> group.</div>
+      </div>
+    </div>
+    <p class="center rv" style="margin-top:26px; color:var(--faint); font-size:14px">
+      <a href="https://github.com/ToxaDev/aura-engine/releases/download/v1.9.4/SHA256SUMS.txt">Checksums</a> ·
+      <a href="https://github.com/ToxaDev/aura-engine/releases">All releases</a> ·
+      <a href="https://github.com/ToxaDev/aura-engine/blob/master/CHANGELOG.md">Changelog</a></p>
+  </div>
+</section>
+
+<!-- ═══════════════ SUPPORT ═══════════════ -->
+<section id="support">
+  <div class="wrap">
+    <div class="center rv">
+      <div class="kicker">Support</div>
+      <h2>Free, and staying free. <span class="glow-v">Help it grow.</span></h2>
+      <p class="sub">AuraEngine is built by one developer. If it made your music sound better, a donation pays for the
+        hours behind the next filters, measurements and releases. Thank you.</p>
+    </div>
+    <div class="support">
+      <div class="card coin rv">
+        <div class="head"><span class="sym" style="background:#26a17b">&#x20AE;</span><div><h3>USDT</h3><small>TRON network · TRC-20</small></div></div>
+        <div class="addr"><code>TMAudt4v9USnRzEe4ZALiSgJ242um6uDz7</code><button class="copy" type="button">Copy</button></div>
+        <p class="warn">Send USDT on the TRON network (TRC-20) only.</p>
+      </div>
+      <div class="card coin rv">
+        <div class="head"><span class="sym" style="background:#f7931a">&#x20BF;</span><div><h3>Bitcoin</h3><small>BTC network · SegWit</small></div></div>
+        <div class="addr"><code>bc1q4w0z2277ydsydsm98js6vzp46zp0lxpywvk4ma</code><button class="copy" type="button">Copy</button></div>
+        <p class="warn">Send BTC on the Bitcoin network only.</p>
+      </div>
+      <div class="card coin rv">
+        <div class="head"><span class="sym" style="background:#627eea">&#x39E;</span><div><h3>Ethereum</h3><small>Ethereum network · ERC-20</small></div></div>
+        <div class="addr"><code>0x57379720E8d5Aea5817724672864a01C9F6C5aA6</code><button class="copy" type="button">Copy</button></div>
+        <p class="warn">Send ETH on the Ethereum mainnet only.</p>
+      </div>
+    </div>
+    <p class="support-note rv">Can&rsquo;t donate? A star on <a href="https://github.com/ToxaDev/aura-engine">GitHub</a> or a word on a forum helps too.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>&copy; ToxaDev · AuraEngine · <a href="https://github.com/ToxaDev/aura-engine/blob/master/LICENSE">PolyForm Noncommercial 1.0.0</a></div>
+    <nav>
+      <a href="docs.html">Documentation</a>
+      <a href="https://github.com/ToxaDev/aura-engine">GitHub</a>
+      <a href="https://huggingface.co/spaces/toxadev/aura-engine-audio-upscaler">Hugging Face</a>
+      <a href="https://github.com/ToxaDev/aura-engine/blob/master/DSP_MANIFESTO.md">DSP manifesto</a>
+    </nav>
+  </div>
+</footer>
+
+<div class="hfm" id="hfModal" hidden role="dialog" aria-modal="true" aria-label="AuraEngine web converter">
+  <button class="hfm-x" type="button" id="hfClose" aria-label="Close"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M1.5 1.5l11 11m0-11-11 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+  <div class="hfm-wait"><span class="hfm-spin"></span>Starting the converter&hellip;<br>The first start can take up to a minute while the free Space wakes up.</div>
+  <div>
+    <div class="hfm-stage" id="hfStage"></div>
+    <div class="hfm-under" id="hfUnder"><span>The AuraEngine web converter runs on Hugging Face</span>
+      <a href="https://huggingface.co/spaces/toxadev/aura-engine-audio-upscaler" target="_blank" rel="noopener">Open it there &#8599;</a></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ── nav background after scrolling ── */
+  var nav = document.getElementById("nav");
+  function onScrollNav() { nav.classList.toggle("solid", scrollY > 40); }
+  addEventListener("scroll", onScrollNav, { passive: true }); onScrollNav();
+
+  /* ── highlight the visitor's system ── */
+  var ua = navigator.userAgent, os = /Mac/i.test(ua) && !/iPhone|iPad/i.test(ua) ? "mac" : /Linux|X11/i.test(ua) && !/Android/i.test(ua) ? "linux" : /Win/i.test(ua) ? "win" : null;
+  if (os) {
+    var b = document.querySelector('#heroDl [data-os="' + os + '"]'); if (b) b.classList.add("me");
+    var c = document.querySelector('.os .card[data-os="' + os + '"]'); if (c) c.classList.add("me");
+  }
+
+  /* ── reveal on scroll ── */
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, { threshold: .12 });
+  document.querySelectorAll(".rv").forEach(function (el) { io.observe(el); });
+
+  /* ── 3D window: follows the mouse, flattens as you scroll ── */
+  // anywhere on the page the window leans a little towards the pointer; over the window it follows it closely,
+  // rises towards you and catches the light
+  var dev = document.getElementById("device"), mx = 0, my = 0, over = null;
+  function tilt() {
+    var p = Math.min(1, scrollY / (innerHeight * .8)), rx, ry;
+    if (over) { rx = -over[1] * 12; ry = over[0] * 16; }
+    else { rx = 1.5 - my * 6; ry = -4 + mx * 9; }
+    dev.style.setProperty("--rx", (rx * (1 - p)).toFixed(2) + "deg");
+    dev.style.setProperty("--ry", (ry * (1 - p)).toFixed(2) + "deg");
+    dev.style.setProperty("--lift", over ? "36px" : "0px");
+    dev.style.setProperty("--go", over ? "1" : "0");
+    if (over) { dev.style.setProperty("--gx", ((over[0] + .5) * 100).toFixed(1) + "%"); dev.style.setProperty("--gy", ((over[1] + .5) * 100).toFixed(1) + "%"); }
+  }
+  if (!reduce) {
+    addEventListener("mousemove", function (e) {
+      mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5;
+      var b = document.getElementById("stage").getBoundingClientRect();   // the stage does not tilt: no flicker at the edge
+      over = e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom
+        ? [(e.clientX - b.left) / b.width - .5, (e.clientY - b.top) / b.height - .5] : null;
+      tilt();
+    }, { passive: true });
+    addEventListener("scroll", tilt, { passive: true });
+  }
+  tilt();
+
+  /* ── screenshots are pictures: no dragging them off the page ── */
+  document.querySelectorAll("img").forEach(function (im) { im.draggable = false; });
+
+  /* ── background for the whole page: a starry sky, and across it three rivers of energy at three depths — a band of
+        thin strands of even width, each strand carrying its own fine wave, like a song, slowly from end to end ── */
+  var cv = document.getElementById("scene"), cx = cv.getContext("2d"), W, H, rs, u, t0 = performance.now();
+  var SEED = 1 + ((Math.random() * 2147483645) | 0), seed = SEED;    // a new sky on every load; a resize keeps it
+  function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  var mobile = matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) < 700;
+  var frameMs = mobile ? 1000 / 30 : 1000 / 60, lastDraw = -1e9;
+  var COLORS = { cyan: [103, 232, 249], sky: [56, 189, 248], violet: [167, 139, 250], pink: [244, 114, 182],
+                 teal: [45, 212, 191], indigo: [129, 140, 248], magenta: [232, 121, 249], blue: [96, 165, 250] };
+  var THEMES = [["sky", "violet", "cyan", "pink"], ["teal", "cyan", "sky", "indigo"], ["violet", "magenta", "pink", "indigo"],
+                ["blue", "cyan", "violet", "teal"], ["sky", "pink", "violet", "magenta"], ["cyan", "indigo", "teal", "violet"]];
+
+  // every load draws a new set of rivers in one style: all run from the lower left to the upper right, each at its
+  // own angle and sway; the sharp one always crosses the middle, two or three lie deep out of focus, one between.
+  // Layers far to near: q = the resolution drawn at, blur = depth of field in CSS px (a Gaussian, so a small canvas
+  // never shows its pixels). Courses in screen fractions (wide screens, then narrow ones), past both edges
+  var LAYERS = [{ q: .25, blur: 8 + rnd() * 5, depth: .3 }, { q: .5, blur: 2.5 + rnd() * 1.5, depth: .6 }, { q: 1, depth: 1 }];
+  var theme = THEMES[(rnd() * THEMES.length) | 0];
+  function course(cy, d, sway) {          // through (.5, cy), climbing by 2d over the screen, swaying a little
+    var ph = rnd() * 6.28, k = 3 + rnd() * 3, P = [];
+    for (var i = 0; i < 6; i++) { var x = -.14 + i * 1.28 / 5; P.push([x, cy + d * (.5 - x) * 2 + sway * Math.sin(ph + k * x)]); }
+    return P;
+  }
+  function river(L, cy, o) {
+    var pal = [], k, sh = (rnd() * 4) | 0;
+    for (k = 0; k < o.n; k++) pal.push(theme[(k + sh + (rnd() < .3 ? 1 : 0)) % theme.length]);
+    return { L: L, n: o.n, band: o.band, lw: o.lw, a: o.a, v: o.v, depth: LAYERS[L].depth, M: o.M,
+      c: course(cy, o.d, o.sway), cn: course(cy, o.d * .55, o.sway * .7), pal: pal };
+  }
+  var RIVERS = [], slots = [.12, .3, .72, .9], fi;
+  for (fi = 3; fi > 0; fi--) { var sj = (rnd() * (fi + 1)) | 0, st = slots[fi]; slots[fi] = slots[sj]; slots[sj] = st; }
+  var nFar = mobile || rnd() < .4 ? 2 : 3;
+  for (fi = 0; fi < nFar; fi++)
+    RIVERS.push(river(0, slots[fi] + (rnd() - .5) * .1, { n: 4 + ((rnd() * 3) | 0), band: 55 + rnd() * 85, lw: 4 + rnd() * 4,
+      a: .38 + rnd() * .25, v: .5 + rnd() * .15, M: 200, d: .2 + rnd() * .22, sway: .03 + rnd() * .05 }));
+  RIVERS.push(river(1, slots[nFar] + (rnd() - .5) * .1, { n: 5 + ((rnd() * 2) | 0), band: 65 + rnd() * 35, lw: 2 + rnd() * .8,
+    a: .5 + rnd() * .15, v: .75, M: 300, d: .24 + rnd() * .16, sway: .03 + rnd() * .04 }));
+  var NEAR = river(2, .5 + (rnd() - .5) * .1, { n: 6 + ((rnd() * 3) | 0), band: 85 + rnd() * 30, lw: 1.15 + rnd() * .35,
+    a: 1, v: 1, M: 640, d: .3 + rnd() * .12, sway: .04 + rnd() * .04 });
+  RIVERS.push(NEAR);
+  var bg, stars = [], sprites = {}, motes = [];
+
+  function catmull(P, f) {
+    var n = P.length - 1, x = f * n, i = Math.min(n - 1, Math.floor(x)), s = x - i;
+    var p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(n, i + 2)];
+    function c(k) { return .5 * (2 * p1[k] + (-p0[k] + p2[k]) * s + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * s * s + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * s * s * s); }
+    return [c(0), c(1)];
+  }
+  function dotSprite(rgb) {
+    var c = document.createElement("canvas"); c.width = c.height = 32;
+    var g = c.getContext("2d"), rg = g.createRadialGradient(16, 16, 0, 16, 16, 16), col = rgb.join(",");
+    rg.addColorStop(0, "rgba(255,255,255,.95)"); rg.addColorStop(.25, "rgba(" + col + ",.8)"); rg.addColorStop(1, "rgba(" + col + ",0)");
+    g.fillStyle = rg; g.fillRect(0, 0, 32, 32); return c;
+  }
+
+  function size() {
+    rs = Math.min(1.25, devicePixelRatio || 1);
+    W = cv.clientWidth; H = cv.clientHeight;
+    cv.width = Math.round(W * rs); cv.height = Math.round(H * rs);
+    u = Math.max(Math.min(W * .7, H * 1.1) / 1000, W < 600 ? W * .0009 : 0);
+    seed = SEED;
+    var wide = W > 980, ua = Math.max(u, .45), i, k;
+
+    LAYERS.forEach(function (Ly) {                    // the out-of-focus layers: own small canvases over the sky (.scene-l)
+      if (Ly.q >= 1) { Ly.cx = cx; return; }
+      if (!Ly.cv) { Ly.cv = document.createElement("canvas"); Ly.cv.className = "scene-l"; cv.after(Ly.cv); }
+      Ly.cv.style.filter = "blur(" + (Ly.blur * (W < 600 ? .6 : 1)).toFixed(1) + "px)";
+      Ly.cv.width = Math.max(1, Math.round(W * Ly.q)); Ly.cv.height = Math.max(1, Math.round(H * Ly.q));
+      Ly.cx = Ly.cv.getContext("2d");
+    });
+
+    RIVERS.forEach(function (R) {
+      var C = wide ? R.c : R.cn, M = mobile ? Math.round(R.M * .6) : R.M;
+      R.Mn = M; R.path = [];
+      for (i = 0; i < M; i++) { var q = catmull(C, i / (M - 1)); R.path.push([q[0] * W, q[1] * H, 0, 0]); }
+      for (i = 0; i < M; i++) {
+        var a = R.path[Math.max(0, i - 1)], b = R.path[Math.min(M - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+        R.path[i][2] = -dy / l; R.path[i][3] = dx / l;
+      }
+      R.q = LAYERS[R.L].q; R.cx = LAYERS[R.L].cx;
+      // a strand: a lane in the band, a slow gentle meander, and its own fine wave — a phrase of a song that travels
+      // along it at a steady pace, so any crest can be followed to the edge of the screen
+      R.strands = [];
+      var P0 = R.path[0], P1 = R.path[M - 1];
+      for (k = 0; k < R.n; k++) {
+        var col = COLORS[R.pal[k % R.pal.length]].join(","), gr = R.cx.createLinearGradient(P0[0], P0[1], P1[0], P1[1]);
+        gr.addColorStop(0, "rgba(" + col + ",0)"); gr.addColorStop(.1, "rgba(" + col + ",.45)"); gr.addColorStop(.2, "rgba(" + col + ",1)");
+        gr.addColorStop(.8, "rgba(" + col + ",1)"); gr.addColorStop(.9, "rgba(" + col + ",.45)"); gr.addColorStop(1, "rgba(" + col + ",0)");
+        R.strands.push({
+          g: gr, lane: (k / (R.n - 1) - .5) * R.band * ua,
+          mA: R.band * ua * (.18 + rnd() * .14), mk: .7 + rnd() * .7, mw: (.05 + rnd() * .05) * R.v, mp: rnd() * 6.28,
+          A: (3.2 + rnd() * 3.6) * ua * (.5 + .5 * R.depth), K: 26 + rnd() * 30, sp: (.028 + rnd() * .018) * R.v,
+          m1: 1.5 + rnd() * 2.5, p1: rnd() * 6.28, m2: 4 + rnd() * 5, p2: rnd() * 6.28,
+          br: .04 + rnd() * .04, bp: rnd() * 6.28
+        });
+      }
+    });
+
+    // the sky, drawn once: deep gradient, a faint band of the galaxy along the near river, nebulae, a field of stars
+    var near = NEAR.path, NM = near.length;
+    bg = document.createElement("canvas"); bg.width = cv.width; bg.height = cv.height;
+    var g = bg.getContext("2d"); g.scale(rs, rs);
+    var sg = g.createLinearGradient(0, 0, 0, H);
+    sg.addColorStop(0, "#01030a"); sg.addColorStop(.55, "#030919"); sg.addColorStop(1, "#050d22");
+    g.fillStyle = sg; g.fillRect(0, 0, W, H);
+    [[.16, .22, "124,58,237", .08], [.84, .72, "56,189,248", .06], [.55, .08, "236,72,153", .04]].forEach(function (n) {
+      var rg = g.createRadialGradient(n[0] * W, n[1] * H, 0, n[0] * W, n[1] * H, Math.max(W, H) * .55);
+      rg.addColorStop(0, "rgba(" + n[2] + "," + n[3] + ")"); rg.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = rg; g.fillRect(0, 0, W, H);
+    });
+    for (i = 0; i < NM; i += Math.round(NM / 25)) {
+      var p = near[i], rr = (160 + 60 * Math.sin(i * .02)) * u, gg = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], rr);
+      gg.addColorStop(0, "rgba(120,140,255,.022)"); gg.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = gg; g.fillRect(p[0] - rr, p[1] - rr, rr * 2, rr * 2);
+    }
+    var count = Math.round(W * H / 2600);
+    for (i = 0; i < count; i++) {
+      var x, y;
+      if (rnd() < .35) {
+        var j = (rnd() * NM) | 0, o = (rnd() - .5) * 2 * (rnd() * 220) * u; x = near[j][0] + near[j][2] * o; y = near[j][1] + near[j][3] * o;
+      } else { x = rnd() * W; y = rnd() * H; }
+      var r = rnd() < .92 ? .5 + rnd() * .6 : 1.1 + rnd() * .9;
+      g.fillStyle = "rgba(" + (rnd() < .78 ? "205,228,255" : rnd() < .5 ? "190,170,255" : "255,226,200") + "," + (.2 + rnd() * .6).toFixed(2) + ")";
+      g.beginPath(); g.arc(x, y, r / 2, 0, 6.29); g.fill();
+    }
+    for (i = 0; i < (mobile ? 6 : 12); i++) {
+      var sx = rnd() * W, sy = rnd() * H, sr = (1.4 + rnd() * 1.4), hg = g.createRadialGradient(sx, sy, 0, sx, sy, sr * 7);
+      hg.addColorStop(0, "rgba(220,235,255,.55)"); hg.addColorStop(.25, "rgba(150,190,255,.12)"); hg.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = hg; g.fillRect(sx - sr * 7, sy - sr * 7, sr * 14, sr * 14);
+      g.fillStyle = "rgba(200,225,255,.18)"; g.fillRect(sx - sr * 6, sy - .4, sr * 12, .8); g.fillRect(sx - .4, sy - sr * 6, .8, sr * 12);
+    }
+    stars = [];
+    for (i = 0; i < (mobile ? 60 : 140); i++) stars.push([rnd() * W, rnd() * H, .7 + rnd() * 1.2, rnd() * 6.28, .4 + rnd() * 1.2]);
+    Object.keys(COLORS).forEach(function (k) { sprites[k] = dotSprite(COLORS[k]); });
+    motes = [];
+    for (i = 0; i < (mobile ? 10 : 20); i++) motes.push(spawn({}, true));
+  }
+
+  var keys = Object.keys(COLORS), t = 0, scrollK = 0;
+  function spawn(p, anyAge) {      // a mote carried along the near river
+    p.f = rnd(); p.v = .01 + rnd() * .012; p.o = (rnd() - .5) * 96 * Math.max(u, .45); p.k = rnd() * 6.28;
+    p.life = 8 + rnd() * 10; p.age = anyAge ? rnd() * p.life : 0;
+    p.c = keys[(rnd() * keys.length) | 0]; p.s = rnd() < .85 ? 3 + rnd() * 4 : 8 + rnd() * 8;
+    return p;
+  }
+
+  var pmx = 0, pmy = 0, lastT = 0, pts = [];
+  function drawRiver(R, fade) {
+    var g = R.cx, M = R.Mn, P = R.path, i, j, k2 = W > 980 ? 1 : W > 600 ? .8 : .6;
+    if (R.q < 1) g.setTransform(R.q, 0, 0, R.q, 0, 0);
+    g.save();
+    g.translate(pmx * 22 * R.depth, pmy * 14 * R.depth - scrollK * H * .1 * R.depth);
+    g.globalCompositeOperation = "lighter"; g.lineCap = "round"; g.lineJoin = "round";
+    for (i = 0; i < R.strands.length; i++) {
+      var S = R.strands[i], vis = .25 + .75 * Math.pow(.5 + .5 * Math.sin(t * S.br + S.bp), 1.6);   // breathes, never gone
+      for (j = 0; j < M; j++) {
+        var f = j / (M - 1), x = f - S.sp * t;
+        var song = Math.pow(.5 + .5 * Math.sin(6.283 * S.m1 * x + S.p1), 2) * (.55 + .45 * Math.sin(6.283 * S.m2 * x + S.p2));
+        var off = S.lane + S.mA * Math.sin(6.283 * S.mk * f - S.mw * t + S.mp) + S.A * song * Math.sin(6.283 * S.K * x);
+        pts[j] = P[j][0] + P[j][2] * off; pts[M + j] = P[j][1] + P[j][3] * off;
+      }
+      g.beginPath(); g.moveTo(pts[0], pts[M]);
+      for (j = 1; j < M; j++) g.lineTo(pts[j], pts[M + j]);
+      g.strokeStyle = S.g;
+      var A = vis * fade * R.a * k2;
+      g.globalAlpha = A * .045; g.lineWidth = R.lw * 12; g.stroke();       // haze
+      g.globalAlpha = A * .12; g.lineWidth = R.lw * 4.5; g.stroke();       // glow
+      g.globalAlpha = A * .6; g.lineWidth = R.lw; g.stroke();              // the strand
+    }
+    g.restore();
+  }
+
+  function frame(now) {
+    if (!reduce && !document.hidden) requestAnimationFrame(frame); else running = false;
+    if (now - lastDraw < frameMs - 2) return;
+    if (!bg || !bg.width || !bg.height) { if (cv.clientWidth) size(); return; }   // laid out after the first frame
+    lastDraw = now;
+    t = (now - t0) / 1000;
+    var dt = Math.min(.1, t - lastT); lastT = t;
+    pmx += (mx - pmx) * .04; pmy += (my - pmy) * .04;
+    scrollK += (Math.min(1, scrollY / H) - scrollK) * .08;
+    var calm = 1 - .45 * scrollK;                                       // below the hero the rivers step back
+
+    cx.setTransform(1, 0, 0, 1, 0, 0); cx.globalCompositeOperation = "source-over"; cx.globalAlpha = 1;
+    cx.drawImage(bg, 0, 0);
+    cx.setTransform(rs, 0, 0, rs, 0, 0);
+    for (var s = 0; s < stars.length; s++) {
+      var st = stars[s], a = .15 + .4 * (.5 + .5 * Math.sin(t * st[4] + st[3]));
+      cx.fillStyle = "rgba(210,232,255," + a.toFixed(3) + ")";
+      cx.fillRect(st[0], st[1], st[2], st[2]);
+    }
+    cx.globalCompositeOperation = "lighter";
+    for (var l = 0; l < LAYERS.length; l++)
+      if (LAYERS[l].cv) { LAYERS[l].cx.setTransform(1, 0, 0, 1, 0, 0); LAYERS[l].cx.clearRect(0, 0, LAYERS[l].cv.width, LAYERS[l].cv.height); }
+    for (var r = 0; r < RIVERS.length; r++) drawRiver(RIVERS[r], calm);
+
+    // motes drifting downstream within the near river
+    var NP = NEAR.path, NM = NEAR.Mn;
+    cx.save(); cx.translate(pmx * 22, pmy * 14 - scrollK * H * .1);
+    for (var i = 0; i < motes.length; i++) {
+      var p = motes[i];
+      p.age += dt; p.f += p.v * dt;
+      if (p.age > p.life || p.f > 1) spawn(p, false);
+      var Q = NP[Math.min(NM - 1, (p.f * (NM - 1)) | 0)], o = p.o + Math.sin(t * .5 + p.k) * 6 * u;
+      var fade = Math.sin(Math.PI * p.age / p.life) * Math.sin(Math.PI * p.f);
+      cx.globalAlpha = Math.max(0, fade) * (p.s > 8 ? .18 : .45) * calm;
+      cx.drawImage(sprites[p.c], Q[0] + Q[2] * o - p.s / 2, Q[1] + Q[3] * o - p.s / 2, p.s, p.s);
+    }
+    cx.restore();
+    cx.globalAlpha = 1; cx.globalCompositeOperation = "source-over";
+  }
+  var running = false;
+  function start() { if (!running) { running = true; requestAnimationFrame(frame); } }
+  var rsT;
+  addEventListener("resize", function () {
+    clearTimeout(rsT);
+    rsT = setTimeout(function () {
+      if (cv.clientWidth === W && cv.clientHeight === H) return;       // a phone's address bar showing or hiding
+      size(); if (reduce) frame(performance.now());
+    }, 150);
+  });
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) start(); });
+  size();
+  if (reduce) { t0 = performance.now() - 40000; frame(performance.now()); } else start();
+
+  /* ── screenshot deck: the active card in front, the rest stacked behind; captions switch it, autoplay when idle ── */
+  var deckWrap = document.getElementById("deckWrap"),
+      cards = [].slice.call(document.querySelectorAll("#deck .deck-card")),
+      tabs = [].slice.call(document.querySelectorAll("#deckTabs .deck-tab")),
+      cur = 0, DUR = 5000, timer = null, hold = false;
+  deckWrap.style.setProperty("--n", tabs.length);
+  deckWrap.style.setProperty("--dur", DUR / 1000 + "s");
+  function show(i) {
+    cur = (i + cards.length) % cards.length;
+    cards.forEach(function (c, j) {
+      var k = (j - cur + cards.length) % cards.length;
+      c.style.setProperty("--k", k); c.style.zIndex = cards.length - k; c.classList.toggle("on", k === 0);
+    });
+    tabs.forEach(function (t, j) { t.classList.remove("on"); });
+    void deckWrap.offsetWidth;                       // restart the progress line
+    tabs[cur].classList.add("on");
+    clearTimeout(timer);
+    if (!hold && !reduce) timer = setTimeout(function () { show(cur + 1); }, DUR);
+  }
+  tabs.forEach(function (t, j) {
+    t.addEventListener("mouseenter", function () { if (j !== cur) show(j); });
+    t.addEventListener("click", function () { show(j); });
+    t.addEventListener("focus", function () { if (j !== cur) show(j); });
+  });
+  cards.forEach(function (c, j) { c.addEventListener("click", function () { if (j !== cur) show(j); }); });
+  deckWrap.addEventListener("mouseenter", function () { hold = true; deckWrap.classList.add("hold"); clearTimeout(timer); });
+  deckWrap.addEventListener("mouseleave", function () { hold = false; deckWrap.classList.remove("hold"); show(cur); });
+  show(0);
+
+  /* ── web converter panel: the iframe is created on the first click only (no Space wake-up per visitor), kept while hidden ── */
+  var hfm = document.getElementById("hfModal"), hfStage = document.getElementById("hfStage"),
+      hfUnder = document.getElementById("hfUnder"), hfClose = document.getElementById("hfClose"), hfBack = null,
+      hfF = null, hfH = 0;
+  // the converter as one column, like the app's window, at full size: as tall as the screen allows (small margins
+  // above and below, room for the line under it), the rest scrolls inside; a Space that never reports its height
+  // (an older one) gets the whole room
+  function hfFit() {
+    if (!hfF) return;
+    var room = Math.max(320, innerHeight - 32 - hfUnder.offsetHeight - 10);
+    var w = Math.min(440, innerWidth - 24), h = hfH ? Math.min(hfH, room) : room;
+    hfF.style.width = w + "px"; hfF.style.height = h + "px";
+    hfStage.style.width = w + "px"; hfStage.style.height = h + "px";
+  }
+  addEventListener("message", function (e) {
+    if (!hfF || e.source !== hfF.contentWindow || !e.data || e.data.aura !== "embed-height") return;
+    hfH = +e.data.h || 0; hfFit(); hfm.classList.add("ready");
+  });
+  addEventListener("resize", hfFit);
+  function hfOpen(e) {
+    if (e) e.preventDefault();
+    hfBack = document.activeElement;
+    if (!hfF) {
+      hfF = document.createElement("iframe");
+      hfF.src = "https://toxadev-aura-engine-audio-upscaler.hf.space/?__theme=dark&embed=1";
+      hfF.title = "AuraEngine web converter on Hugging Face";
+      hfF.allow = "clipboard-write; fullscreen";
+      hfF.addEventListener("load", function () { setTimeout(function () { hfm.classList.add("ready"); }, 1500); });
+      hfStage.appendChild(hfF);
+    }
+    hfm.hidden = false; hfFit();
+    document.documentElement.classList.add("hf-lock");
+    hfClose.focus();
+  }
+  function hfHide() {
+    if (hfm.hidden) return;
+    hfm.hidden = true;
+    document.documentElement.classList.remove("hf-lock");
+    if (hfBack && hfBack.focus) hfBack.focus();
+  }
+  document.querySelectorAll("[data-hf-open]").forEach(function (b) { b.addEventListener("click", hfOpen); });
+  hfClose.addEventListener("click", hfHide);
+  hfm.addEventListener("click", function (e) { if (e.target === hfm || e.target === hfm.lastElementChild) hfHide(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") hfHide(); });
+
+  /* ── copy a donation address ── */
+  document.querySelectorAll(".addr .copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var text = btn.previousElementSibling.textContent;
+      function done() { btn.textContent = "Copied"; btn.classList.add("ok"); setTimeout(function () { btn.textContent = "Copy"; btn.classList.remove("ok"); }, 1800); }
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
+      else { var r = document.createRange(); r.selectNodeContents(btn.previousElementSibling); getSelection().removeAllRanges(); getSelection().addRange(r); }
+    });
+  });
+
+  /* ── Hybrid-Phase scope: one waveform, attacks drawn in minimum phase, sustain in linear phase ── */
+  var hc = document.getElementById("hpCanvas"), hx = hc.getContext("2d"), HW, HH, hrun = false, hvis = false;
+  function hsize() { var d = Math.min(2, devicePixelRatio || 1); HW = hc.clientWidth; HH = hc.clientHeight; hc.width = HW * d; hc.height = HH * d; hx.setTransform(d, 0, 0, d, 0, 0); }
+  addEventListener("resize", hsize); hsize();
+  // a short "drum loop": hit times in a 4 s cycle
+  var hits = [0.15, 0.9, 1.4, 2.15, 2.65, 3.4];
+  function env(tt) {          // amplitude envelope of the loop at time tt (s)
+    var a = .12;
+    for (var i = 0; i < hits.length; i++) { var d = tt - hits[i]; if (d >= 0) a += Math.exp(-d * 7) * .85; }
+    return Math.min(1, a);
+  }
+  function isAttack(tt) { for (var i = 0; i < hits.length; i++) { var d = tt - hits[i]; if (d >= -0.004 && d < 0.09) return true; } return false; }
+  function hframe(now) {
+    var t = now / 1000, span = 4, head = (t * .5) % span;
+    hx.clearRect(0, 0, HW, HH);
+    // grid
+    hx.strokeStyle = "rgba(56,189,248,.07)"; hx.lineWidth = 1;
+    for (var gx = 0; gx <= 16; gx++) { hx.beginPath(); hx.moveTo(gx * HW / 16, 0); hx.lineTo(gx * HW / 16, HH); hx.stroke(); }
+    for (var gy = 0; gy <= 8; gy++) { hx.beginPath(); hx.moveTo(0, gy * HH / 8); hx.lineTo(HW, gy * HH / 8); hx.stroke(); }
+    var mid = HH * .5, amp = HH * .4, N = Math.floor(HW * 1.5);
+    // waveform split into runs by phase mode
+    var prev = null;
+    for (var i = 0; i < N; i++) {
+      var tt = i / N * span, x = i / N * HW;
+      var mode = isAttack(tt) ? "min" : "lin";
+      var y = mid - Math.sin(tt * 2 * Math.PI * 21 + Math.sin(tt * 9) * 2) * env(tt) * amp * (.8 + .2 * Math.sin(tt * 53));
+      if (prev && prev.mode === mode) { hx.lineTo(x, y); }
+      else {
+        if (prev) { hx.lineTo(x, y); hx.stroke(); }
+        hx.beginPath(); hx.moveTo(x, y);
+        hx.strokeStyle = mode === "min" ? "#fbbf24" : "#a78bfa";
+        hx.shadowColor = hx.strokeStyle; hx.shadowBlur = mode === "min" ? 12 : 6; hx.lineWidth = mode === "min" ? 1.8 : 1.2;
+      }
+      prev = { mode: mode };
+    }
+    hx.stroke(); hx.shadowBlur = 0;
+    // ghost of the pre-ringing a linear filter would put before each hit
+    hits.forEach(function (h0) {
+      var x0 = h0 / span * HW, w = HW * .035;
+      var gr = hx.createLinearGradient(x0 - w, 0, x0, 0);
+      gr.addColorStop(0, "rgba(244,114,182,0)"); gr.addColorStop(1, "rgba(244,114,182,.22)");
+      hx.fillStyle = gr; hx.fillRect(x0 - w, mid - amp * .5, w, amp);
+      hx.strokeStyle = "rgba(244,114,182,.6)"; hx.setLineDash([3, 3]);
+      hx.beginPath(); hx.moveTo(x0, mid - amp * .55); hx.lineTo(x0, mid + amp * .55); hx.stroke(); hx.setLineDash([]);
+    });
+    // playhead
+    var px = head / span * HW;
+    var pg = hx.createLinearGradient(px - 60, 0, px, 0);
+    pg.addColorStop(0, "rgba(103,232,249,0)"); pg.addColorStop(1, "rgba(103,232,249,.18)");
+    hx.fillStyle = pg; hx.fillRect(px - 60, 0, 60, HH);
+    hx.fillStyle = "#67e8f9"; hx.shadowColor = "#67e8f9"; hx.shadowBlur = 14; hx.fillRect(px - 1, 0, 2, HH); hx.shadowBlur = 0;
+    // current mode label
+    var m = isAttack(head) ? "MINIMUM PHASE · ATTACK" : "LINEAR PHASE · SUSTAIN";
+    hx.font = "600 12px " + getComputedStyle(document.body).getPropertyValue("--mono");
+    hx.fillStyle = isAttack(head) ? "#fbbf24" : "#a78bfa";
+    hx.fillText(m, 12, 22);
+    if (!reduce && hvis && !document.hidden) requestAnimationFrame(hframe); else hrun = false;
+  }
+  function hstart() { if (!hrun) { hrun = true; requestAnimationFrame(hframe); } }
+  new IntersectionObserver(function (es) { hvis = es[0].isIntersecting; if (hvis) hstart(); }).observe(hc);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && hvis) hstart(); });
+  if (reduce) { hvis = true; hframe(performance.now()); }
+})();
+</script>
+</body>
+</html>
