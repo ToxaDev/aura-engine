@@ -1,0 +1,120 @@
+// @name     Nebula
+// @author   Aura Engine
+// @about    A glowing cloud that the music keeps stirring; hits on their way are seen as comets spiralling in to the ring before they sound.
+// @feedback
+//
+// @section  "Cloud"         "The glowing trail the music keeps stirring"
+// @param    float  trail      0.955 0.85 0.995 0.001      "Trail"           "How long the cloud remembers (higher: longer)"
+// @param    float  push       1.0   0.0  3.0  0.05  x     "Push"            "How hard the bass and the kicks blow the cloud outwards"
+// @param    float  swirl      1.0   -3.0 3.0  0.05  x     "Swirl"           "How the cloud turns (− the other way)"
+// @param    float  churn      1.0   0.0  3.0  0.05  x     "Churn"           "Turbulence: how much the cloud tears into filaments"
+//
+// @section  "Colour"
+// @param    choice colours    0     "Album cover|App|Custom"    "Colours"   "Where the colours come from"
+// @param    color  colourA    #22d3ee                     "Custom colour 1"  "With Custom: one end of the colours"
+// @param    color  colourB    #a855f7                     "Custom colour 2"  "With Custom: the other end"
+// @param    float  drift      1.0   0.0  4.0  0.05  x     "Colour drift"    "How fast the old light's colour turns"
+// @param    float  bright     1.0   0.3  2.5  0.05  x     "Brightness"      "How bright the new light is"
+//
+// @section  "Ring"          "The spectrum now, around the centre"
+// @param    float  radius     0.34  0.12 0.8  0.01        "Size"            "The ring's size"
+// @param    float  spread     0.22  0.0  0.6  0.01        "Reaction"        "How far the spectrum pushes the ring out"
+// @param    float  ringWidth  2.2   0.8  6.0  0.1   px    "Line width"      "How thick the ring is"
+//
+// @section  "Comets"        "The hits ahead, spiralling in to the ring"
+// @param    float  comets     1.0   0.0  2.0  0.05  x     "Amount"          "How bright the comets are (0: none)"
+// @param    int    arms       3     1    6    1           "Arms"            "Spiral arms; each carries one part of the sound in turn"
+// @param    float  ahead      1.6   0.5  3.5  0.1   s     "Lead"            "Seconds before a hit its comet sets out"
+// @param    float  curl       2.2   0.0  6.0  0.1   x     "Curl"            "How much the arms wind"
+//
+// @section  "Layout"
+// @param    float  center     -0.2  -0.6 0.4  0.01        "Height"          "Where the ring lies in the player (full screen: always the middle)"
+
+// The picture is drawn onto what it was a frame ago, warped: pushed out a
+// little (more on the bass, a jolt on a kick), turned, stirred by noise,
+// faded. On top: the spectrum as a ring around the centre (the sound now),
+// and spiral arms along which the coming hits run in from the edge,
+// reaching the ring exactly when they sound.
+
+vec3 tint(float x) {
+    if (colours == 2) return mix(colourA, colourB, 0.5 + 0.5 * sin(x * TAU));   // Custom: back and forth
+    if (colours == 1) return auraAppPalette(x);                                  // App
+    return auraPalette(x);                                                       // Album cover
+}
+
+// A colour turned about the grey axis by angle a (its hue changes, not how vivid it is).
+vec3 hueTurn(vec3 c, float a) {
+    const vec3 k = vec3(0.57735027);
+    float ca = cos(a);
+    return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+}
+
+vec4 scene(vec2 uv, vec2 p) {
+    vec2 c = vec2(0.0, uFull > 0.5 ? 0.0 : center);
+    vec2 q = p - c;
+    float r = length(q);
+    float a = atan(q.y, q.x);
+    float live = uLive;
+
+    // ── the previous frame, warped ──
+    float kick = live > 0.5 ? uHit.x : 0.0;
+    float zoom = 1.0 - push * (0.006 + 0.02 * uBass * live + 0.05 * kick);
+    float turn = swirl * (0.004 + 0.012 * uMid * live);
+    // Stirred by a noise field that drifts: the trails pull into filaments.
+    vec2 n = vec2(auraNoise(q * 3.4 + vec2(uTime * 0.13, 0.0)), auraNoise(q * 3.4 + vec2(7.3, -uTime * 0.11))) - 0.5;
+    vec2 w = auraRot(turn) * (q * zoom) + n * churn * (0.007 + 0.014 * uEnergy * live) + c;
+    vec2 puv = 0.5 + w * uResolution.y / (2.0 * uResolution);
+    vec4 pv = auraPrev(puv);
+    float keep = trail * (0.985 + 0.015 * uPlaying);
+    // (a turn about the grey axis keeps the colour as vivid; mixing channels would grey it)
+    vec3 pc = hueTurn(pv.rgb, 0.012 * drift);
+    // Thin light fades faster than bright: the cloud keeps its shapes, not a haze;
+    // inside the ring it clears quicker, so the eye stays dark for the kicks.
+    float fade = keep * smoothstep(0.0, 0.35, pv.a + 0.12) * mix(0.9, 1.0, smoothstep(radius * 0.4, radius, r));
+    vec3 old = pc * pv.a * fade;
+    float oldA = pv.a * fade;
+
+    // ── the spectrum ring: now ──
+    float f = abs(mod(a + PI * 0.5 + PI, TAU) - PI) / PI;       // bass at the bottom, highs at the top
+    float s = live > 0.5 ? musicSpectrum(f, 0.0) : 0.25 + 0.15 * sin(uTime * 0.8 + f * 6.0);
+    float rr = radius * (1.0 + 0.08 * kick) + spread * s * s;
+    float px = 2.0 / uResolution.y;
+    float d = abs(r - rr);
+    float ring = smoothstep(px * ringWidth, 0.0, d) * (0.35 + 0.9 * s) + exp(-d * d / 0.0009) * 0.12 * s;
+    vec3 ringCol = tint(f * 0.6 + 0.03 * uTime) * (1.0 + 0.6 * kick);
+
+    // ── comets: the hits ahead, on spiral arms ──
+    vec3 cometCol = vec3(0.0);
+    float comet = 0.0;
+    if (live > 0.5 && r > radius * 0.9 && comets > 0.0) {
+        // The arms reach the ring at t = 0 and the edge at t = ahead.
+        float t = (r - radius) / (1.25 - radius) * ahead;
+        if (t <= ahead) {
+            float along = smoothstep(ahead, ahead * 0.6, t);
+            for (int arm = 0; arm < 6; arm++) {
+                if (arm >= arms) break;
+                float armA = float(arm) * TAU / float(arms) + uTime * 0.15 * swirl + t * curl;
+                float da = abs(mod(a - armA + PI, TAU) - PI) * r;       // distance across the arm
+                float hit = musicHit(arm % 3, t);
+                float g = exp(-da * da / (0.0012 + 0.004 * hit)) * hit * hit * along;
+                comet += g;
+                cometCol += tint(float(arm) / float(arms) + 0.1) * g;
+            }
+        }
+    }
+    comet *= comets;
+    cometCol *= comets;
+
+    // A flash in the middle on a kick; the push carries it out as a wave of light.
+    // (Anything lit every frame would pile up in the trail into a solid disc.)
+    float core = exp(-r * r / 0.004) * 0.4 * kick * kick;
+    vec3 coreCol = tint(0.5 + 0.02 * uTime) * 1.3;
+
+    // Premultiplied sum, back to straight colour.
+    vec3 add = (ringCol * ring + cometCol + coreCol * core) * bright;
+    float addA = clamp((ring + comet + core) * min(bright, 1.0), 0.0, 1.0);
+    vec3 rgb = old * (1.0 - addA) + add;
+    float alpha = clamp(oldA * (1.0 - addA) + addA, 0.0, 1.0);
+    if (live < 0.5) alpha *= 0.85;
+    return vec4(rgb / max(alpha, 1e-3), alpha);
+}

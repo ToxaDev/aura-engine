@@ -1,0 +1,107 @@
+/* The live demo in the hero: the app's own windows as frameless floating
+   windows on a small virtual desk, scaled as one — the main window in front,
+   the others stacked behind it in depth. */
+.demo { position: relative; width: 100%; user-select: none; -webkit-user-select: none; }
+.demo-desk { position: relative; margin-right: auto; }
+.demo-plane { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* Every window draws its own frame: an 11 px rounded border on its outermost
+   box. The box here clips at that same radius and stays transparent, so the
+   window's own border is the one edge — no second line beside it and no
+   lighter wedge of background in the corners. The shadow and the soft glow
+   follow the same curve. */
+.dwin {
+  --dwin-shadow: 0 24px 60px rgba(0, 0, 0, .55), 0 6px 18px rgba(0, 0, 0, .4), 0 0 26px rgba(56, 189, 248, .07);
+  position: absolute; left: 0; top: 0; transform-origin: 0 0; border-radius: 11px; overflow: hidden; background: transparent;
+  box-shadow: var(--dwin-shadow);
+  will-change: transform, filter;
+}
+.demo.ready .dwin {
+  transition: transform .7s cubic-bezier(.22, .8, .24, 1), filter .7s cubic-bezier(.22, .8, .24, 1), box-shadow .5s ease;
+}
+/* The window's edge, drawn once more on top in the colour its own 1 px border
+   has over its dark background, opaque. Left to the page alone, that border
+   is anti-aliased twice in the corners (its own curve, then this box's clip),
+   so the desk behind shows through it there and the corners come out pale.
+   This line covers the border exactly and is smoothed against the desk once. */
+.dwin::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  border: 1px solid var(--dwin-edge, rgb(21, 72, 94));
+}
+.dwin[data-win="eq"]  { --dwin-edge: rgb(8, 51, 57); }
+.dwin[data-win="xtc"] { --dwin-edge: rgb(11, 51, 46); }
+/* until the window's page has drawn itself, a dark pane in its place */
+.dwin:not(.live) { background: #060b16; }
+.dwin iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: 11px; background: transparent; }
+.dwin .poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; transition: opacity .5s; }
+.dwin.live .poster { opacity: 0; }
+.dwin .poster-ver { position: absolute; left: 10px; top: 10px; pointer-events: none; transition: opacity .5s;
+  font: 400 9.7px/1 'SF Pro Display', 'Segoe UI', Tahoma, Arial, sans-serif; letter-spacing: 1.5px;
+  color: rgba(14, 165, 233, .75); text-shadow: 0 0 2px rgba(14, 165, 233, .26); font-variant-numeric: tabular-nums; }
+.dwin.live .poster-ver { opacity: 0; }
+/* a window behind the others takes the click on its glass: one click
+   brings it forward, the next reaches the app */
+.dwin .glass { position: absolute; inset: 0; cursor: pointer; }
+.dwin.top .glass { display: none; }
+.dwin:not(.top) .glass:hover { background: rgba(103, 232, 249, .06); box-shadow: inset 0 0 0 2px rgba(103, 232, 249, .35); }
+/* the window in front stands off the desk: a deeper shadow and a soft cyan
+   halo; the main window (the tallest, its edges near-black) a little more */
+.dwin.top {
+  --dwin-shadow: 0 30px 80px rgba(0, 0, 0, .6), 0 8px 22px rgba(0, 0, 0, .45),
+    0 0 18px rgba(56, 189, 248, .13), 0 0 60px rgba(56, 189, 248, .10);
+}
+.dwin.main {
+  --dwin-shadow: 0 36px 90px rgba(0, 0, 0, .7), 0 8px 22px rgba(0, 0, 0, .45),
+    0 0 18px rgba(56, 189, 248, .18), 0 0 70px rgba(56, 189, 248, .14);
+}
+/* "just opened": the edges light up for a moment, as the app does */
+.dwin.glow { animation: dwin-glow 1.6s ease-out; }
+@keyframes dwin-glow {
+  0%   { box-shadow: 0 0 0 3px rgba(103, 232, 249, .95), 0 0 70px 10px rgba(56, 189, 248, .75), 0 30px 80px rgba(0, 0, 0, .6); }
+  100% { box-shadow: var(--dwin-shadow); }
+}
+.demo-note {
+  margin-top: 10px; text-align: center; font: 11.5px/1.5 var(--mono, monospace); letter-spacing: .6px;
+  color: var(--faint, #7c8aa5); text-transform: uppercase;
+}
+.demo-note b { color: var(--sky, #38bdf8); font-weight: 600; }
+.demo-tabs { display: none; }
+.demo-toast {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 50; pointer-events: none;
+  padding: 7px 14px; border-radius: 999px; font: 12.5px/1.3 var(--sans, sans-serif); color: #e6f3ff;
+  background: rgba(8, 18, 36, .92); border: 1px solid rgba(103, 232, 249, .45); opacity: 0; transition: opacity .25s;
+}
+.demo-toast.on { opacity: 1; }
+
+/* phone: the main window, then the tabs, then the chosen one of the others */
+.demo.phone .demo-desk { margin: 0 auto; }
+.demo.phone .dwin:not(.main):not(.top) { visibility: hidden; }
+.demo.phone .dwin .glass { display: none; }
+.demo.phone .demo-tabs {
+  display: flex; position: absolute; left: 50%; transform: translateX(-50%); z-index: 45;
+  gap: 4px; padding: 4px; width: max-content; max-width: 100%;
+  border-radius: 999px; border: 1px solid var(--line-2, rgba(120,170,255,.25)); background: rgba(6, 16, 34, .7);
+}
+.demo-tabs button {
+  font: 600 13px/1 var(--sans, sans-serif); color: var(--dim, #9fb0cc); background: none; border: 0; cursor: pointer;
+  padding: 9px 14px; border-radius: 999px; transition: background .2s, color .2s;
+}
+.demo-tabs button[aria-selected="true"] { color: #001018; background: linear-gradient(135deg, var(--cyan, #67e8f9), var(--sky, #38bdf8)); }
+.demo.phone.ready .dwin { transition: box-shadow .5s ease; }
+
+/* reduced motion: windows change places at once, the glow is a steady outline */
+@media (prefers-reduced-motion: reduce) {
+  .demo.ready .dwin, .dwin .poster, .dwin .poster-ver, .demo-toast, .demo-tabs button { transition: none; }
+  .dwin.glow { animation: none; box-shadow: 0 0 0 2px rgba(103, 232, 249, .9), 0 30px 80px rgba(0, 0, 0, .6); }
+}
+
+/* A window waiting for its app stays laid out and drawing, only unseen; it
+   then comes in through the aura mask (demo/aura-reveal.js) */
+.dwin.hold { opacity: 0; pointer-events: none; }
+.dwin iframe { opacity: 0; }
+.dwin.live iframe { opacity: 1; }
+.dwin.aura, .dwin.aura .dz-glow, .dwin.aura .dz-fog {
+  -webkit-mask-size: 100% 100%; mask-size: 100% 100%; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+}
+.dwin.aura { box-shadow: none; }
+.dz-glow, .dz-fog { position: absolute; inset: 0; pointer-events: none; }
+.dz-glow { mix-blend-mode: screen; }
