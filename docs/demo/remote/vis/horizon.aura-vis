@@ -1,0 +1,189 @@
+// @name     Horizon
+// @author   Aura Engine
+// @about    A flight through a valley of sound towards a setting sun: every ridge is a moment of the music, the far ones still to come. The view dips on the beat.
+// @spec     1
+//
+// @section  "Land"          "The land of sound you fly over"
+// @param    float  relief     1.0   0.2  2.0  0.05  x     "Relief"          "How tall the mountains of sound rise"
+// @param    float  valley     0.6   0.2  1.5  0.01        "Valley width"    "How wide the flat valley in the middle is (a wide stereo sound widens it)"
+// @param    float  rowsK      1.0   0.5  1.5  0.05  x     "Ridges"          "How many ridges each second of sound makes"
+// @param    float  grid       0.6   0.0  1.5  0.05  x     "Grid"            "The lines running over the land to the horizon"
+// @param    float  lineWidth  1.3   0.6  3.0  0.1   px    "Line width"      "How thick the lines are"
+//
+// @section  "Colour"
+// @param    choice colours    0     "Sunset|Album cover|App|Custom"  "Colours"  "Where the colours come from"
+// @param    color  colourLines #ff4fb0                    "Custom lines"    "With Custom: the colour of the land's lines"
+// @param    color  colourSun  #ffb347                     "Custom sun"      "With Custom: the colour of the sun"
+// @param    float  bright     1.0   0.3  2.0  0.05  x     "Brightness"      "How bright the lines and the sun are"
+// @param    float  glow       0.6   0.0  1.5  0.05  x     "Glow"            "The soft light around the lines"
+//
+// @section  "Motion"        "How the flight follows the music"
+// @param    choice look       0     "Ahead: the sound to come|Back: the sound gone by"  "Looking"  "Fly into the sound ahead, or watch the sound heard fly away"
+// @param    float  ahead      3.0   1.0  3.5  0.1   s     "Distance"        "How many seconds of sound lie between you and the horizon"
+// @param    float  react      1.0   0.0  2.0  0.05  x     "Reaction"        "How much the sound raises the mountains"
+// @param    float  bob        1.0   0.0  2.0  0.05  x     "Beat bounce"     "How much the view dips on each beat"
+//
+// @section  "Sky"           "The sun, the stars and the haze"
+// @param    float  sun        1.0   0.0  1.6  0.05  x     "Sun"             "How big the sun on the horizon is (0: none)"
+// @param    float  stars      0.6   0.0  1.5  0.05  x     "Stars"           "How many stars and how bright"
+// @param    float  haze       0.5   0.0  1.0  0.01        "Haze"            "How much the distance fades into the horizon's glow"
+//
+// @section  "Layout"
+// @param    float  horizonY   -0.3  -0.6 0.3  0.01        "Horizon"         "Where the horizon lies in the player, under its text (full screen: a little above the middle)"
+// @param    float  viewH      1.0   0.5  2.0  0.05  x     "View height"     "How high above the land you fly"
+
+// Every ridge is a moment of the music on the track's own clock: a slot of
+// 0.1 s. Looking ahead, a moment's ridge stands as far away as it is still
+// to come — it is born at the horizon from the sound ahead, flies at you and
+// passes under you the moment it is heard. Its shape is the spectrum at its
+// moment: the flat valley in the middle, the bass rising at the valley's
+// edges, the highs further out. Seen from above at x = X / z,
+// y = horizon − (height of the view − height of the land) / z.
+
+vec3 lineTint(float far) {                        // far: 0 near … 1 at the horizon
+    if (colours == 3) return colourLines;                                        // Custom
+    if (colours == 2) return auraAppPalette(0.1 + far * 0.35);                   // App
+    if (colours == 1) return auraPalette(far * 0.5);                             // Album cover
+    return mix(vec3(1.0, 0.28, 0.72), vec3(0.35, 0.78, 1.0), far);               // Sunset: pink near, blue far
+}
+vec3 sunTint(float y) {                           // y: 0 the sun's foot … 1 its top
+    if (colours == 3) return mix(colourSun * vec3(1.0, 0.45, 0.75), colourSun, y);
+    if (colours == 2) return mix(auraAppPalette(0.55), auraAppPalette(0.75), y);
+    if (colours == 1) return mix(auraPalette(0.25), auraPalette(0.0), y);
+    return mix(vec3(1.0, 0.2, 0.55), vec3(1.0, 0.86, 0.32), y);                  // Sunset: pink to gold
+}
+
+// The land's height at X across, for the moment t seconds from now (Tabs on the track's clock).
+float landH(float X, float t, float Tabs, float W, bool live) {
+    float beyond = max(abs(X) - W, 0.0);                               // beyond the valley's edge
+    float f = clamp(beyond / 1.6, 0.0, 1.0);                           // the bass nearest the valley
+    // (a little of the moments either side, so a ridge is a range, not a blade)
+    float s = live ? 0.5 * (musicSpectrum(f, t - 0.05) + musicSpectrum(f, t + 0.05))
+                   : 0.35 + 0.25 * sin(Tabs * 1.3 + X * 2.0);
+    s = clamp(mix(0.35, s, min(react, 1.0)) * max(react, 1.0), 0.0, 1.3);
+    // the valley's walls rise from its edge and fall away into the far plains
+    float rise = smoothstep(0.0, 0.35, beyond) * (0.35 + 0.65 * exp(-beyond / 2.2));
+    float rock = 0.55 + 0.45 * auraNoise(vec2(X * 1.1, Tabs * 0.6));  // the land's own grain, riding with it
+    return relief * rise * (0.04 + 0.5 * pow(s, 1.4)) * rock + 0.01 * auraNoise(vec2(X * 6.0, Tabs * 3.0));
+}
+
+float starsAt(vec2 p, float yh) {
+    if (stars <= 0.0) return 0.0;
+    vec2 g = p * uResolution.y / 28.0;
+    vec2 cell = floor(g);
+    float h = auraHash(cell);
+    if (h < 1.0 - 0.05 * stars) return 0.0;
+    vec2 at = vec2(auraHash(cell + 13.7), auraHash(cell + 29.1));
+    float dpx = length(g - cell - at) * 14.0;
+    float tw = 0.65 + 0.35 * sin(uTime * (0.7 + 2.0 * fract(h * 37.0)) + h * 60.0);
+    return smoothstep(1.3, 0.2, dpx) * (0.35 + 0.65 * fract(h * 91.0)) * tw * min(stars, 1.0) * smoothstep(yh + 0.15, yh + 0.6, p.y);
+}
+
+vec4 scene(vec2 uv, vec2 p) {
+    float px = 2.0 / uResolution.y;
+    bool live = uLive > 0.5;
+    float yh = uFull > 0.5 ? 0.12 : horizonY;
+    float tt = live ? uTrackTime : uTime * 0.8;               // the flight's clock: the sound's own
+
+    // The view dips on each beat.
+    float dip = 0.0;
+    if (live && uBpm > 0.0) dip = uBeatConfidence * exp(-musicBeatPhase(0.0) * 60.0 / uBpm / 0.15);
+    float hc = 0.32 * viewH * (1.0 - 0.12 * bob * dip);
+    float span = ahead * (look == 1 ? 1.7 : 1.0);              // seconds from now to the horizon
+    float dt = 0.1 / rowsK;
+    float z0 = 0.26, zFar = 7.0;
+    float v = (zFar - z0) / span;                              // land a second
+    float W = valley * (0.35 + 0.65 * (live ? 0.5 * (musicWidth(-0.3) + musicWidth(0.3)) : 0.5));
+    float lw = lineWidth * px;
+
+    // ── the sky: dusk at the horizon, night above; the sun, the stars ──
+    // In the player the sky lies under its text: there the sun is smaller and the glow keeps below the text.
+    bool band = uFull < 0.5;
+    float textSafe = band ? smoothstep(-0.02, -0.16, p.y) : 1.0;
+    float above = p.y - yh;
+    vec3 duskC = colours == 0 ? vec3(0.45, 0.1, 0.42) : sunTint(0.3) * 0.45;
+    vec3 sky = duskC * exp(-max(above, 0.0) / (band ? 0.12 : 0.22)) * 0.9 * textSafe;
+    float skyA = 0.8 * exp(-max(above, 0.0) / (band ? 0.25 : 0.5)) * textSafe;
+    if (sun > 0.0) {
+        float pulse = live ? 1.0 + 0.05 * uHit.x * min(react, 1.5) : 1.0;
+        float R = 0.3 * sun * pulse * (band ? 0.6 : 1.0);
+        vec2 c = vec2(0.0, yh + (band ? 0.03 : 0.1) * sun);
+        float r = length(p - c);
+        float yr = (p.y - c.y) / R;                            // −1 the sun's foot … 1 its top
+        // brighter as a loud part draws near (its light is the sound ahead)
+        float soon = live ? 0.75 + 0.45 * musicEnergy(1.5) : 0.85;
+        float disc = smoothstep(R + px, R - px, r) * step(0.0, above) * textSafe;
+        // the old stripes across its lower half, wider near the foot, drifting down
+        float stripe = fract(yr * 5.0 + uTime * 0.25);
+        float gap = smoothstep(0.1, -0.9, yr) * 0.55;
+        disc *= smoothstep(gap - 0.04, gap + 0.04, stripe) + step(0.1, yr);
+        vec3 sc = sunTint(clamp(yr * 0.5 + 0.5, 0.0, 1.0)) * bright * soon;
+        float halo = glow * 0.45 * exp(-max(r - R, 0.0) / (band ? 0.06 : 0.12)) * soon * step(0.0, above) * textSafe;
+        sky += sc * disc * 1.3 + sunTint(0.4) * halo * 0.6;
+        skyA = max(skyA, disc);
+    }
+    float st = starsAt(p, yh) * (1.0 - skyA) * textSafe;
+    sky += vec3(0.85, 0.9, 1.0) * st;
+    skyA = clamp(skyA + st, 0.0, 1.0);
+    // the horizon's line of light
+    vec3 hzC = colours == 0 ? vec3(1.0, 0.45, 0.7) : lineTint(1.0);
+    sky += hzC * bright * (0.35 * exp(-abs(above) / max(0.006, 1.5 * px)) + 0.12 * exp(-abs(above) / 0.08));
+
+    // ── the land, near to far: the first ridge above this pixel hides everything behind it ──
+    float kNow = floor(tt / dt);
+    float Hmax = relief * 0.78 + 0.02;                         // no ridge stands higher (landH's most)
+    float prevRy = -1e9, prevZ = z0;
+    vec3 lines = vec3(0.0);                                    // the lines of nearer ridges, over what is behind
+    vec3 face = vec3(0.0);
+    bool hit = false;
+    for (int j = 0; j < 48; j++) {
+        float k = look == 0 ? kNow - 1.0 + float(j) : kNow + 2.0 - float(j);
+        float Tabs = k * dt;
+        float t = Tabs - tt;                                   // seconds from now: + to come, − gone by
+        float z = z0 + (look == 0 ? t : -t) * v;
+        if (z < 0.04) continue;
+        if (z > zFar) break;
+        float ryMax = yh - (hc - Hmax) / z;                    // the highest this ridge can stand
+        if (p.y > ryMax + 12.0 * lw) { prevRy = -1e9; prevZ = z; continue; }   // (its height here unknown)
+        float X = p.x * z;
+        float H = landH(X, t, Tabs, W, live);
+        float ry = yh - (hc - H) / z;
+        float far = (z - z0) / (zFar - z0);
+        float fogK = mix(1.0, exp(-far * 2.6), haze);
+        float lvl = clamp(H / max(relief * 0.5, 0.01), 0.0, 1.2);
+        vec3 lc = lineTint(far) * bright * (0.45 + 0.8 * lvl) * fogK * smoothstep(zFar, zFar * 0.8, z) * textSafe;
+        float dyr = p.y - ry;
+        if (dyr < 0.0) {
+            // On this ridge's face, between the nearer ridge below and this one: where on the land?
+            float s = prevRy > -1e8 ? clamp((p.y - prevRy) / max(ry - prevRy, 1e-5), 0.0, 1.0) : 1.0;
+            float zs = mix(prevZ, z, s);
+            float gx = p.x * zs * 4.0;                         // lines across the land, a quarter apart
+            // a pixel's size in those lines — on a steep face the depth changes fast downwards too
+            float dzdy = prevRy > -1e8 ? (z - prevZ) / max(ry - prevRy, 1e-5) : 0.0;
+            float fwx = px * length(vec2(zs, p.x * dzdy)) * 4.0;
+            float dl = abs(fract(gx + 0.5) - 0.5);
+            float col = grid * (1.0 - smoothstep(0.5 * lineWidth * fwx, 1.5 * lineWidth * fwx, dl)) * smoothstep(0.35, 0.15, fwx);
+            float far2 = (zs - z0) / (zFar - z0);
+            vec3 base = mix(vec3(0.035, 0.012, 0.06), duskC * 0.25, far2);
+            face = base + lineTint(far2) * bright * col * 0.55 * mix(1.0, exp(-far2 * 2.6), haze) * textSafe
+                 + lc * (exp(-dyr * dyr / (lw * lw)) + glow * 0.3 * exp(dyr / (6.0 * lw)));
+            hit = true;
+            break;
+        }
+        // Above this ridge: its line glows here.
+        lines += lc * (exp(-dyr * dyr / (lw * lw)) + glow * 0.3 * exp(-dyr / (6.0 * lw)));
+        prevRy = ry;
+        prevZ = z;
+    }
+
+    vec3 rgb;
+    float alpha;
+    if (hit) { rgb = face; alpha = 1.0; }
+    else { rgb = sky; alpha = skyA; }
+    rgb += lines;
+    rgb = 1.0 - exp(-rgb * 1.2);                                // bright light turns whiter, never clips
+    alpha = clamp(max(alpha, max(rgb.r, max(rgb.g, rgb.b))), 0.0, 1.0);
+    // (with a grain of half a step, so the dark gradients show no bands on the screen)
+    float g = (auraHash(floor(uv * uResolution)) - 0.5) / 255.0;
+    return vec4(max(rgb + g, 0.0) / max(alpha, 1e-3), clamp(alpha + g, 0.0, 1.0));
+}

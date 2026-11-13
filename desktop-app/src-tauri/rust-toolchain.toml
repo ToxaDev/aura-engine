@@ -1,0 +1,5 @@
+[toolchain]
+# Pinned: release builds made with rustc 1.99.1 ran the 1G x16 GPU chain about 8x slower than
+# 1.94.1 (the render fell behind the music); CI uses this file too, so the compiler never changes by itself.
+channel = "1.94.1"
+profile = "minimal"

@@ -1,0 +1,413 @@
+// @name     Night Ridges
+// @author   espeon (neonwave but darker, after mrange's Neonwave sunrise), adapted for Aura Engine — https://www.shadertoy.com/view/w33yWf
+// @about    Layer on layer of dark ridges under a starry sky, a glow rising behind the farthest. Each kick is born as a rim of light on the far ridges and rolls ridge by ridge towards you, lighting the nearest as it sounds; the loud parts brighten the rims and the glow, and the stars twinkle with the hats.
+// @license  CC0 — adapted from "neonwave but darker" by espeon, https://www.shadertoy.com/view/w33yWf, itself after "Neonwave sunrise" by mrange (CC0); helpers as the code credits them (Inigo Quilez's and hg_sdf's under MIT, Sam Hocevar's HSV under WTFPL)
+//
+// @section  "Ridges"    "The layers of mountains"
+// @param    float  kickLight  1.0   0.0   2.0   0.01  x   "Kick light"     "How bright the rim of light each kick sends through the ridges"
+// @param    float  loudRims   1.0   0.0   2.0   0.01  x   "Loud rims"      "How much the loud parts light the ridges' rims"
+// @param    float  lead       2.0   0.8   3.2   0.05  s   "Look-ahead"     "How long before its kick a rim lights the farthest ridge"
+// @param    float  height     1.0   0.6   1.5   0.01  x   "Height"         "How tall the ridges stand"
+//
+// @section  "Colour"
+// @param    choice colours    0     "Neon|Album cover|App|Custom" "Colours" "Where the colours come from"
+// @param    color  colourA    #1f3dff                   "Custom near"    "With Custom: the colour of the near ridges and the sky"
+// @param    color  colourB    #ff2fb0                   "Custom far"     "With Custom: the colour of the far ridges and the rims"
+// @param    float  bright     1.0   0.4   2.0   0.01  x   "Brightness"     "How bright the whole picture is"
+//
+// @section  "Sky"       "The glow behind the ridges and the stars"
+// @param    float  glow       1.0   0.3   2.0   0.01  x   "Horizon glow"   "How bright the light behind the farthest ridge is"
+// @param    float  loudGlow   1.0   0.0   2.0   0.01  x   "Loud glow"      "How much brighter that light is in the loud parts"
+// @param    float  starLight  1.0   0.0   2.0   0.01  x   "Stars"          "How bright the stars are"
+// @param    float  twinkle    1.0   0.0   2.0   0.01  x   "Twinkle"        "How much the stars twinkle with the hats, each a moment after them"
+//
+// @section  "Motion"
+// @param    float  speed      1.0   0.0   3.0   0.01  x   "Drift"          "How fast the view drifts forward over the ridges"
+//
+// @section  "Layout"
+// @param    float  horizon    0.0  -0.4   0.4   0.01      "Horizon"        "Where the horizon sits in the player (full screen: as the author framed it)"
+
+// neonwave but darker — espeon, https://www.shadertoy.com/view/w33yWf ("and without the moon. cc0"), after mrange's
+// Neonwave sunrise (CC0, "Inspired by a tweet ... I wanted to create something that looked a bit like the tweet").
+// Adapted for Aura Engine: the picture is theirs; it did not listen to its music (#define SHOW_FFT was never used),
+// so the music here is new and moves nothing: depth is time. The ridge at distance d shows the song
+// lead · (d − 1) / 11 seconds ahead — the farthest the future, the nearest now — so each kick is born as a rim of
+// light on the farthest ridge and rolls ridge by ridge towards you, lighting the nearest as it sounds; the loud parts
+// light the rims the same way, the light behind the ridges follows the song's slow loudness, and each star twinkles
+// with the hats a moment after them (a delay of its own, so the sky shimmers instead of flashing). Pass A works out
+// the ridges' music and the hats' last second once a frame.
+
+// @common
+const float PLANES = 12.0;                // the ridges in view (the author's `furthest`)
+const float RISE = 0.25;                  // the view's drift, units a second (the author's)
+
+// @pass A
+// The ridges' music (texel i, 1 … 12: the ridge i planes ahead — r its kick, g its loudness) and the hats over the
+// last second (texel 16 + k: k · 0.03 s ago), worked out once a frame.
+void mainImage(out vec4 o, in vec2 fc) {
+  ivec2 ic = ivec2(fc);
+  o = vec4(0.0);
+  if (ic.y > 0 || ic.x > 47 || uLive < 0.5) return;
+  if (ic.x >= 16) {
+    o.r = musicHit(2, -float(ic.x - 16) * 0.03);
+    return;
+  }
+  if (ic.x < 1 || float(ic.x) > PLANES) return;
+  float z = iTime * RISE * speed;
+  float d = floor(z) + float(ic.x) - z;                    // this ridge's distance ahead, (i − 1, i]
+  float t = lead * (d - 1.0) / (PLANES - 1.0);
+  float h = musicHit(0, t);
+  float front = max(0.0, h - musicHit(0, t - 0.06));
+  float glow = max(0.0, h - musicHit(0, t - 0.3));
+  float loud = (musicLoudness(t - 0.08) + musicLoudness(t) + musicLoudness(t + 0.08)) / 3.0;
+  o = vec4(front + 0.4 * glow, loud * loud, 0.0, 1.0);
+}
+
+// @pass image  iChannel0=A:nearest:clamp
+// CC0 - Neonwave sunrise
+//  Inspired by a tweet by I wanted to create something that looked
+//  a bit like the tweet. This is the result.
+
+#define RESOLUTION    iResolution
+#define TIME          iTime
+#define PI            3.141592654
+#define TAU           (2.0*PI)
+
+// License: WTFPL, author: sam hocevar, found: https://stackoverflow.com/a/17897228/418488
+const vec4 hsv2rgb_K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+vec3 hsv2rgb(vec3 c) {
+  vec3 p = abs(fract(c.xxx + hsv2rgb_K.xyz) * 6.0 - hsv2rgb_K.www);
+  return c.z * mix(hsv2rgb_K.xxx, clamp(p - hsv2rgb_K.xxx, 0.0, 1.0), c.y);
+}
+// License: WTFPL, author: sam hocevar, found: https://stackoverflow.com/a/17897228/418488
+vec3 rgb2hsv(vec3 c) {
+  const vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+  float d = q.x - min(q.w, q.y);
+  float e = 1.0e-10;
+  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+// ── the colours (Aura Engine) ──
+// The author's colours are HSV with hues from blue (0.6: the near ridges, the sky) to pink (0.9: the far ridges).
+// "Neon" keeps them; the others take only the hue from the cover's colours, the app's or two own (blue → the near
+// one, pink → the far one; between two own colours the hue turns the short way round) and keep his saturation and
+// brightness; a grey cover gives softer colours.
+vec3 neon(vec3 c) {
+  if (colours == 0) return hsv2rgb(c);
+  float x = clamp((c.x - 0.6) / 0.3, 0.0, 1.0);
+  vec3 h;
+  if (colours == 3) {
+    vec3 a = rgb2hsv(colourA), b = rgb2hsv(colourB);
+    float dh = b.x - a.x;
+    dh -= floor(dh + 0.5);
+    h = vec3(fract(a.x + dh * x), mix(a.y, b.y, x), 1.0);
+  } else {
+    h = rgb2hsv(colours == 1 ? auraPalette(0.1 + x * 0.6) : auraAppPalette(x * 0.5));
+  }
+  return hsv2rgb(vec3(h.x, c.y * mix(0.35, 1.0, clamp(h.y * 1.6, 0.0, 1.0)), c.z));
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+vec4 alphaBlend(vec4 back, vec4 front) {
+  float w = front.w + back.w*(1.0-front.w);
+  vec3 xyz = (front.xyz*front.w + back.xyz*back.w*(1.0-front.w))/w;
+  return w > 0.0 ? vec4(xyz, w) : vec4(0.0);
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+vec3 alphaBlend(vec3 back, vec4 front) {
+  return mix(back, front.xyz, front.w);
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+float tanh_approx(float x) {
+  //  Found this somewhere on the interwebs
+  //  return tanh(x);
+  float x2 = x*x;
+  return clamp(x*(27.0 + x2)/(27.0+9.0*x2), -1.0, 1.0);
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+float hash(float co) {
+  return fract(sin(co*12.9898) * 13758.5453);
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+float hash(vec2 p) {
+  float a = dot (p, vec2 (127.1, 311.7));
+  return fract(sin(a)*43758.5453123);
+}
+
+// Value noise: https://iquilezles.org/articles/morenoise
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+
+  vec2 u = f*f*(3.0-2.0*f);
+//  vec2 u = f;
+
+  float a = hash(i + vec2(0.0,0.0));
+  float b = hash(i + vec2(1.0,0.0));
+  float c = hash(i + vec2(0.0,1.0));
+  float d = hash(i + vec2(1.0,1.0));
+
+  float m0 = mix(a, b, u.x);
+  float m1 = mix(c, d, u.x);
+  float m2 = mix(m0, m1, u.y);
+
+  return m2;
+}
+
+// License: MIT OR CC-BY-NC-4.0, author: mercury, found: https://mercury.sexy/hg_sdf/
+vec2 mod2(inout vec2 p, vec2 size) {
+  vec2 c = floor((p + size*0.5)/size);
+  p = mod(p + size*0.5,size) - size*0.5;
+  return c;
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+vec2 hash2(vec2 p) {
+  p = vec2(dot (p, vec2 (127.1, 311.7)), dot (p, vec2 (269.5, 183.3)));
+  return fract(sin(p)*43758.5453123);
+}
+
+float hifbm(vec2 p) {
+  const float aa = 0.5;
+  const float pp = 2.0-0.;
+
+  float sum = 0.0;
+  float a   = 1.0;
+
+  for (int i = 0; i < 5; ++i) {
+    sum += a*vnoise(p);
+    a *= aa;
+    p *= pp;
+  }
+
+  return sum;
+}
+
+float lofbm(vec2 p) {
+  const float aa = 0.5;
+  const float pp = 2.0-0.;
+
+  float sum = 0.0;
+  float a   = 1.0;
+
+  for (int i = 0; i < 2; ++i) {
+    sum += a*vnoise(p);
+    a *= aa;
+    p *= pp;
+  }
+
+  return sum;
+}
+
+// (Aura Engine) Height scales the ridges down from their tops: the highest peaks stay where the author had them (a
+// ridge above the eye's level would be cut flat), the valleys go deeper or shallower.
+float hiheight(vec2 p) {
+  return height*(hifbm(p)-1.8)-0.1*(height-1.0);
+}
+
+float loheight(vec2 p) {
+  return height*(lofbm(p)-2.15)-0.1*(height-1.0);
+}
+
+// A ridge; i: how many ridges ahead it is (1 the nearest) — its music is in pass A's texel i.
+vec4 plane(vec3 ro, vec3 rd, vec3 pp, vec3 npp, vec3 off, float n, int i) {
+  float h = hash(n);
+  float s = mix(0.05, 0.25, h);
+
+  vec3 hn;
+  vec2 p = (pp-off*2.0*vec3(1.0, 1.0, 0.0)).xy;
+
+  const vec2 stp = vec2(0.5, 0.33);
+  float he    = hiheight(vec2(p.x, pp.z)*stp);
+  float lohe  = loheight(vec2(p.x, pp.z)*stp);
+
+  float d = p.y-he;
+  float lod = p.y - lohe;
+
+  float aa = distance(pp, npp)*sqrt(1.0/3.0);
+  float t = smoothstep(aa, -aa, d);
+
+  float df = exp(-0.1*(distance(ro, pp)-2.));
+  vec3 acol = neon(vec3(mix(0.9, 0.6, df), 0.9, mix(1.0, 0.0, df)));
+  vec3 gcol = neon(vec3(0.6, 0.5, tanh_approx(exp(-mix(2.0, 8.0, df)*lod))));
+
+  vec3 col = vec3(0.0);
+  col += acol;
+  col += 0.5*gcol;
+
+  // (Aura Engine) the rim of light along the ridge's edge: its kick and its loudness (pass A)
+  vec2 mu = texelFetch(iChannel0, ivec2(i, 0), 0).rg;
+  float rim = exp(min(d, 0.0)/(3.0*aa + 0.004)) * (1.6*kickLight*mu.r + 0.5*loudRims*mu.g);
+  col += rim*neon(vec3(0.92, 0.35, 1.0));
+
+  return vec4(col, t);
+}
+
+vec3 stars(vec2 sp, float hh) {
+  vec3 scol0 = neon(vec3(0.85, 0.8, 1.0));
+  vec3 scol1 = neon(vec3(0.65, 0.5, 1.0));
+  vec3 col = vec3(0.0);
+
+  const float m = 6.0;
+
+  for (float i = 0.0; i < m; ++i) {
+    vec2 pp = sp+0.5*i;
+    float s = i/(m-1.0);
+    vec2 dim  = vec2(mix(0.05, 0.003, s)*PI);
+    vec2 np = mod2(pp, dim);
+    vec2 h = hash2(np+127.0+i);
+    vec2 o = -1.0+2.0*h;
+    float y = sin(sp.x);
+    pp += o*dim*0.5;
+    pp.y *= y;
+    float l = length(pp);
+
+    float h1 = fract(h.x*1667.0);
+    float h2 = fract(h.x*1887.0);
+    float h3 = fract(h.x*2997.0);
+
+    vec3 scol = mix(8.0*h2, 0.25*h2*h2, s)*mix(scol0, scol1, h1*h1);
+    // (Aura Engine) each star twinkles with the hats a moment after them, a delay of its own (pass A: the last second)
+    float hat = texelFetch(iChannel0, ivec2(16 + int(fract(h.y*977.0)*31.0), 0), 0).r;
+
+    vec3 ccol = col + exp(-(mix(6000.0, 2000.0, hh)/mix(2.0, 0.25, s))*max(l-0.001, 0.0))*scol*starLight*(1.0 + 1.5*twinkle*hat);
+    ccol *= mix(0.125, 1.0, smoothstep(1.0, 0.99, sin(0.25*TIME+TAU*h.y)));
+    col = h3 < y ? ccol : col;
+  }
+
+  return col;
+}
+
+vec3 toSpherical(vec3 p) {
+  float r   = length(p);
+  float t   = acos(p.z/r);
+  float ph  = atan(p.y, p.x);
+  return vec3(r, t, ph);
+}
+
+const vec3 lpos   = 1E6*vec3(0., -0.15, 1.0);
+const vec3 ldir   = normalize(lpos);
+float g_glow;                             // the light behind the ridges: Horizon glow × the song's slow loudness
+
+vec3 skyColor(vec3 ro, vec3 rd) {
+  vec3 acol   = neon(vec3(0.6, 0.9, 0.075));
+  vec3 lcol   = neon(vec3(0.75, 0.8, 1.0));
+
+  vec2 sp     = toSpherical(rd.xzy).yz;
+
+  float lf    = pow(max(dot(ldir, rd), 0.0), 80.0);
+  float li    = g_glow*0.02*mix(1.0, 10.0, lf)/(abs((rd.y+0.055))+0.025);
+  float lz    = step(-0.055, rd.y);
+
+  vec3 col = vec3(0.0);
+  col += stars(sp, 0.25)*smoothstep(0.5, 0.0, li)*lz;
+  col  = mix(col, col, 0.0);
+  col += smoothstep(-0.4, 0.0, (sp.x-PI*0.5))*acol;
+  col += tanh(lcol*li);
+  return col;
+}
+
+vec3 color(vec3 ww, vec3 uu, vec3 vv, vec3 ro, vec2 p) {
+  float lp = length(p);
+  vec2 np = p + 2.0/RESOLUTION.y;
+//  float rdd = (2.0-1.0*tanh_approx(lp));  // Playing around with rdd can give interesting distortions
+  float rdd = 2.0;
+  vec3 rd = normalize(p.x*uu + p.y*vv + rdd*ww);
+  vec3 nrd = normalize(np.x*uu + np.y*vv + rdd*ww);
+
+  const float planeDist = 1.0;
+  const int furthest = 12;
+  const int fadeFrom = max(furthest-2, 0);
+
+  const float fadeDist = planeDist*float(fadeFrom);
+  const float maxDist  = planeDist*float(furthest);
+  float nz = floor(ro.z / planeDist);
+
+  vec3 skyCol = skyColor(ro, rd);
+
+
+  vec4 acol = vec4(0.0);
+  const float cutOff = 0.95;
+  bool cutOut = false;
+
+  // Steps from nearest to furthest plane and accumulates the color
+  for (int i = 1; i <= furthest; ++i) {
+    float pz = planeDist*nz + planeDist*float(i);
+
+    float pd = (pz - ro.z)/rd.z;
+
+    vec3 pp = ro + rd*pd;
+
+    if (pp.y < 0. && pd > 0.0 && acol.w < cutOff) {
+      vec3 npp = ro + nrd*pd;
+
+      vec3 off = vec3(0.0);
+
+      vec4 pcol = plane(ro, rd, pp, npp, off, nz+float(i), i);
+
+      float nz = pp.z-ro.z;
+      float fadeIn = smoothstep(maxDist, fadeDist, pd);
+      pcol.xyz = mix(skyCol, pcol.xyz, fadeIn);
+//      pcol.w *= fadeOut;
+      pcol = clamp(pcol, 0.0, 1.0);
+
+      acol = alphaBlend(pcol, acol);
+    } else {
+      cutOut = true;
+      acol.w = acol.w > cutOff ? 1.0 : acol.w;
+      break;
+    }
+
+  }
+
+  vec3 col = alphaBlend(skyCol, acol);
+// To debug cutouts due to transparency
+//  col += cutOut ? vec3(1.0, -1.0, 0.0) : vec3(0.0);
+  return col;
+}
+
+vec3 effect(vec2 p, vec2 q) {
+  float tm= TIME*RISE*speed;
+  vec3 ro = vec3(0.0, 0.0, tm);
+  vec3 dro= normalize(vec3(0.0, 0.09, 1.0));
+  vec3 ww = normalize(dro);
+  vec3 uu = normalize(cross(normalize(vec3(0.0,1.0,0.0)), ww));
+  vec3 vv = normalize(cross(ww, uu));
+
+  vec3 col = color(ww, uu, vv, ro, p);
+
+  return col;
+}
+
+// License: Unknown, author: Matt Taylor (https://github.com/64), found: https://64.github.io/tonemapping/
+vec3 aces_approx(vec3 v) {
+  v = max(v, 0.0);
+  v *= 0.6f;
+  float a = 2.51f;
+  float b = 0.03f;
+  float c = 2.43f;
+  float d = 0.59f;
+  float e = 0.14f;
+  return clamp((v*(a*v+b))/(v*(c*v+d)+e), 0.0f, 1.0f);
+}
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 q = fragCoord/RESOLUTION.xy;
+  vec2 p = -1. + 2. * q;
+  p.x *= RESOLUTION.x/RESOLUTION.y;
+  // (in the player's band the view slides up or down: the horizon a little higher or lower)
+  if (uFull < 0.5) p.y -= horizon;
+  g_glow = glow*(uLive > 0.5 ? 1.0 + loudGlow*0.8*(musicEnergy(0.0) - 0.4) : 1.0);
+  vec3 col = vec3(0.0);
+  col = effect(p, q);
+  // (the author's fade in from the middle, over 3 s instead of 8, when the scene starts)
+  col *= smoothstep(0.0, 3.0, TIME-abs(q.y));
+  col = aces_approx(bright*col);
+  fragColor = vec4(col, 1.0);
+}
