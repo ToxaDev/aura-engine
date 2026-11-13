@@ -1,0 +1,10 @@
+[package]
+name = "aura-link"
+version = "0.1.0"
+description = "Aura Player's audio link: a ring of samples in memory a player and Aura Player both map"
+license = "MIT"
+edition.workspace = true
+rust-version.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Foundation", "Win32_Security", "Win32_System_Memory", "Win32_System_Threading"] }

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Privacy — AuraEngine</title>
+<meta name="description" content="What AuraEngine sends over the network, what a crash report contains, who can read it and how long it is kept.">
+<link rel="canonical" href="https://aura-engine.app/privacy.html">
+<link rel="icon" type="image/png" sizes="64x64" href="/media/aura-icon-64.png">
+<style>
+  :root { --bg: #070a12; --text: #e6edf7; --dim: #8b98ad; --sky: #38bdf8; --violet: #a78bfa; --line: rgba(148, 163, 184, .22); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 16px 56px;
+    background: radial-gradient(ellipse at 30% 0%, rgba(56, 189, 248, .10), transparent 60%), var(--bg);
+    color: var(--text); font: 16px/1.65 "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  header img { width: 36px; height: 36px; }
+  header a { color: var(--text); text-decoration: none; font-weight: 600; }
+  h1 { margin: 0 0 10px; font-size: clamp(30px, 6vw, 42px); line-height: 1.2; }
+  h2 { margin: 40px 0 10px; font-size: 22px; }
+  p, ul { margin: 0 0 14px; }
+  ul { padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  a { color: var(--sky); }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: .92em; color: var(--violet); overflow-wrap: anywhere; }
+  .lead { color: var(--dim); font-size: 18px; }
+  .wrap-table { overflow-x: auto; margin: 0 0 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 600; }
+  footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="/media/aura-icon-64.png" alt="" width="36" height="36">
+    <a href="/">AuraEngine</a>
+  </header>
+
+  <h1>Privacy</h1>
+  <p class="lead">AuraEngine works on your computer. It has no accounts, no analytics and no tracking, and your music
+    is never uploaded. This page lists everything the app sends over the network.</p>
+
+  <h2>Crash reports</h2>
+  <p>A report helps find a fault that cannot be reproduced elsewhere. It says what the program was doing, and nothing
+    about you or your music.</p>
+  <ul>
+    <li>After a crash, a hang or a power cut, the report window opens at the next start. The report leaves only when you press <strong>Send</strong>.</li>
+    <li>The <strong>!</strong> button at the top of the window opens the same report at any time.</li>
+    <li>The box <strong>Always send automatically</strong> is off by default. Only if you tick it, reports after a
+      crash, a hang or a power cut go without asking.</li>
+    <li><strong>Show everything</strong> displays the exact text of the report before it is encrypted.</li>
+    <li><strong>Save to file</strong> keeps the encrypted report on your computer, so you can send it however you like.</li>
+    <li>A report you sent that could not go (no network, the server asleep) waits on your computer, still encrypted, in
+      the <code>outbox</code> folder of the program's data folder. The program tries again at each start and once an
+      hour, and deletes the file once it has gone, or after 14 days. One that the box sent goes only while the box is
+      ticked. Closing the window does not cancel a report that waits; to cancel, delete the file.</li>
+  </ul>
+
+  <h2>What a report contains</h2>
+  <ul>
+    <li>Program version and operating system.</li>
+    <li>Hardware model details: processor, memory, video card and its driver, free disk space.</li>
+    <li>Sound settings and output format.</li>
+    <li>Your tracks as numbers only: format, sample rate, length, rounded size.</li>
+    <li>What the program was doing: the stage, the error, the technical trace.</li>
+    <li>The end of the program's log, with private text replaced.</li>
+    <li>Anything you type in the "What happened" field. Please leave personal details out of it.</li>
+  </ul>
+
+  <h2>What a report never contains</h2>
+  <ul>
+    <li>File names, folders, titles, artists, albums.</li>
+    <li>Your user name, computer name, audio device names, radio addresses or station names.</li>
+    <li>Any lasting ID of you or your computer. Each report has only its own random code, like
+      <code>AE-7K3F-Q9</code>, so two reports cannot be linked to each other by an ID.</li>
+  </ul>
+  <p>Private text is replaced before the report is made: <code>track#3</code> instead of a title,
+    <code>&lt;path&gt;</code> instead of a folder. If a known name is still found in a line of the log, that whole
+    line is dropped. Automated tests guard these rules, and a release is not built if they fail.</p>
+
+  <h2>Who can read a report</h2>
+  <p>The report is compressed and encrypted on your computer, with a public key built into the program (X25519 and
+    XSalsa20-Poly1305, a libsodium sealed box). Only the developer's private key, kept offline, can open it. The
+    server that receives the report cannot read it.</p>
+
+  <h2>Where it is kept, and for how long</h2>
+  <ul>
+    <li>Encrypted reports are stored in a private dataset on <a href="https://huggingface.co/">Hugging Face</a>.</li>
+    <li>They are deleted after <strong>90 days</strong>, and so are the opened copies the developer works with.</li>
+  </ul>
+
+  <h2>Your IP address</h2>
+  <p>We do not store it. The receiving server holds it in memory only to limit the number of reports per hour. Hugging
+    Face, as the host, may keep standard access logs of its own, as any web host does.</p>
+
+  <h2>Deleting a report</h2>
+  <p>Write the code of your report to <a href="mailto:auraengine.dev@gmail.com">auraengine.dev@gmail.com</a>, and that
+    report will be deleted. Without the code, nobody can tell which report is yours.</p>
+
+  <h2>Every connection the app makes</h2>
+  <p>Each of these servers sees your IP address, as any server you connect to does.</p>
+  <div class="wrap-table">
+    <table>
+      <thead><tr><th>Goes to</th><th>When</th><th>What it says</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>GitHub (<code>api.github.com</code>, release downloads)</td>
+          <td>At each start of an official build, to check for an update. Downloads only when you accept the update.</td>
+          <td>The program's version.</td>
+        </tr>
+        <tr>
+          <td>GitHub release downloads</td>
+          <td>When you use the filter download window, install the ASIO driver or the instruments pack.</td>
+          <td>Which file you asked for.</td>
+        </tr>
+        <tr>
+          <td><code>raw.githubusercontent.com</code> (AutoEq)</td>
+          <td>When you use the headphone profile search in Aura EQ.</td>
+          <td>The list of profiles, and the profile you picked.</td>
+        </tr>
+        <tr>
+          <td><code>radio-browser.info</code> and its mirrors</td>
+          <td>When you open the radio catalog or search it.</td>
+          <td>Your search terms.</td>
+        </tr>
+        <tr>
+          <td>Each station's own server</td>
+          <td>When you play a station, or its icon is shown.</td>
+          <td>The usual request for the stream or the icon.</td>
+        </tr>
+        <tr>
+          <td><code>api.radioparadise.com</code></td>
+          <td>While you listen to Radio Paradise.</td>
+          <td>A request for the song now playing.</td>
+        </tr>
+        <tr>
+          <td>The AuraEngine server on Hugging Face (<code>hf.space</code>)</td>
+          <td>Only when you press Send, or after a crash, a hang or a power cut if you ticked the box; a report sent that way that could not go is tried again for up to 14 days.</td>
+          <td>The encrypted report.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p>A few links open in your own browser and not in the app: the VB-Audio and Microsoft WebView2 download pages,
+    autoeq.app, shadertoy.com and the release pages. The interface loads no external fonts or scripts.</p>
+  <p>The code is open: <a href="https://github.com/ToxaDev/aura-engine">github.com/ToxaDev/aura-engine</a>.</p>
+
+  <footer>
+    <a href="/">AuraEngine home</a> · <a href="/docs.html">Documentation</a> ·
+    <a href="mailto:auraengine.dev@gmail.com">auraengine.dev@gmail.com</a>
+  </footer>
+</main>
+</body>
+</html>

@@ -1,0 +1,106 @@
+/* The input in the list's place (js/input.js): one card that says where
+   the input is and what to do next, the way to choose the device in each
+   player under it while none is there. Shown while body.lv-input is on
+   (listview.js); the files' controls and rows are hidden meanwhile, not
+   taken away. Its button is the radio's (radio.css .rd-btn). */
+
+body.lv-input #plPlaylistCtrl,
+body.lv-input #plCaSplit,
+body.lv-input #plClear { display: none !important; }
+/* Nothing stands right of F / R / I then: its rule has nothing to part. */
+body.lv-input .lv-rule { display: none; }
+
+.in-view { display: none; }
+body.lv-input #dropZone > :not(#inView) { display: none !important; }
+body.lv-input #dropZone { border-style: solid; border-color: rgba(14, 165, 233, 0.22); cursor: default; }
+body.lv-input #dropZone:hover { border-color: rgba(14, 165, 233, 0.32); }
+body.lv-input .in-view {
+  display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0;
+  padding: 10px; box-sizing: border-box; overflow-y: auto;
+  color: #cbd5e1; font-size: 0.72rem;
+}
+
+.in-card {
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+  padding: 10px 12px; border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.22); background: rgba(14, 165, 233, 0.05);
+}
+.in-head { display: flex; align-items: center; gap: 8px; }
+.in-title { color: #e0f2fe; font-size: 0.82rem; font-weight: 600; }
+.in-text { color: #94a3b8; line-height: 1.45; }
+.in-text:empty { display: none; }
+.in-note { color: #fbbf24; line-height: 1.45; }
+.in-note[hidden], .in-btn[hidden], .in-hints[hidden], .in-foot[hidden] { display: none; }
+.in-btn { margin-top: 2px; }
+
+/* The lamp: grey — nothing to play yet; amber — waiting for the player;
+   turquoise — playing; it breathes while Windows is asked. */
+.in-lamp { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #475569; }
+.in-lamp[data-kind="wait"] { background: #f59e0b; }
+.in-lamp[data-kind="on"] { background: #38bdf8; box-shadow: 0 0 6px rgba(56, 189, 248, 0.8); }
+.in-lamp[data-kind="busy"] { background: #f59e0b; animation: inBreathe 1.2s ease-in-out infinite; }
+@keyframes inBreathe { 50% { opacity: 0.35; } }
+
+.in-hints { display: flex; flex-direction: column; gap: 4px; padding: 0 2px; }
+.in-hints-h { color: #7dd3fc; font-size: 0.66rem; letter-spacing: 0.4px; text-transform: uppercase; margin-bottom: 2px; }
+.in-hint { display: flex; gap: 8px; line-height: 1.4; }
+.in-hint b { flex: none; width: 78px; color: #e2e8f0; font-weight: 600; }
+.in-hint span { color: #94a3b8; min-width: 0; }
+
+/* Spotify and other Windows apps: through Hi-Fi Cable and ASIO Bridge. */
+.in-bridge {
+  display: flex; flex-direction: column; gap: 4px;
+  margin-top: 6px; padding-top: 8px; border-top: 1px solid rgba(56, 189, 248, 0.12);
+}
+.in-bridge-t { color: #94a3b8; line-height: 1.4; }
+.in-bridge ol {
+  margin: 0; padding-left: 16px; color: #94a3b8; line-height: 1.4;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.in-ext {
+  align-self: flex-start; margin-top: 2px;
+  border: none; background: none; padding: 0; cursor: pointer;
+  color: #7dd3fc; font-size: inherit; text-align: left;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.in-ext:hover { color: #bae6fd; }
+
+.in-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding: 0 2px; }
+.in-auto { display: flex; align-items: center; gap: 6px; color: #94a3b8; cursor: pointer; }
+.in-link {
+  border: none; background: none; padding: 0; cursor: pointer;
+  color: #64748b; font-size: 0.66rem; text-decoration: underline;
+}
+.in-link:hover { color: #94a3b8; }
+
+@media (prefers-reduced-motion: reduce) {
+  .in-lamp[data-kind="busy"] { animation: none; }
+}
+
+/* The driver's update, offered once after an update (input.js renderOffer):
+   the update dialog's look (update.css), under it should both be open. */
+#inOffer {
+  position: fixed; inset: 0; z-index: 8990;
+  background: rgba(0, 0, 0, 0.70);
+  display: flex; align-items: center; justify-content: center;
+  -webkit-app-region: no-drag;
+}
+.in-offer {
+  background: #1e1b2e; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px;
+  padding: 20px 22px 18px; width: 340px; max-width: calc(100vw - 32px); box-sizing: border-box;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.60);
+  color: #e8e4f4; font-size: 0.88em;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.in-offer-title { font-size: 0.98em; font-weight: 600; color: #f0ecff; margin: 0; }
+.in-offer-text { color: rgba(224, 216, 255, 0.80); font-size: 0.86em; line-height: 1.5; margin: 0; }
+.in-offer-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
+.in-offer-btns:empty { display: none; }
+.in-offer-btns button {
+  padding: 6px 14px; border-radius: 5px; border: none;
+  font-size: 0.84em; font-weight: 500; cursor: pointer; transition: opacity 0.15s;
+  background: rgba(255, 255, 255, 0.09); color: #d0c8f0;
+}
+.in-offer-btns button:hover { background: rgba(255, 255, 255, 0.14); }
+.in-offer-btns button[data-act="install"] { background: #7c3aed; color: #fff; }
+.in-offer-btns button[data-act="install"]:hover { background: #6d28d9; }

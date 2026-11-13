@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- site demo: the simulated engine (demo/sim.js) behind this page -->
+  <script src="mock.js?v=201-3"></script>
+<meta charset="utf-8">
+<title>Aura EQ</title>
+<!-- The EQ's own tour and its ? in the title bar. -->
+<link rel="stylesheet" href="css/tour.css">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{
+  color-scheme:dark;
+  --ground:#03060c;--win-c:#0b192c;--win-d:#04070d;--bar:rgba(8,14,26,.92);
+  --ink:#e2e8f0;--dim:#94a3b8;--mute:#64748b;--label:#7dd3fc;
+  --sky:#0ea5e9;--focus:#38bdf8;--line:rgba(148,163,184,.14);
+  --eq:#22d3ee;--violet:#a78bfa;--amber:#fbbf24;--err:#f87171;--ok:#34d399;
+  --ui:'SF Pro Display','Segoe UI',Tahoma,Arial,sans-serif;
+  --mono:ui-monospace,'Cascadia Mono','Segoe UI Mono',Consolas,monospace;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:transparent;overflow:hidden;color:var(--ink);font-family:var(--ui);line-height:1.5;-webkit-font-smoothing:antialiased;user-select:none}
+input,textarea{user-select:text}
+a{color:var(--focus)}
+
+/* Window chrome */
+.win{
+  height:100vh;display:flex;flex-direction:column;overflow:hidden;
+  background:radial-gradient(circle at 50% 0%,var(--win-c) 0%,var(--win-d) 100%);
+  border:1px solid rgba(34,211,238,.24);border-radius:11px;
+  box-shadow:0 18px 50px rgba(0,0,0,.75);position:relative;
+}
+.win>header{
+  display:flex;align-items:center;gap:10px;padding:10px 16px;
+  border-bottom:1px solid rgba(34,211,238,.18);background:var(--bar);
+  flex-wrap:wrap;flex-none;
+}
+.tokchip{font:700 .72rem var(--mono);padding:2px 7px;border-radius:5px;color:var(--eq);border:1px solid color-mix(in srgb,var(--eq) 40%,transparent);background:color-mix(in srgb,var(--eq) 12%,transparent)}
+.wt{font-size:.78rem;text-transform:uppercase;letter-spacing:1.2px;color:var(--eq)}
+.grow{flex:1}
+.win-btns{display:flex;gap:8px;margin-left:4px}
+.win-btn{width:13px;height:13px;border-radius:50%;border:0;opacity:.5;cursor:pointer;padding:0}
+.win-btn:hover{opacity:1}
+.win-btn.min{background:rgba(56,189,248,.65)}.win-btn.min:hover{background:#38bdf8}
+.win-btn.close{background:rgba(148,163,184,.45)}.win-btn.close:hover{background:#ef4444}
+
+/* Tools bar */
+.tools{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--line);background:rgba(4,8,16,.5);flex-none}
+
+/* Graph */
+.graph{position:relative;padding:0;flex:1;min-height:0}
+#eqCanvas{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
+
+/* Floating band panel (under the selected point) */
+.bandpop{position:absolute;z-index:4;display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:9px;background:rgba(6,12,24,.92);border:1px solid color-mix(in srgb,var(--c) 45%,transparent);box-shadow:0 6px 22px rgba(0,0,0,.45);white-space:nowrap;transition:opacity .12s}
+.bandpop.dragging{opacity:.35;pointer-events:none}
+.bandpop .pid{display:flex;align-items:center;gap:4px;font:600 .74rem var(--mono);color:var(--ink);min-width:22px}
+.bandpop .pid i{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.bandpop .pid small{font-size:.62rem;color:var(--dim)}
+.bandpop .pnav,.bandpop .pdel{background:transparent;border:0;color:var(--dim);font:1rem/1 var(--ui);padding:0 4px;cursor:pointer;border-radius:4px}
+.bandpop .pnav:hover,.bandpop .pdel:hover{color:var(--ink);background:rgba(148,163,184,.12)}
+.bandpop .pdel:hover{color:#fca5a5}
+.bandpop select{font-size:.74rem;padding:3px 4px}
+.bandpop .fld{display:flex;align-items:center;gap:3px}
+.bandpop .fl{font:.66rem var(--ui);color:var(--mute);cursor:ns-resize;user-select:none;padding:2px 1px}
+.bandpop .fld.dis .fl{cursor:default;opacity:.5}
+.bandpop input{width:70px;background:rgba(2,6,14,.85);color:#bae6fd;border:1px solid rgba(56,189,248,.22);border-radius:5px;font:.74rem var(--mono);padding:3px 5px}
+.bandpop input:disabled{opacity:.4}
+.bandpop .fld[data-k=q] input{width:46px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 12px;border-top:1px solid var(--line);flex-none;min-height:22px}
+.chips .hint{color:var(--mute);font-size:.78rem}
+.chip{display:flex;align-items:center;gap:6px;font:.7rem var(--mono);color:var(--dim);background:rgba(15,23,42,.6);border:1px solid var(--line);border-radius:6px;padding:3px 8px;cursor:pointer}
+.chip i{width:7px;height:7px;border-radius:50%;flex:none}
+.chip.sel{border-color:var(--c);color:var(--ink);background:color-mix(in srgb,var(--c) 12%,transparent)}
+.chip.off{opacity:.45;text-decoration:line-through}
+
+/* Drawer */
+.drawer{border-top:1px solid var(--line);padding:12px 16px;display:flex;flex-direction:column;gap:8px;background:rgba(2,6,14,.5);flex-none}
+.drawer textarea{width:100%;box-sizing:border-box;min-height:130px;resize:vertical;color:#cbd5e1}
+.drawer .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+/* Footer */
+.win>footer{display:flex;flex-direction:column;gap:8px;padding:10px 16px;border-top:1px solid var(--line);background:rgba(8,14,26,.9);flex:none}
+.frow{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;min-width:0}
+.frow.spread{justify-content:space-between}
+.frow>.status{flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Buttons, selects, inputs */
+.act{font:.82rem var(--ui);padding:7px 16px;border-radius:6px;cursor:pointer;background:none;border:0}
+.act.save{color:#052e33;background:var(--eq);border:1px solid var(--eq);font-weight:600}
+.act.save:hover{box-shadow:0 0 16px color-mix(in srgb,var(--eq) 45%,transparent)}
+.act.ghost{color:var(--ink);background:transparent;border:1px solid rgba(148,163,184,.26)}
+.act.ghost:hover{border-color:var(--focus)}
+.act.sm{padding:4px 10px;font-size:.76rem}
+.iconbtn{width:28px;height:26px;display:grid;place-items:center;background:transparent;border:1px solid rgba(148,163,184,.26);border-radius:6px;color:var(--ink);cursor:pointer;padding:0}
+.iconbtn svg{width:14px;height:14px}
+.iconbtn:disabled{opacity:.3;cursor:default}
+.modes{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.modes button{background:transparent;border:0;color:var(--dim);font:.74rem var(--ui);padding:4px 10px;cursor:pointer}
+.modes button+button{border-left:1px solid var(--line)}
+.modes button.on{color:#052e33;background:var(--eq);font-weight:600}
+.ab button{min-width:28px;font-family:var(--mono)}
+.lbl{font-size:.68rem;color:var(--label);text-transform:uppercase;letter-spacing:1px}
+.grp{display:flex;align-items:center;gap:7px}
+select,input[type=number],textarea{background:rgba(2,6,14,.85);color:#bae6fd;border:1px solid rgba(56,189,248,.25);border-radius:6px;font:.8rem var(--mono);padding:4px 6px}
+select{font-family:var(--ui)}
+select:focus,input:focus,textarea:focus,button:focus-visible,canvas:focus-visible{outline:none;border-color:#38bdf8;box-shadow:0 0 10px rgba(56,189,248,.3)}
+.sw{position:relative;width:26px;height:15px;border-radius:8px;border:1px solid #2f3d52;background:#141d2c;cursor:pointer;flex:none;padding:0}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:7px;height:7px;border-radius:50%;background:#7b8aa0;transition:transform .15s}
+.sw.on{border-color:color-mix(in srgb,var(--eq) 70%,#000);background:color-mix(in srgb,var(--eq) 25%,#0b1220)}
+.sw.on::after{transform:translateX(11px);background:#cffafe}
+.status{font:.72rem var(--mono);color:var(--dim)}
+.status b{color:var(--ink);font-weight:600}
+.status .warn{color:var(--amber)}
+.outg{width:110px;accent-color:#7c3aed}
+.outlbl{cursor:ns-resize;user-select:none}
+.balg{width:110px;accent-color:#7c3aed}
+.ballbl{cursor:ew-resize;user-select:none}
+.outv.balv{width:76px;text-align:center}
+.delcm{font:.72rem var(--mono);color:var(--dim);min-width:52px}
+.spkkeep{margin-left:auto;cursor:pointer}
+.spkbox{display:flex;flex-direction:column;gap:8px;flex:none;margin:0 10px 10px;padding:8px 12px 10px;border:1px solid rgba(124,58,237,.38);border-left:3px solid #7c3aed;border-radius:8px;background:linear-gradient(180deg,rgba(124,58,237,.12),rgba(124,58,237,.04))}
+.spkh{font-size:.72rem;font-weight:600;color:#c4b5fd;text-transform:uppercase;letter-spacing:1.4px}
+.spkdel{margin-left:auto}
+.menu .act.save,.menu .act.save:hover,.menu .act.save:focus-visible{background:var(--eq);color:#052e33}
+.menu .act.save:disabled{opacity:.45;cursor:default;box-shadow:none}
+.menu .act{justify-content:center;text-align:center}
+.spkkeep .lbl{cursor:pointer;user-select:none}
+.spkcalc{width:280px}
+.spkcalc input[type=number]{width:92px}
+.spkcalc .srow .act{flex:1}
+.spkchk{font-size:.74rem;color:#cbd5e1;cursor:pointer}
+.spkchk .dimtxt{color:var(--dim);font-size:.68rem}
+.spkres{font:.74rem var(--mono);color:var(--dim);line-height:1.45;min-height:2.9em}
+.spkres b{color:var(--ink);font-weight:600}
+.outv{width:64px;background:rgba(2,6,14,.85);color:#bae6fd;border:1px solid rgba(56,189,248,.22);border-radius:5px;font:.74rem var(--mono);padding:3px 5px}
+.clip{font:700 .62rem var(--mono);letter-spacing:.5px;padding:3px 6px;border-radius:4px;border:1px solid #3a2530;background:#1a1016;color:#6b4652;cursor:pointer}
+.clip.lit{background:#dc2626;border-color:#f87171;color:#fff;box-shadow:0 0 8px rgba(239,68,68,.7)}
+.msg{font-size:.8rem;color:var(--dim)}.msg.ok{color:var(--ok)}.msg.bad{color:var(--err)}.msg.warn{color:var(--amber)}
+
+/* Welcome overlay */
+.welcome{position:absolute;inset:0;display:grid;place-items:center;padding:16px;overflow:auto;background:rgba(3,8,16,.62);backdrop-filter:blur(2px);z-index:2}
+.wc{max-width:640px;width:100%;display:flex;flex-direction:column;gap:12px;text-align:center}
+.wc-h{font-size:1.08rem;color:var(--ink);letter-spacing:.3px;text-wrap:balance}
+.wc-sub{font-size:.8rem;color:var(--dim)}
+.wc-opts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.wopt{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 10px;border-radius:9px;cursor:pointer;color:var(--ink);font:600 .86rem var(--ui);background:linear-gradient(180deg,rgba(30,41,59,.6),rgba(15,23,42,.45));border:1px solid rgba(34,211,238,.22)}
+.wopt svg{width:22px;height:22px;color:var(--eq)}
+.wopt small{font:400 .68rem var(--ui);color:var(--dim)}
+.wopt:hover{border-color:var(--eq);box-shadow:0 0 16px rgba(34,211,238,.18)}
+.wc-foot{font-size:.76rem;color:var(--dim)}
+.linkbtn{background:none;border:0;color:var(--focus);cursor:pointer;font:inherit;padding:0;text-decoration:underline}
+.wc details{font-size:.76rem;color:var(--dim);text-align:left;align-self:center}
+.wc summary{cursor:pointer;color:var(--focus)}
+.wc ol{margin:6px 0 0;padding-left:18px}
+
+/* Dropzone overlay */
+.dropzone{position:absolute;inset:6px;z-index:5;border:2px dashed var(--eq);border-radius:10px;display:grid;place-items:center;background:rgba(4,20,28,.82);font:600 1rem var(--ui);color:var(--eq);pointer-events:none;text-align:center}
+.dropzone small{display:block;font:400 .75rem var(--ui);color:var(--dim);margin-top:4px}
+
+/* Toast */
+.toast{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:4;background:rgba(6,12,22,.96);border:1px solid rgba(34,211,238,.35);border-radius:8px;padding:7px 12px;font-size:.78rem;color:var(--ink);box-shadow:0 10px 30px rgba(0,0,0,.6);max-width:calc(100% - 32px)}
+
+/* Import drawer specifics */
+.drop{display:flex;flex-direction:column;align-items:center;gap:4px;padding:18px;border:1.5px dashed rgba(34,211,238,.35);border-radius:9px;cursor:pointer;color:var(--ink);font-size:.86rem;text-align:center}
+.drop.over,.drop:hover{border-color:var(--eq);background:rgba(34,211,238,.06)}
+.drop small{color:var(--dim);font-size:.72rem}
+.found{display:flex;flex-direction:column;gap:2px;max-height:170px;overflow:auto}
+.found button{text-align:left;background:none;border:1px solid transparent;border-radius:6px;color:var(--ink);padding:6px 8px;cursor:pointer;font:.8rem var(--ui);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.found button:hover,.found button.on{background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.25)}
+.found small{color:var(--mute)}
+.preview{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:12px;align-items:center;border-top:1px solid var(--line);padding-top:10px}
+#prevCv{width:100%;height:96px;display:block;border-radius:7px;background:rgba(2,6,14,.6);border:1px solid var(--line)}
+.pv-info{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pv-t{font-size:.84rem;color:var(--ink)}
+input[type=search]{width:100%;box-sizing:border-box;background:rgba(2,6,14,.85);color:#bae6fd;border:1px solid rgba(56,189,248,.25);border-radius:6px;font:.84rem var(--ui);padding:6px 8px}
+
+/* Bit-perfect banner */
+.bp-banner{position:absolute;top:0;left:0;right:0;z-index:6;background:rgba(251,191,36,.18);border-bottom:1px solid rgba(251,191,36,.4);color:var(--amber);font:.76rem var(--mono);text-align:center;padding:5px 10px;letter-spacing:.5px}
+
+/* Context menu */
+.menu{position:fixed;z-index:50;min-width:170px;background:rgba(6,12,22,.98);border:1px solid rgba(56,189,248,.3);border-radius:8px;box-shadow:0 14px 34px rgba(0,0,0,.7);padding:4px;font-size:.8rem}
+.menu button{display:flex;gap:8px;align-items:center;width:100%;background:none;border:0;color:#cbd5e1;padding:6px 9px;border-radius:5px;cursor:pointer;text-align:left;font:inherit}
+.menu button:hover,.menu button:focus-visible{background:rgba(56,189,248,.15);outline:none}
+.menu .sep{height:1px;background:var(--line);margin:3px 4px}
+.menu .chk{width:12px;color:var(--eq)}
+/* Analyzer settings */
+.specmenu{padding:8px 10px;display:grid;gap:7px;min-width:0}
+.specmenu .srow{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.specmenu .modes button{display:inline-block;width:auto;border-radius:0;color:var(--dim);padding:3px 8px;font:.72rem var(--ui)}
+.specmenu .modes button.on{color:#052e33;background:var(--eq);font-weight:600}
+.specmenu .modes button:not(.on):hover{background:rgba(56,189,248,.15)}
+
+@media (max-width:620px){.wc-opts{grid-template-columns:1fr}.preview{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<div class="win" id="eqWin">
+
+  <!-- Bit-perfect banner -->
+  <div class="bp-banner" id="bpBanner" hidden>Bit-perfect mode: EQ is bypassed</div>
+
+  <!-- Header / title bar -->
+  <header id="winHead">
+    <span class="tokchip">EQ</span>
+    <span class="wt">Parametric EQ</span>
+    <span class="grow"></span>
+    <span class="grp">
+      <span class="lbl">Preset</span>
+      <select id="presetSel" aria-label="Preset">
+        <option value="Flat">Flat</option>
+        <option value="custom" hidden>Custom</option>
+      </select>
+      <button type="button" class="iconbtn" id="presetMenu" title="Preset options" aria-label="Preset options">
+        <svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="13" r="1.2"/></svg>
+      </button>
+    </span>
+    <span class="modes ab" id="ab">
+      <button type="button" class="on" id="abA" data-s="A">A</button>
+      <button type="button" id="abB" data-s="B">B</button>
+    </span>
+    <span class="grp">
+      <button type="button" class="sw" id="proOn" aria-label="EQ on"></button>
+      <span class="lbl">On</span>
+    </span>
+    <span class="win-btns">
+      <button type="button" class="win-btn min" id="winMin" aria-label="Minimize"></button>
+      <button type="button" class="win-btn close" id="winClose" aria-label="Close"></button>
+    </span>
+  </header>
+
+  <!-- Tools -->
+  <div class="tools">
+    <span class="grp">
+      <span class="lbl">Range</span>
+      <span class="modes" id="range">
+        <button type="button" data-v="3">&plusmn;3</button>
+        <button type="button" data-v="6">&plusmn;6</button>
+        <button type="button" class="on" data-v="12">&plusmn;12</button>
+        <button type="button" data-v="30">&plusmn;30</button>
+      </span>
+    </span>
+    <span class="grp">
+      <span class="lbl">Spectrum</span>
+      <span class="modes" id="spec">
+        <button type="button" class="on" data-v="off">Off</button>
+        <button type="button" data-v="on">On</button>
+      </span>
+      <button type="button" class="iconbtn" id="specOpts" title="Analyzer settings" aria-label="Analyzer settings" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h7M12 4h2M2 12h2M7 12h7"/><circle cx="10.5" cy="4" r="1.5"/><circle cx="5.5" cy="12" r="1.5"/></svg>
+      </button>
+    </span>
+    <span class="grow"></span>
+    <button type="button" class="iconbtn" id="undoB" title="Undo (Ctrl+Z)" aria-label="Undo" disabled>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3 2 6l3 3"/><path d="M2 6h7.5a4 4 0 0 1 0 8H6"/></svg>
+    </button>
+    <button type="button" class="iconbtn" id="redoB" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled>
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m11 3 3 3-3 3"/><path d="M14 6H6.5a4 4 0 0 0 0 8H10"/></svg>
+    </button>
+    <button type="button" class="act ghost sm" id="addBand">+ Band</button>
+    <button type="button" class="act ghost sm" id="btnImport">Import&hellip;</button>
+    <button type="button" class="act ghost sm" id="btnExport">Export</button>
+  </div>
+
+  <!-- Import drawer -->
+  <div class="drawer" id="importDrawer" hidden>
+    <div class="row">
+      <span class="lbl">Import profile</span>
+      <span class="modes" id="impTabs">
+        <button type="button" class="on" data-v="file">File</button>
+        <button type="button" data-v="paste">Paste text</button>
+        <button type="button" data-v="find">Find headphones</button>
+      </span>
+      <span class="grow"></span>
+      <button type="button" class="act ghost sm" id="importCancel">Close</button>
+    </div>
+
+    <div class="imp-pane" data-p="file">
+      <label class="drop" id="dropBox">
+        <input type="file" id="importFile" accept=".txt,.cfg,text/plain" hidden>
+        <span><b>Drop a profile file here</b> or <span class="linkbtn">browse</span></span>
+        <small>AutoEq ParametricEQ.txt &middot; Equalizer APO / Peace config.txt &middot; REW filter export</small>
+      </label>
+    </div>
+
+    <div class="imp-pane" data-p="paste" hidden>
+      <textarea id="importText" spellcheck="false" placeholder="Paste the text of a profile, for example:&#10;Preamp: -6.2 dB&#10;Filter 1: ON LSC Fc 105 Hz Gain 5.5 dB Q 0.70&#10;Filter 2: ON PK Fc 3100 Hz Gain -3.4 dB Q 2.40"></textarea>
+    </div>
+
+    <div class="imp-pane" data-p="find" hidden>
+      <input type="search" id="findQ" placeholder="Headphone or IEM model" autocomplete="off">
+      <div class="found" id="found"></div>
+    </div>
+
+    <div class="preview" id="impPrev" hidden>
+      <canvas id="prevCv"></canvas>
+      <div class="pv-info">
+        <div class="pv-t" id="pvTitle"></div>
+        <div class="msg" id="pvMsg"></div>
+        <div class="msg" id="prevCredit" hidden></div>
+        <div class="row">
+          <span class="modes" id="impMode">
+            <button type="button" class="on" data-v="replace">Replace bands</button>
+            <button type="button" data-v="add">Add to current</button>
+          </span>
+          <span class="grp">
+            <button type="button" class="sw on" id="usePre" aria-label="Use preamp from file"></button>
+            <span class="lbl">File preamp</span>
+          </span>
+          <span class="grow"></span>
+          <button type="button" class="act save sm" id="importGo">Apply</button>
+        </div>
+      </div>
+    </div>
+    <div class="msg bad" id="importErr"></div>
+  </div>
+
+  <!-- Export drawer -->
+  <div class="drawer" id="exportDrawer" hidden>
+    <div class="row">
+      <span class="lbl">Export &middot; Equalizer APO text</span>
+      <span class="grow"></span>
+      <button type="button" class="act ghost sm" id="copyExport">Copy</button>
+      <button type="button" class="act ghost sm" id="saveExport">Save file</button>
+      <button type="button" class="act ghost sm" id="exportClose">Close</button>
+    </div>
+    <div class="msg warn" id="exportNote" hidden>6 and 18 dB/oct cuts are written one order steeper: APO has no first-order filters.</div>
+    <textarea id="exportText" readonly spellcheck="false"></textarea>
+  </div>
+
+  <!-- Graph area -->
+  <div class="graph" id="graphBox">
+    <canvas id="eqCanvas" tabindex="0" aria-label="EQ curve: drag nodes to edit"></canvas>
+    <div class="bandpop" id="bandPop" hidden></div>
+
+    <!-- First-run welcome -->
+    <div class="welcome" id="welcome">
+      <div class="wc">
+        <div class="wc-h">Load your headphone or room correction</div>
+        <div class="wc-sub">Aura EQ reads the profiles you already have: AutoEq, Equalizer APO, Peace, REW, squig.link.</div>
+        <div class="wc-opts">
+          <button type="button" class="wopt" id="wFile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5M12 17v-6M9.5 13.5 12 11l2.5 2.5"/></svg>
+            Open a file<small>ParametricEQ.txt, GraphicEQ.txt, config.txt</small>
+          </button>
+          <button type="button" class="wopt" id="wPaste">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="4" width="12" height="17" rx="1.5"/><path d="M9 4V3h6v1M9 10h6M9 13.5h6M9 17h4"/></svg>
+            Paste text<small>or press Ctrl+V anywhere here</small>
+          </button>
+          <button type="button" class="wopt" id="wFind">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>
+            Find my headphones<small>AutoEq database, 5000+ models</small>
+          </button>
+        </div>
+        <div class="wc-foot">Or drop a file on this window &middot; <button type="button" class="linkbtn" id="wScratch">Start from scratch</button></div>
+        <details>
+          <summary>Where do I get a profile?</summary>
+          <ol>
+            <li>Open <a href="https://autoeq.app" rel="noopener">autoeq.app</a> and pick your headphones.</li>
+            <li>Choose <b>Equalizer APO</b> as the app and download the parametric profile.</li>
+            <li>Drop the downloaded file on this window.</li>
+            <li>Room correction: measure in REW, then <b>Export filter settings as text</b>.</li>
+          </ol>
+        </details>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+  </div>
+
+  <!-- Drop overlay (whole window) -->
+  <div class="dropzone" id="dropzone" hidden>
+    <div>Drop to import<small>The current curve is kept for Undo</small></div>
+  </div>
+
+  <!-- Chips -->
+  <div class="chips" id="chips"></div>
+
+  <!-- Footer -->
+  <!-- Two fixed rows: the status text changes width while a control moves, so nothing may wrap around it -->
+  <footer id="eqFooter">
+   <div class="frow">
+    <span class="status" id="status"></span>
+    <button type="button" class="act ghost" id="btnReset" title="Bands, gain and output back to flat; the speakers stay">Reset</button>
+    <button type="button" class="act save" id="btnSave">Save preset</button>
+   </div>
+   <div class="frow">
+    <span class="grp">
+      <span class="lbl">Gain</span>
+      <span class="modes" id="gainMode">
+        <button type="button" class="on" data-v="manual" title="Output level only">Manual</button>
+        <button type="button" data-v="auto" title="Auto Gain: about the same loudness with the EQ on and off">Auto</button>
+        <button type="button" data-v="safe" title="Lowers the level by the EQ's largest boost, so it cannot clip">Safe</button>
+      </span>
+    </span>
+    <span class="grp">
+      <span class="lbl outlbl" id="outLbl" title="Drag up or down; double-click for 0 dB">Output</span>
+      <input type="range" class="outg" id="outGain" min="-30" max="30" step="0.1" value="0" aria-label="Output gain" title="Wheel or drag; double-click for 0 dB">
+      <input type="text" class="outv" id="outGainV" value="0.0 dB" spellcheck="false" autocomplete="off" aria-label="Output gain, dB">
+      <button type="button" class="clip" id="clipL" title="No clipping after the EQ">CLIP</button>
+    </span>
+   </div>
+  </footer>
+
+  <!-- Speakers: balance and delay for the room, outside the presets, with their own reset -->
+  <section class="spkbox" id="spkBox" aria-label="Speakers">
+   <div class="frow">
+    <span class="spkh" title="Balance and Delay set up your speakers: they stay when you switch or reset presets and are not saved in them.">Speakers</span>
+    <span class="grp spkkeep" title="Off (the default), the EQ's power switch turns the balance and delay off with the bands; on, they keep playing with the EQ off, and the EQ button in the main window shows SPK.">
+      <button type="button" class="sw" id="spkAlways" role="switch" aria-checked="false" aria-label="Keep balance and delay with the EQ off"></button>
+      <span class="lbl" id="spkAlwaysL">Keep with EQ off</span>
+    </span>
+    <button type="button" class="act ghost sm" id="btnSpk" title="Work out the delay (and a balance) from your distances to the speakers">Distances…</button>
+    <button type="button" class="act ghost sm" id="btnSpkReset" title="Balance to the centre, delay to none">Reset</button>
+   </div>
+   <div class="frow">
+    <span class="grp">
+      <span class="lbl ballbl" id="balLbl" title="Drag left or right (Shift: finer); double-click for the centre">Balance</span>
+      <input type="range" class="balg" id="balance" min="-1" max="1" step="0.001" value="0" aria-label="Balance" title="Wheel: 0.1 dB, Shift+wheel: 0.01 dB; double-click for the centre">
+      <input type="text" class="outv balv" id="balanceV" value="C" spellcheck="false" autocomplete="off" aria-label="Balance, dB" title="Type R1.5, L0.7 or -1.5 (dB); C for the centre">
+      <span class="modes" id="balMode">
+        <button type="button" class="on" data-v="lr" title="Left / right: the other channel gets quieter">L/R</button>
+        <button type="button" data-v="ms" title="Mid / side: toward S the mid gets quieter (wider), toward M the side (narrower)">M/S</button>
+      </span>
+    </span>
+    <span class="grp spkdel">
+      <span class="lbl ballbl" id="delLbl" title="Drag left or right (Shift: finer); double-click for none">Delay</span>
+      <input type="range" class="balg delg" id="delay" min="-1" max="1" step="0.001" value="0" aria-label="Speaker delay" title="Wheel: 0.1 ms, Shift+wheel: 0.01 ms; double-click for none">
+      <input type="text" class="outv balv" id="delayV" value="0 ms" spellcheck="false" autocomplete="off" aria-label="Speaker delay, ms" title="Type L2.04 or R0.5 (ms), or a distance: L70cm, R0.7m; 0 for none">
+      <span class="delcm" id="delayCm"></span>
+    </span>
+   </div>
+  </section>
+
+</div><!-- .win -->
+
+<div class="menu specmenu" id="specMenu" role="dialog" aria-label="Analyzer settings" hidden>
+  <div class="srow"><span class="lbl">Show</span><span class="modes" data-k="mode"><button type="button" data-v="pre">Pre</button><button type="button" data-v="post">Post</button><button type="button" data-v="both">Pre+Post</button></span></div>
+  <div class="srow"><span class="lbl">Resolution</span><span class="modes" data-k="res"><button type="button" data-v="low">Low</button><button type="button" data-v="medium">Med</button><button type="button" data-v="high">High</button><button type="button" data-v="max">Max</button></span></div>
+  <div class="srow"><span class="lbl">Speed</span><span class="modes" data-k="speed"><button type="button" data-v="slow">Slow</button><button type="button" data-v="medium">Med</button><button type="button" data-v="fast">Fast</button></span></div>
+  <div class="srow"><span class="lbl">Tilt dB/oct</span><span class="modes" data-k="tilt"><button type="button" data-v="0">0</button><button type="button" data-v="3">3</button><button type="button" data-v="4.5">4.5</button><button type="button" data-v="6">6</button></span></div>
+  <div class="srow"><span class="lbl">Range dB</span><span class="modes" data-k="range"><button type="button" data-v="60">60</button><button type="button" data-v="90">90</button><button type="button" data-v="120">120</button></span></div>
+  <div class="srow"><span class="lbl">Freeze</span><span class="modes" data-k="freeze"><button type="button" data-v="false">Off</button><button type="button" data-v="true">Hold peaks</button></span></div>
+</div>
+<div class="menu specmenu spkcalc" id="spkCalc" role="dialog" aria-label="Speaker distances" hidden>
+  <div class="srow"><span class="lbl">Left speaker</span><input type="number" id="spkL" min="0" step="any" inputmode="decimal" aria-label="Distance to the left speaker"></div>
+  <div class="srow"><span class="lbl">Right speaker</span><input type="number" id="spkR" min="0" step="any" inputmode="decimal" aria-label="Distance to the right speaker"></div>
+  <div class="srow"><span class="lbl">Unit</span><span class="modes" id="spkUnit"><button type="button" data-v="cm">cm</button><button type="button" data-v="m">m</button><button type="button" data-v="in">in</button><button type="button" data-v="ft">ft</button></span></div>
+  <div class="srow"><span class="lbl">Room °C</span><input type="number" id="spkT" min="-10" max="45" step="1" value="20" aria-label="Room temperature, °C"></div>
+  <label class="srow spkchk"><span><input type="checkbox" id="spkBal"> Also set the balance</span><span class="dimtxt" title="In a free field the nearer speaker is louder by 20·log10(far/near) dB. A room's reflections make the real difference smaller: trust your ears.">a hint</span></label>
+  <div class="spkres" id="spkRes">Measure from your listening place to each speaker's tweeter.</div>
+  <div class="srow"><button type="button" class="act ghost" id="spkClear" title="Delay 0, balance centre">Clear speakers</button><button type="button" class="act save" id="spkApply" disabled>Apply</button></div>
+</div>
+<script type="module" src="js/eq/window.js"></script>
+<!-- The tour of this window (its ? in the title bar) -->
+<script type="module" src="js/eq/tour-eq.js"></script>
+</body>
+</html>

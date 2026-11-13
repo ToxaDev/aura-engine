@@ -1,0 +1,31 @@
+[package]
+name = "aura-streamer"
+version.workspace = true
+description = "Aura Streamer: the Aura Engine without a window, run from a browser on the home network"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+# The workspace lives in the app's folder: build from desktop-app/src-tauri.
+workspace = "../../desktop-app/src-tauri"
+
+[dependencies]
+aura-core = { path = "../../crates/aura-core" }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
+tokio = { version = "1.29.1", features = ["full"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rayon = "1.8"
+symphonia = { version = "0.6", features = ["all"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+# The network renderer (upnp/): fetching tracks, events, discovery.
+reqwest = { version = "0.11", default-features = false, features = ["default-tls", "stream"] }
+socket2 = "0.5"
+rand = "0.8"
+# Its own updates (update.rs): the binary out of the release's zip.
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = "3"
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+base64 = "0.21"

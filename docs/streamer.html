@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aura Streamer — free audiophile network streamer and UPnP / OpenHome renderer</title>
+<meta name="description" content="Aura Streamer runs AuraEngine's FIR upsampler on the computer next to your DAC and plays your library from a phone or tablet browser, or from any UPnP / OpenHome control point. Filters up to a billion taps, bit-perfect output, DSD256 over DoP. Free for Windows, Linux and macOS.">
+<link rel="canonical" href="https://aura-engine.app/streamer.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="AuraEngine">
+<meta property="og:title" content="Aura Streamer — the AuraEngine upsampler next to your DAC, played from your phone">
+<meta property="og:description" content="A free audiophile network streamer: the same FIR engine, filters and rack as the AuraEngine app, a browser remote for phone and tablet, and a UPnP / OpenHome renderer.">
+<meta property="og:url" content="https://aura-engine.app/streamer.html">
+<meta property="og:image" content="https://aura-engine.app/media/shot-streamer-tablet-2200.webp">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Aura Streamer — the AuraEngine upsampler next to your DAC">
+<meta name="twitter:description" content="A free audiophile network streamer with a browser remote and a UPnP / OpenHome renderer. Windows, Linux and macOS.">
+<meta name="twitter:image" content="https://aura-engine.app/media/shot-streamer-tablet-2200.webp">
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48 64x64">
+<link rel="icon" type="image/png" sizes="256x256" href="media/aura-icon.png">
+<link rel="apple-touch-icon" href="media/apple-touch-icon.png">
+<meta name="theme-color" content="#02050c">
+<meta name="color-scheme" content="dark">
+<style>
+  :root {
+    --bg: #02050c; --panel: rgba(12, 22, 42, .62); --panel-solid: #0a1426;
+    --line: rgba(56, 189, 248, .16); --line-2: rgba(56, 189, 248, .32);
+    --text: #e6f1ff; --body: #c9d6ea; --dim: #94a3b8; --faint: #5b6b86;
+    --sky: #38bdf8; --cyan: #67e8f9; --violet: #a78bfa;
+    --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", monospace;
+    --sans: "SF Pro Display", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    --top: 56px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: calc(var(--top) + 16px); -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--body); font: 16.5px/1.68 var(--sans); }
+  a { color: var(--sky); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code { font-family: var(--mono); font-size: .88em; background: rgba(56,189,248,.08); border: 1px solid var(--line);
+    border-radius: 5px; padding: .05em .35em; color: var(--text); overflow-wrap: anywhere; }
+  strong { color: var(--text); font-weight: 600; }
+  img { max-width: 100%; height: auto; }
+  .topbar { position: sticky; top: 0; z-index: 20; height: var(--top); display: flex; align-items: center; gap: 18px;
+    padding: 0 16px; background: rgba(2,5,12,.88); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; white-space: nowrap; }
+  .brand img { width: 26px; height: 26px; }
+  .topbar nav { margin-left: auto; display: flex; gap: 16px; font-size: .92em; overflow-x: auto; }
+  .topbar nav a { color: var(--dim); white-space: nowrap; }
+  .topbar nav a.dl { color: var(--sky); }
+  main { max-width: 820px; margin: 0 auto; padding: 36px 16px 80px; }
+  .meta { font: 600 .78em/1 var(--mono); letter-spacing: .12em; color: var(--sky); margin-bottom: 12px; }
+  h1 { color: var(--text); font-size: clamp(30px, 6vw, 46px); line-height: 1.15; margin: 0 0 14px; letter-spacing: -.5px; }
+  h2 { color: var(--text); font-size: 1.5em; line-height: 1.3; margin: 46px 0 12px; padding-top: 26px; border-top: 1px solid var(--line); }
+  h3 { color: var(--text); font-size: 1.12em; margin: 26px 0 8px; }
+  .lead { font-size: 1.14em; color: var(--text); }
+  ul, ol { padding-left: 1.3em; }
+  li { margin: 5px 0; }
+  .shots { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; margin: 26px 0; }
+  .shots img { border-radius: 12px; border: 1px solid var(--line); display: block; }
+  .dl-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0; }
+  .btn { display: inline-block; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line-2);
+    background: var(--panel); color: var(--text); font-weight: 600; }
+  .btn:hover { text-decoration: none; border-color: var(--sky); }
+  .tbl { overflow-x: auto; margin: 14px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .92em; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--text); background: rgba(56,189,248,.06); font-weight: 600; }
+  details { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 10px 0; background: var(--panel); }
+  summary { color: var(--text); font-weight: 600; cursor: pointer; }
+  footer { border-top: 1px solid var(--line); color: var(--faint); font-size: .86em; padding: 22px 16px 40px; text-align: center; }
+  footer a { color: var(--dim); margin: 0 8px; }
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Aura Streamer",
+  "alternateName": "AuraEngine Streamer",
+  "description": "Free audiophile network streamer: AuraEngine's FIR upsampler (filters up to a billion taps, Hybrid-Phase, DSD256 over DoP, bit-perfect output) running on the computer next to the DAC, controlled from a phone or tablet browser or any UPnP / OpenHome control point.",
+  "applicationCategory": "MultimediaApplication",
+  "applicationSubCategory": "Network audio streamer, UPnP / OpenHome renderer",
+  "operatingSystem": "Windows 10, Windows 11, Linux, macOS",
+  "softwareVersion": "2.0.1",
+  "url": "https://aura-engine.app/streamer.html",
+  "downloadUrl": "https://github.com/ToxaDev/aura-engine/releases/latest",
+  "image": "https://aura-engine.app/media/shot-streamer-tablet-2200.webp",
+  "screenshot": ["https://aura-engine.app/media/shot-streamer-tablet-2200.webp", "https://aura-engine.app/media/shot-streamer-phone-760.webp"],
+  "featureList": ["Browser remote for phone, tablet and computer", "Music library by album, artist, genre and folder", "UPnP AV and OpenHome renderer with gapless playback", "FIR filters up to 1 billion taps", "DSD256 over DoP", "Bit-perfect output", "Signed self-update"],
+  "isPartOf": { "@type": "SoftwareApplication", "name": "AuraEngine", "url": "https://aura-engine.app/" },
+  "author": { "@type": "Person", "name": "ToxaDev", "url": "https://github.com/ToxaDev" },
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "isAccessibleForFree": true
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type": "Question", "name": "What is Aura Streamer?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Aura Streamer is AuraEngine without a window: a small program that runs on the computer connected to your DAC and plays through the same FIR upsampling engine, filters and DSP rack as the desktop app. You control it from a browser on a phone, tablet or another computer on the same network, or from a UPnP / OpenHome control point."}},
+    {"@type": "Question", "name": "Do I need an app on my phone?",
+     "acceptedAnswer": {"@type": "Answer", "text": "No. The remote is a web page at the streamer's address on your home network. You can add it to the home screen from the browser's menu."}},
+    {"@type": "Question", "name": "Does it work with BubbleUPnP, JRiver or mConnect?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Yes. It is a UPnP AV and OpenHome renderer: control points such as BubbleUPnP, JRiver and mConnect see it as Aura Streamer and can play, pause, seek, change volume and play gapless through the engine."}},
+    {"@type": "Question", "name": "Does it play DSD?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Yes. DSF and DFF files play, and DSD goes to the DAC over DoP up to DSD256 live."}},
+    {"@type": "Question", "name": "Is Aura Streamer free?",
+     "acceptedAnswer": {"@type": "Answer", "text": "Yes. It is free for personal use on Windows, Linux and macOS, released with AuraEngine under the PolyForm Noncommercial license."}}
+  ]
+}
+</script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="./"><img src="media/aura-icon-64.png" alt="" width="26" height="26">AuraEngine</a>
+  <nav>
+    <a href="./">Home</a>
+    <a href="docs.html#streamer">Docs</a>
+    <a href="https://github.com/ToxaDev/aura-engine">GitHub</a>
+    <a class="dl" href="#download">Download</a>
+  </nav>
+</header>
+
+<main>
+  <div class="meta">AURA STREAMER 2.0 · WINDOWS · LINUX · MACOS · FREE</div>
+  <h1>Aura Streamer: an audiophile upsampler next to your DAC, played from your phone</h1>
+  <p class="lead">Aura Streamer is the <a href="./">AuraEngine</a> FIR upsampler and music player without a screen. It runs
+    on the computer connected to your DAC, and you choose the music and the sound from a phone, a tablet or any browser
+    at home &mdash; or from a UPnP / OpenHome control point such as BubbleUPnP, JRiver or mConnect.</p>
+  <p>Nothing in the chain is simplified for the remote. The streamer plays through the same engine, the same filters
+    (from 5 thousand to a billion taps), the same Hybrid-Phase engine, Aura EQ and output stage as the desktop app,
+    with bit-perfect output and DSD up to DSD256 over DoP.</p>
+
+  <div class="shots">
+    <img src="media/shot-streamer-tablet-1100.webp" srcset="media/shot-streamer-tablet-1100.webp 1100w, media/shot-streamer-tablet-2200.webp 2200w"
+      sizes="(max-width: 820px) 92vw, 560px" width="1100" height="810" style="width:560px" alt="Aura Streamer's remote on a tablet: the music library, now playing and the queue">
+    <img src="media/shot-streamer-phone-380.webp" srcset="media/shot-streamer-phone-380.webp 380w, media/shot-streamer-phone-760.webp 760w"
+      sizes="180px" width="380" height="820" style="width:180px" loading="lazy" alt="Aura Streamer's remote on a phone: the library with the player at the bottom">
+  </div>
+
+  <h2 id="what">What it does</h2>
+  <ul>
+    <li><strong>A remote in the browser.</strong> The app&rsquo;s own rack, player and queue at the computer&rsquo;s
+      address. Nothing to install on the phone; several phones and tablets show the same state.</li>
+    <li><strong>Your music library.</strong> Albums, artists, genres, folders and playlists, read from your music folders
+      with their tags and covers. Hi-Res and DSD are one tap away.</li>
+    <li><strong>A UPnP / OpenHome renderer.</strong> Any control point on the network can play through it: play, pause,
+      seek, volume, gapless next track and an OpenHome playlist.</li>
+    <li><strong>The full AuraEngine sound.</strong> Precomputed FIR filters up to 1G taps, multistage upsampling to
+      768 kHz, Hybrid-Phase, Aura EQ, XTC and Cue Consistency, true-peak protection.</li>
+    <li><strong>Bit-perfect output</strong> through WASAPI exclusive mode on Windows, ALSA <code>hw:</code> on Linux and
+      CoreAudio exclusive (hog) mode on macOS. No graphics card needed.</li>
+    <li><strong>Updates itself</strong> from a button in the remote, after checking the release&rsquo;s signature.</li>
+    <li><strong>Home network only.</strong> It answers only private addresses and accepts commands only from its own page.</li>
+  </ul>
+
+  <h2 id="compare">Aura Streamer or the desktop app?</h2>
+  <div class="tbl"><table>
+    <tr><th></th><th>AuraEngine app</th><th>Aura Streamer</th></tr>
+    <tr><td><strong>Window</strong></td><td>Full interface on the computer</td><td>None; a console with the engine&rsquo;s log</td></tr>
+    <tr><td><strong>Controlled from</strong></td><td>The window</td><td>A browser on any device at home; UPnP / OpenHome control points</td></tr>
+    <tr><td><strong>Engine and rack</strong></td><td>Player, converter and the full rack</td><td>The same engine and rack for playback</td></tr>
+    <tr><td><strong>Library</strong></td><td>The player&rsquo;s list</td><td>Albums, artists, genres and folders from your music folders</td></tr>
+    <tr><td><strong>Best for</strong></td><td>Converting files, listening at the desk</td><td>A computer next to the DAC, driven from the sofa</td></tr>
+  </table></div>
+  <p>The two install side by side and share the same filter files.</p>
+
+  <h2 id="download">Download</h2>
+  <p>Free for personal use. Unpack the zip into a folder you can write to and start <code>aura-streamer</code>.</p>
+  <div class="dl-row">
+    <a class="btn" href="https://github.com/ToxaDev/aura-engine/releases/download/v2.0.1/aura-streamer-v2.0.1-windows-x64.zip">Windows (x64)</a>
+    <a class="btn" href="https://github.com/ToxaDev/aura-engine/releases/download/v2.0.1/aura-streamer-v2.0.1-linux-x86_64.zip">Linux (x86_64)</a>
+    <a class="btn" href="https://github.com/ToxaDev/aura-engine/releases/download/v2.0.1/aura-streamer-v2.0.1-macos-universal.zip">macOS (universal)</a>
+  </div>
+
+  <h3>First start</h3>
+  <ol>
+    <li>Start <code>aura-streamer</code> (<code>aura-streamer.exe</code> on Windows) on the computer connected to the DAC.
+      A console window prints the addresses to open; closing it stops the music.</li>
+    <li>Allow the program on private networks when the firewall asks.</li>
+    <li>Open the address on your phone: <code>http://&lt;address&gt;</code> (port 80, or 8088 when 80 is taken).</li>
+    <li>Filters: on Linux and macOS it finds the ones the AuraEngine app downloaded. On Windows, unpack it beside
+      <code>aura-engine.exe</code>, or let the remote download the filters it needs.</li>
+  </ol>
+  <p>The full guide, with control points, environment variables and troubleshooting, is in the
+    <a href="docs.html#streamer">documentation</a> and in
+    <a href="https://github.com/ToxaDev/aura-engine/blob/master/docs/23-aura-streamer.md">docs/23 &mdash; Aura Streamer</a>.</p>
+
+  <h2 id="faq">Questions</h2>
+  <details><summary>Do I need an app on my phone?</summary>
+    <p>No. The remote is a web page at the streamer&rsquo;s address on your home network. Add it to the home screen from
+      the browser&rsquo;s menu to open it in one tap.</p></details>
+  <details><summary>Does it work with BubbleUPnP, JRiver or mConnect?</summary>
+    <p>Yes. It is a UPnP AV and OpenHome renderer, shown as <strong>Aura Streamer</strong>. Discovery uses UDP 1900 and
+      the renderer TCP 49494; allow both on private networks.</p></details>
+  <details><summary>Does it play DSD and Hi-Res?</summary>
+    <p>Yes. FLAC, WAV and other PCM up to the DAC&rsquo;s limit, DSF and DFF, and DSD over DoP up to DSD256 live.</p></details>
+  <details><summary>Do I need a powerful computer?</summary>
+    <p>No. Multistage upsampling runs long filters at the source rate and a short exact interpolator does the rest, so
+      a 30-million-tap filter plays on a few efficiency cores without a graphics card.</p></details>
+  <details><summary>Can I reach it from outside my home?</summary>
+    <p>Not directly, by design: it has no password and answers only private addresses. Use a VPN into your home network.</p></details>
+</main>
+
+<footer>
+  &copy; ToxaDev · AuraEngine ·
+  <a href="./">Home</a><a href="docs.html">Documentation</a><a href="privacy.html">Privacy</a><a href="https://github.com/ToxaDev/aura-engine">GitHub</a>
+</footer>
+</body>
+</html>

@@ -1,0 +1,113 @@
+// @name     Scope
+// @author   weyland (Scope Multipass Feedback), adapted for Aura Engine — https://www.shadertoy.com/view/ldyGDD
+// @about    An oscilloscope's glowing line drawing the sound as it is heard, held steady like a real scope's trigger, glowing brighter when the music is loud; the copies it leaves drift, grow and turn away, fading to magenta.
+// @license  CC BY-NC-SA 3.0 (Shadertoy's terms; the code names no other) — adapted from "Scope Multipass Feedback" by weyland, https://www.shadertoy.com/view/ldyGDD
+//
+// @section  "Trace"     "The scope's line"
+// @param    float  span      6.0   1.0   30.0  0.5   ms  "Time span"     "How much of the sound the line shows across the view"
+// @param    float  height    1.0   0.3   2.0   0.01  x   "Height"        "How tall the wave is drawn"
+// @param    float  lineGlow  1.0   0.3   2.0   0.01  x   "Glow"          "How thick and bright the line glows; it grows with the loudness"
+// @param    bool   steady    1                           "Steady"        "Hold the wave still from one moment to the next, as a scope's trigger does"
+//
+// @section  "Echoes"    "The fading copies the line leaves behind"
+// @param    float  trail     1.0   0.3   2.0   0.01  x   "Trail"         "How long the copies last"
+// @param    float  drift     1.0   0.0   2.0   0.01  x   "Drift"         "How far the copies drift and turn"
+// @param    float  zoom      1.0   0.0   2.0   0.01  x   "Zoom"          "How fast the copies grow away"
+// @param    float  tint      1.0   0.0   2.0   0.01  x   "Colour drift"  "How much the copies turn magenta as they fade"
+//
+// @section  "Colour"
+// @param    choice colours   0     "Cyan|Album cover|App|Custom" "Colours" "Where the line's colour comes from"
+// @param    color  custom    #3d8bff                   "Custom colour" "With Custom: the line's colour"
+// @param    float  bright    1.0   0.4   1.6   0.01  x   "Brightness"    "How bright the whole picture is"
+//
+// @section  "Layout"
+// @param    float  lineY     0.3   0.1   0.9   0.01      "Height in the player" "Where the line runs in the player, from the bottom (full screen: the middle)"
+
+// @common
+// Scope Multipass Feedback — weyland, https://www.shadertoy.com/view/ldyGDD: "Cheap quick and dirty feedback and
+// scope fun, hacked together from multiple shaders updated with smoother falloff and feedback". Shadertoy's terms:
+// CC BY-NC-SA 3.0.
+// Adapted for Aura Engine: the line is the player's waveform (the sound as heard, both channels' middle), held
+// still by a trigger (pass A finds the last upward zero crossing before the window, to a fraction of a sample, so a
+// steady tone stands instead of jumping every frame) and scaled by a slow automatic gain; it glows with the
+// smoothed loudness. The echoes are the author's feedback, measured in time rather than in frames (the same at
+// 30 and at 60 frames a second; paused, the picture holds).
+
+// @pass A  iChannel0=A:nearest:clamp
+// The trigger and the gain, kept in texels (0 … 3, 0 … 3): x the trace's start (seconds from now), y the wave's
+// recent peak (a slow automatic gain), z the smoothed loudness.
+void mainImage(out vec4 o, in vec2 fc) {
+    if (fc.x > 4.0 || fc.y > 4.0) { o = vec4(0.0); return; }
+    vec4 s = texelFetch(iChannel0, ivec2(1, 1), 0);
+    float dt = min(uDelta, 0.05);
+    float w = span * 0.001;
+    if (uLive < 0.5) { o = vec4(-w, s.y, s.z * exp(-dt / 0.3), 0.0); return; }
+    // the last upward crossing through zero in the 25 ms before the window, the one nearest to now
+    const int N = 110;
+    const float LOOK = 0.025;
+    float t0 = -w, prev = musicWave(-w - LOOK, 2), peak = abs(prev);
+    for (int i = 1; i <= N; i++) {
+        float t = -w - LOOK + float(i) * (LOOK / float(N));
+        float cur = musicWave(t, 2);
+        if (prev < 0.0 && cur >= 0.0) t0 = t - (LOOK / float(N)) * cur / (cur - prev);
+        peak = max(peak, abs(cur));
+        prev = cur;
+    }
+    s.x = steady ? t0 : -w;
+    s.y = max(peak, s.y * exp(-dt / 1.5));                 // up at once, down over a second and a half
+    float l = musicLoudness(0.0);
+    s.z = max(l, s.z * exp(-dt / 0.3));
+    o = s;
+}
+
+// @pass B  iChannel0=A:nearest:clamp  iChannel1=B:linear:clamp
+vec2 rot(vec2 uv,float a){
+	return vec2(uv.x*cos(a)-uv.y*sin(a),uv.y*cos(a)+uv.x*sin(a));
+}
+
+// The line's colour: the author's cyan-blue, the cover's, the app's or one's own.
+vec3 lineColour() {
+    if (colours == 0) return vec3(0.0, 0.5, 1.0);
+    vec3 c = colours == 1 ? auraPalette(0.0) : colours == 2 ? auraAppPalette(0.05) : custom;
+    return c / max(max(c.r, max(c.g, c.b)), 0.2);
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    vec2 uv = fragCoord / iResolution.xy;
+    vec4 st = texelFetch(iChannel0, ivec2(1, 1), 0);
+    float time = iTime;
+    float f = min(uDelta * 60.0, 3.0);                    // the frames' worth of time since the last (0 paused)
+
+    // The scope (the author's Buffer A): the waveform from the trigger on, across the view.
+    float y0 = uFull > 0.5 ? 0.5 : lineY;
+    float wave = uLive > 0.5 ? musicWave(st.x + uv.x * span * 0.001, 2) * 0.42 / max(st.y, 0.02)
+                             : 0.08 * sin(uv.x * 18.0 + time * 1.3) * sin(time * 0.4);   // nothing plays: a slow breath
+    float piikit = y0 + wave * height * (uFull > 0.5 ? 1.0 : 0.6);
+    // (the author's 1/d glow; its far tails, piled up by the echoes, washed the whole view: they fade out here)
+    float d = max(abs(piikit - uv.y), 0.0005);
+    float glow = (0.003 + 0.009 * st.z) * lineGlow / d * exp(-d / (0.1 * lineGlow));
+    vec3 color = lineColour() * glow;                     // (the author's: vec3(0, glow*0.5, glow))
+    color += vec3(sqrt(glow*0.12));
+
+    // The echoes (the author's Buffer B): the last picture, drifted, grown and turned a little, faded — each step
+    // scaled by the time since the last frame.
+    vec2 uvDist = rot((uv - (0.005*sin(time/7.))*f*drift) / (1.0 + 0.005*f*zoom) + sin(time/6.)/40.*f*drift,
+                      0.015*sin(time/5.)*f*drift);
+    vec3 prevCol = texture(iChannel1, uvDist).rgb;
+    if (iFrame == 0) prevCol = vec3(0.0);
+    vec3 bias = mix(vec3(1.0), vec3(1.0,0.979,0.999), tint);
+    vec3 fade = pow(0.8 * bias, vec3(f / trail));
+    fragColor = vec4(color * f + prevCol * fade, 1.0);
+}
+
+// @pass image  iChannel0=B:linear:clamp
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+	vec2 uv = fragCoord.xy / iResolution.xy;
+	vec3 c = texture(iChannel0, uv).rgb * bright;
+    c = 1.0 - exp(-c * 1.3);                              // a soft shoulder: the line's core white, its glow still colour
+    // the player's band: the picture steps back under the title and the technical lines
+    if (uFull < 0.5) c *= mix(1.0, 0.4, smoothstep(0.4, 0.66, uv.y));
+	fragColor = vec4(c, 1.0);
+}

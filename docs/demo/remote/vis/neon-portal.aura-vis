@@ -1,0 +1,745 @@
+// @name     Neon Portal
+// @author   mrange (For the neon style enjoyers), adapted for Aura Engine — https://www.shadertoy.com/view/ddcGW8
+// @about    A neon triangle holding a chrome ball stands on a mirror grid before a glowing ridge and a ringed planet. The ridge is the music's spectrum, the bass in the middle; each kick's light rolls in over the grid from the horizon, reaches the triangle's tip as the kick sounds and runs up round its rim; the planet's rings shimmer with the highs.
+// @license  CC0 — adapted from "For the neon style enjoyers" by mrange, https://www.shadertoy.com/view/ddcGW8 (its helpers as the code credits them: Inigo Quilez's and Pascal Gilcher's functions under MIT, hg_sdf's under MIT, Sam Hocevar's HSV under WTFPL)
+//
+// @section  "Ridge"     "The neon mountains behind the triangle: the music's spectrum"
+// @param    float  react      1.0   0.0   2.0   0.01  x   "Music"          "How much the music lifts and lowers the mountains"
+// @param    float  height     1.0   0.5   1.6   0.01  x   "Height"         "How tall the mountains stand"
+// @param    float  fall       1.0   0.3   3.0   0.01  x   "Fall speed"     "How quickly a peak sinks after its sound"
+// @param    choice order      0     "Bass in the middle|Bass on the left" "Order" "Where the low notes stand along the ridge"
+// @param    float  ridgeGlow  1.0   0.2   2.0   0.01  x   "Glow"           "How brightly the ridge's line glows"
+//
+// @section  "Colour"
+// @param    choice colours    0     "Neon|Album cover|App|Custom" "Colours" "Where the colours come from"
+// @param    color  colourA    #16d6ff                   "Custom first"   "With Custom: the colour of the glow, the sky and the chrome"
+// @param    color  colourB    #ff3ccf                   "Custom second"  "With Custom: the colour of the neon lines"
+// @param    float  bright     1.0   0.4   2.0   0.01  x   "Brightness"     "How bright the whole picture is"
+//
+// @section  "Triangle"  "The neon triangle and the chrome ball inside it"
+// @param    float  kickLight  1.0   0.0   2.0   0.01  x   "Kick light"     "How bright the light each kick sends round the triangle's rim"
+// @param    float  rimSpeed   1.0   0.4   2.0   0.01  x   "Rim speed"      "How fast that light runs round the rim"
+//
+// @section  "Floor"     "The mirror grid"
+// @param    float  waves      1.0   0.0   2.0   0.01  x   "Kick waves"     "How bright the band of light each kick sends over the grid"
+// @param    float  lead       1.5   0.5   3.0   0.05  s   "Look-ahead"     "How long before its kick a wave leaves the horizon"
+// @param    float  gridSpeed  1.0   0.0   3.0   0.01  x   "Grid speed"     "How fast the grid flows towards you"
+// @param    float  mirror     1.0   0.0   1.5   0.01  x   "Reflection"     "How clearly the floor mirrors the scene"
+//
+// @section  "Sky"       "The ringed planet and the glow behind the ridge"
+// @param    float  rings      1.0   0.0   2.0   0.01  x   "Ring shimmer"   "How much the planet's rings light up with the highs"
+// @param    float  spin       1.0   0.0   4.0   0.01  x   "Planet spin"    "How fast the planet turns"
+// @param    float  sunGlow    1.0   0.3   2.0   0.01  x   "Horizon glow"   "The light rising behind the ridge"
+//
+// @section  "Layout"
+// @param    float  horizon   -0.3  -0.5   0.25  0.01      "Horizon"        "Where the horizon sits in the player (full screen: as the author framed it)"
+
+// For the neon style enjoyers — mrange, https://www.shadertoy.com/view/ddcGW8 (CC0: "Or is it synthwave style?
+// Don't know! Anyone been tinkering with this for awhile and now want to get on with other stuff. Hopefully someone
+// enjoys it.")
+// Adapted for Aura Engine: the picture is the author's; the music lives in four places of it and moves nothing else.
+// The ridge's line is the spectrum — each point of it one band, the bass under the triangle and the highs out to the
+// sides — rising with its band and sinking at the Fall speed (pass A keeps the bands from frame to frame), while the
+// shape between stays the author's. Each kick sends a band of light over the grid from the horizon: at distance z
+// beyond the triangle the floor shows the kick z / speed seconds ahead, so the band reaches the triangle's tip the
+// moment the kick sounds; from there the light runs up both sides of the rim and meets in the middle of the top edge,
+// and the band rolls on towards you, fading. The planet's rings light with the highs, one band each. The grid's flow
+// and the planet's turn keep their steady speeds; no beat moves the camera or lights the whole picture.
+
+// @common
+const float BANDS = 64.0;                 // the ridge's music: this many bands, low to high, in pass A's first row
+
+// @pass A  iChannel0=A:nearest:clamp
+// The ridge's music, kept from frame to frame in the first row: for each band its level, taken over its neighbours
+// and over the moments just around now (a little ahead and behind, so a peak starts to rise as its sound starts),
+// rising within ~50 ms and sinking at the Fall speed. Nothing playing: 0.5, the author's own ridge. The rest of the
+// buffer is not used.
+void mainImage(out vec4 o, in vec2 fc) {
+    if (fc.y > 1.0 || fc.x > BANDS) { o = vec4(0.0); return; }
+    float f = (floor(fc.x) + 0.5) / BANDS;
+    float was = texelFetch(iChannel0, ivec2(fc), 0).r;
+    float now = 0.5;
+    if (uLive > 0.5) {
+        now = 0.0;
+        for (int i = -1; i <= 1; i++) {
+            float ff = f + float(i) * 0.6 / BANDS;
+            float w = i == 0 ? 2.0 : 1.0;
+            now += w * (musicSpectrum(ff, 0.03) + musicSpectrum(ff, 0.0) + musicSpectrum(ff, -0.03));
+        }
+        now /= 12.0;
+    }
+    float dt = min(uDelta, 0.05);
+    float lv = now > was ? mix(was, now, 1.0 - exp(-dt / 0.05)) : max(now, was * exp(-3.0 * fall * dt));
+    o = vec4(lv, 0.0, 0.0, 1.0);
+}
+
+// @pass image  iChannel0=A:linear:clamp
+// CC0: For the neon style enjoyers
+//  Or is it synthwave style? Don't know!
+//  Anyone been tinkering with this for awhile and now want to get on with other stuff
+//  Hopefully someone enjoys it.
+
+//#define THAT_CRT_FEELING
+
+#define TIME        iTime
+#define RESOLUTION  iResolution
+#define PI          3.141592654
+#define PI_2        (0.5*PI)
+#define TAU         (2.0*PI)
+#define SCA(a)      vec2(sin(a), cos(a))
+#define ROT(a)      mat2(cos(a), sin(a), -sin(a), cos(a))
+
+// License: WTFPL, author: sam hocevar, found: https://stackoverflow.com/a/17897228/418488
+const vec4 hsv2rgb_K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+vec3 hsv2rgb(vec3 c) {
+  vec3 p = abs(fract(c.xxx + hsv2rgb_K.xyz) * 6.0 - hsv2rgb_K.www);
+  return c.z * mix(hsv2rgb_K.xxx, clamp(p - hsv2rgb_K.xxx, 0.0, 1.0), c.y);
+}
+
+// License: WTFPL, author: sam hocevar, found: https://stackoverflow.com/a/17897228/418488
+vec3 rgb2hsv(vec3 c) {
+  const vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+  vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+  vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+
+  float d = q.x - min(q.w, q.y);
+  float e = 1.0e-10;
+  return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+// ── the colours (Aura Engine) ──
+// The author's colours are HSV with hues from cyan (0.55) to magenta (0.8). "Neon" keeps them; the others take
+// only the hue from the cover's colours, the app's or two own (cyan → the first, magenta → the second) and keep his
+// saturation and brightness, so the light stays neon; a grey cover gives softer colours.
+vec3 neon(vec3 c) {
+  if (colours == 0) return hsv2rgb(c);
+  float x = (c.x - 0.55) / 0.25;
+  vec3 k = colours == 1 ? auraPalette(0.1 + x * 0.6)
+         : colours == 2 ? auraAppPalette(x * 0.5)
+         : mix(colourA, colourB, 1.0 - abs(1.0 - mod(x, 2.0)));
+  vec3 h = rgb2hsv(k);
+  return hsv2rgb(vec3(h.x, c.y * mix(0.35, 1.0, clamp(h.y * 1.6, 0.0, 1.0)), c.z));
+}
+
+vec3 skyCol, speCol1, speCol2, diffCol1, diffCol2, sunCol;   // the author's constants, in the chosen colours
+void setColours() {
+  skyCol       = neon(vec3(0.58, 0.86, 1.0));
+  speCol1      = neon(vec3(0.60, 0.25, 1.0));
+  speCol2      = neon(vec3(0.55, 0.25, 1.0));
+  diffCol1     = neon(vec3(0.60, 0.90, 1.0));
+  diffCol2     = neon(vec3(0.55, 0.90, 1.0));
+  sunCol       = neon(vec3(0.58, 0.86, 0.0005));
+}
+const vec3 sunDir2      = normalize(vec3(0., 0.82, 1.0));
+const vec3 sunDir       = normalize(vec3(0.0, 0.05, 1.0));
+const float mountainPos = -20.0;
+
+// ── the music (Aura Engine) ──
+const float TIP = 2.0;                    // the plane the triangle stands in (z): its tip touches the floor there
+const float FAR = 20.0;                   // the ridge's plane (z): where a kick's band of light leaves the horizon
+float XHALF;                              // half the ridge's width in view (world x at z = FAR), set per frame
+
+// A band's level (f: 0 low … 1 high, log scale) from pass A: 0.5 is the author's own ridge.
+float bandLevel(float f) {
+  vec2 r = iChannelResolution[0].xy;
+  return texture(iChannel0, vec2((clamp(f, 0.0, 1.0) * (BANDS - 1.0) + 0.5) / r.x, 0.5 / r.y)).r;
+}
+// The band a point of the ridge plays: the bass in the middle and the highs out to both sides, or low to high from
+// the left.
+float ridgeBand(float x) {
+  float s = order == 0 ? abs(x) / XHALF : 0.5 + 0.5 * x / XHALF;
+  return 0.03 + 0.92 * clamp(s, 0.0, 1.0);
+}
+// The ridge's height at x: the author's h, lifted and lowered by its band.
+float ridgeY(float x, float h) {
+  float lv = bandLevel(ridgeBand(x));
+  return height * (h * mix(1.0, 0.55 + 0.9 * lv, react) + react * 0.8 * (lv - 0.5));
+}
+// A kick's band of light on the floor at depth z. It leaves the horizon `lead` seconds before its kick, reaches the
+// triangle's tip as the kick sounds and rolls on towards you, fading: beyond the tip the floor shows the kick
+// (z - TIP) / speed seconds ahead. Only a kick's start makes a band: its first 20th of a second is the bright front
+// (the side nearer you), its first quarter second the glow behind.
+float floorWave(float z) {
+  if (uLive < 0.5) return 0.0;
+  float dz = z - TIP;
+  float t = dz * lead / (FAR - TIP);
+  float h = musicHit(0, t);
+  float front = max(0.0, h - musicHit(0, t - 0.05));
+  float glow = max(0.0, h - musicHit(0, t - 0.25));
+  return (front + 0.35 * glow) * (dz < 0.0 ? exp(dz / 3.0) : smoothstep(FAR - TIP, 0.6 * (FAR - TIP), dz));
+}
+// Where a point lies along the triangle's rim, from the tip it stands on: 0 at the tip, 2 at an upper corner, 3 in
+// the middle of the top edge. pt: the triangle's own frame (flipped: the tip up, at (0, 2/√3); the corners at
+// (±1, −1/√3)).
+float rimArc(vec2 pt) {
+  vec2 q = vec2(abs(pt.x), pt.y);
+  const vec2 tip = vec2(0.0, 1.1547005), corner = vec2(1.0, -0.5773503);
+  vec2 e = corner - tip;
+  float s1 = clamp(dot(q - tip, e) / dot(e, e), 0.0, 1.0);
+  float d1 = length(q - tip - e * s1);
+  float bx = clamp(q.x, 0.0, 1.0);
+  float d2 = length(q - vec2(bx, corner.y));
+  return d1 < d2 ? 2.0 * s1 : 3.0 - bx;
+}
+// A kick's light on the rim: it starts at the tip as the kick sounds and runs up both sides (a point at arc s shows
+// the kick s / speed seconds ago), meeting in the middle of the top edge half a second later.
+float rimPulse(vec2 pt) {
+  if (uLive < 0.5) return 0.0;
+  float t = -rimArc(pt) / (6.0 * rimSpeed);
+  float h = musicHit(0, t);
+  float front = max(0.0, h - musicHit(0, t - 0.04));
+  float glow = max(0.0, h - musicHit(0, t - 0.2));
+  return front + 0.35 * glow;
+}
+// The planet's ring n (inner to outer) lights with its own band of the highs.
+float ringLight(float n) {
+  float lv = bandLevel(0.70 + 0.03 * (n - 16.0));
+  return mix(1.0, 0.4 + 1.2 * lv, rings);
+}
+
+// License: MIT, author: Pascal Gilcher, found: https://www.shadertoy.com/view/flSXRV
+float atan_approx(float y, float x) {
+  float cosatan2 = x / (abs(x) + abs(y));
+  float t = PI_2 - cosatan2 * PI_2;
+  return y < 0.0 ? -t : t;
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+float tanh_approx(float x) {
+  //  Found this somewhere on the interwebs
+  //  return tanh(x);
+  float x2 = x*x;
+  return clamp(x*(27.0 + x2)/(27.0+9.0*x2), -1.0, 1.0);
+}
+
+vec3 toSpherical(vec3 p) {
+  float r   = length(p);
+  float t   = acos(p.z/r);
+  float ph  = atan_approx(p.y, p.x);
+  return vec3(r, t, ph);
+}
+
+// License: Unknown, author: nmz (twitter: @stormoid), found: https://www.shadertoy.com/view/NdfyRM
+vec3 sRGB(vec3 t) {
+  return mix(1.055*pow(t, vec3(1./2.4)) - 0.055, 12.92*t, step(t, vec3(0.0031308)));
+}
+
+// License: Unknown, author: Matt Taylor (https://github.com/64), found: https://64.github.io/tonemapping/
+vec3 aces_approx(vec3 v) {
+  v = max(v, 0.0);
+  v *= 0.6f;
+  float a = 2.51f;
+  float b = 0.03f;
+  float c = 2.43f;
+  float d = 0.59f;
+  float e = 0.14f;
+  return clamp((v*(a*v+b))/(v*(c*v+d)+e), 0.0f, 1.0f);
+}
+
+// License: MIT OR CC-BY-NC-4.0, author: mercury, found: https://mercury.sexy/hg_sdf/
+float mod1(inout float p, float size) {
+  float halfsize = size*0.5;
+  float c = floor((p + halfsize)/size);
+  p = mod(p + halfsize, size) - halfsize;
+  return c;
+}
+
+// License: MIT OR CC-BY-NC-4.0, author: mercury, found: https://mercury.sexy/hg_sdf/
+vec2 mod2(inout vec2 p, vec2 size) {
+  vec2 c = floor((p + size*0.5)/size);
+  p = mod(p + size*0.5,size) - size*0.5;
+  return c;
+}
+
+// License: MIT, author: Inigo Quilez, found: https://iquilezles.org/www/articles/intersectors/intersectors.htm
+float rayPlane(vec3 ro, vec3 rd, vec4 p) {
+  return -(dot(ro,p.xyz)+p.w)/dot(rd,p.xyz);
+}
+
+
+// License: MIT, author: Inigo Quilez, found: https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+float equilateralTriangle(vec2 p) {
+  const float k = sqrt(3.0);
+  p.x = abs(p.x) - 1.0;
+  p.y = p.y + 1.0/k;
+  if( p.x+k*p.y>0.0 ) p = vec2(p.x-k*p.y,-k*p.x-p.y)/2.0;
+  p.x -= clamp( p.x, -2.0, 0.0 );
+  return -length(p)*sign(p.y);
+}
+
+// License: MIT, author: Inigo Quilez, found: https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+float box(vec2 p, vec2 b) {
+  vec2 d = abs(p)-b;
+  return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+}
+
+// License: MIT, author: Inigo Quilez, found: https://iquilezles.org/www/articles/distfunctions2d/distfunctions2d.htm
+float segment(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p-a, ba = b-a;
+  float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+  return length(pa - ba*h);
+}
+
+// License: Unknown, author: Unknown, found: don't remember
+float hash(vec2 co) {
+  return fract(sin(dot(co.xy ,vec2(12.9898,58.233))) * 13758.5453);
+}
+
+// License: MIT, author: Inigo Quilez, found: https://www.shadertoy.com/view/XslGRr
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+
+  vec2 u = f*f*(3.0-2.0*f);
+
+  float a = hash(i + vec2(0.0,0.0));
+  float b = hash(i + vec2(1.0,0.0));
+  float c = hash(i + vec2(0.0,1.0));
+  float d = hash(i + vec2(1.0,1.0));
+
+  float m0 = mix(a, b, u.x);
+  float m1 = mix(c, d, u.x);
+  float m2 = mix(m0, m1, u.y);
+
+  return m2;
+}
+
+// License: MIT, author: Inigo Quilez, found: https://www.iquilezles.org/www/articles/spherefunctions/spherefunctions.htm
+vec2 raySphere(vec3 ro, vec3 rd, vec4 dim) {
+  vec3 ce = dim.xyz;
+  float ra = dim.w;
+  vec3 oc = ro - ce;
+  float b = dot( oc, rd );
+  float c = dot( oc, oc ) - ra*ra;
+  float h = b*b - c;
+  if( h<0.0 ) return vec2(-1.0); // no intersection
+  h = sqrt( h );
+  return vec2( -b-h, -b+h );
+}
+
+vec3 skyRender(vec3 ro, vec3 rd) {
+  vec3 col = vec3(0.0);
+  col += 0.025*skyCol;
+  col += skyCol*0.0033/pow((1.001+((dot(sunDir2, rd)))), 2.0);
+
+  float tp0  = rayPlane(ro, rd, vec4(vec3(0.0, 1.0, 0.0), 4.0));
+  float tp1  = rayPlane(ro, rd, vec4(vec3(0.0, -1.0, 0.0), 6.0));
+  float tp = tp1;
+  tp = max(tp0,tp1);
+
+
+  if (tp1 > 0.0) {
+    vec3 pos  = ro + tp1*rd;
+    vec2 pp = pos.xz;
+    float db = box(pp, vec2(5.0, 9.0))-3.0;
+
+    col += vec3(4.0)*skyCol*rd.y*rd.y*smoothstep(0.25, 0.0, db);
+    col += vec3(0.8)*skyCol*exp(-0.5*max(db, 0.0));
+    col += 0.25*sqrt(skyCol)*max(-db, 0.0);
+  }
+
+  if (tp0 > 0.0) {
+    vec3 pos  = ro + tp0*rd;
+    vec2 pp = pos.xz;
+    float ds = length(pp) - 0.5;
+
+    col += (0.25)*skyCol*exp(-.5*max(ds, 0.0));
+  }
+
+  return clamp(col, 0.0, 10.0);
+}
+
+vec4 sphere(vec3 ro, vec3 rd, vec4 sdim) {
+  vec2 si = raySphere(ro, rd, sdim);
+
+  vec3 nsp = ro + rd*si.x;
+
+  const vec3 lightPos1   = vec3(0.0, 10.0, 10.0);
+  const vec3 lightPos2   = vec3(0.0, -80.0, 10.0);
+
+  vec3 nld1   = normalize(lightPos1-nsp);
+  vec3 nld2   = normalize(lightPos2-nsp);
+
+  vec3 nnor   = normalize(nsp - sdim.xyz);
+
+  vec3 nref   = reflect(rd, nnor);
+
+  const float sf = 4.0;
+  float ndif1 = max(dot(nld1, nnor), 0.0);
+  ndif1       *= ndif1;
+  vec3 nspe1  = pow(speCol1*max(dot(nld1, nref), 0.0), sf*vec3(1.0, 0.8, 0.5));
+
+  float ndif2 = max(dot(nld2, nnor), 0.0);
+  ndif2       *= ndif2;
+  vec3 nspe2  = pow(speCol2*max(dot(nld2, nref), 0.0), sf*vec3(0.9, 0.5, 0.5));
+
+  vec3 nsky   = skyRender(nsp, nref);
+  float nfre  = 1.0+dot(rd, nnor);
+  nfre        *= nfre;
+
+  vec3 scol = vec3(0.0);
+  scol += nsky*mix(vec3(0.25), vec3(0.5, 0.5, 1.0), nfre);
+  scol += diffCol1*ndif1;
+  scol += diffCol2*ndif2;
+  scol += nspe1;
+  scol += nspe2;
+
+  float t = tanh_approx(2.0*(si.y-si.x)/sdim.w);
+
+  return vec4(scol, t);
+}
+
+vec3 sphereRender(vec3 ro, vec3 rd) {
+  vec3 skyCol = skyRender(ro, rd);
+  vec3 col = skyCol;
+  const vec4 sdim0 = vec4(vec3(0.0), 2.0);
+  vec4 scol0 = sphere(ro, rd, sdim0);
+  col = mix(col, scol0.xyz, scol0.w);
+  return col;
+}
+
+vec3 sphereEffect(vec2 p) {
+  const float fov = tan(TAU/6.0);
+  const vec3 ro = 1.0*vec3(0.0, 2.0, 5.0);
+  const vec3 la = vec3(0.0, 0.0, 0.0);
+  const vec3 up = vec3(0.0, 1.0, 0.0);
+
+  vec3 ww = normalize(la - ro);
+  vec3 uu = normalize(cross(up, ww));
+  vec3 vv = cross(ww,uu);
+  vec3 rd = normalize(-p.x*uu + p.y*vv + fov*ww);
+
+  vec3 col = sphereRender(ro, rd);
+
+  return col;
+}
+
+vec3 cityOfKali(vec2 p) {
+  vec2 c = -vec2(0.5, 0.5)*1.12;
+
+  float s = 2.0;
+  vec2 kp = p/s;
+
+  const float a = PI/4.0;
+  const vec2 n = vec2(cos(a), sin(a));
+
+  float ot2 = 1E6;
+  float ot3 = 1E6;
+  float n2 = 0.0;
+  float n3 = 0.0;
+
+  const float mx = 12.0;
+  for (float i = 0.0; i < mx; ++i) {
+    float m = (dot(kp, kp));
+    s *= m;
+    kp = abs(kp)/m + c;
+    float d2 = (abs(dot(kp,n)))*s;
+    if (d2 < ot2) {
+      n2 = i;
+      ot2 = d2;
+    }
+    float d3 = (dot(kp, kp));
+    if (d3 < ot3) {
+      n3 = i;
+      ot3 = d3;
+    }
+  }
+  vec3 col = vec3(0.0);
+  n2 /= mx;
+  n3 /= mx;
+  col += 0.25*(neon(vec3(0.8-0.2*n2*n2, 0.90, 0.025))/(sqrt(ot2)+0.0025));
+  col += neon(vec3(0.55+0.8*n3, 0.85, 0.00000025))/(ot3*ot3+0.000000025);
+  return col;
+}
+
+vec3 outerSkyRender(vec3 ro, vec3 rd) {
+  vec3 center = ro+vec3(-100.0, 40.0, 100.0);
+  vec4 sdim = vec4(center, 50);
+  vec2 pi = raySphere(ro, rd, sdim);
+  const vec3 pn = normalize(vec3(0., 1.0, -0.8));
+  vec4 pdim = vec4(pn, -dot(pn, center));
+  float ri = rayPlane(ro, rd, pdim);
+
+  vec3 col = vec3(0.0);
+
+  col += sunGlow*sunCol/pow((1.001-((dot(sunDir, rd)))), 2.0);
+
+  if (pi.x != -1.0) {
+    vec3 pp = ro + rd*pi.x;
+    vec3 psp= pp-sdim.xyz;
+    vec3 pn = normalize(pp-sdim.xyz);
+    psp = psp.zxy;
+    psp.yz *= ROT(-0.5);
+    psp.xy *= ROT(0.025*spin*TIME);
+    vec3 pss= toSpherical(psp);
+    vec3 pcol = vec3(0.0);
+    float dif = max(dot(pn, sunDir), 0.0);
+    vec3 sc = 2000.0*sunCol;
+    pcol += sc*dif;
+    pcol += (cityOfKali(pss.yz))*smoothstep(0.125, 0.0, dif);
+    pcol += pow(max(dot(reflect(rd, pn), sunDir), 0.0), 9.0)*sc;
+    col = mix(col, pcol, tanh_approx(0.125*(pi.y-pi.x)));
+
+  }
+
+  vec3 gcol = vec3(0.0);
+
+  vec3 rp = ro + rd*ri;
+  float rl = length(rp-center);
+  float rb = 1.55*sdim.w;
+  float re = 2.45*sdim.w;
+  float rw = 0.1*sdim.w;
+  vec3 rcol = neon(vec3(clamp((0.005*(rl+32.0)), 0.6, 0.8), 0.9, 1.0));
+  gcol = rcol*0.025;
+  if (ri > 0.0 && (pi.x == -1.0 || ri < pi.x)) {
+    float mrl = rl;
+    float nrl = mod1(mrl, rw);
+    float rfre = 1.0+dot(rd, pn);
+    vec3 rrcol = (rcol/max(abs(mrl), 0.1+smoothstep(0.7, 1.0, rfre)));
+    rrcol *= smoothstep(1.0, 0.3, rfre);
+    rrcol *= smoothstep(re, re-0.5*rw, rl);
+    rrcol *= smoothstep(rb-0.5*rw, rb, rl);
+    rrcol *= ringLight(nrl);
+    col += rrcol;;
+  }
+
+  col += gcol/max(abs(rd.y), 0.0033);
+
+return col;
+}
+
+vec3 triRender(vec3 col, vec3 ro, vec3 rd, inout float maxt) {
+  const vec3 tpn = normalize(vec3(0.0, 0.0, 1.0));
+  const vec4 tpdim = vec4(tpn, -2.0);
+  float tpd = rayPlane(ro, rd, tpdim);
+
+  if (tpd < 0.0 || tpd > maxt) {
+    return col;
+  }
+
+  vec3 pp = ro+rd*tpd;
+  vec2 p = pp.xy;
+  p *= 0.5;
+
+  const float off = 1.2-0.02;
+  vec2 op = p;
+  p.y -= off;
+  const vec2 n = SCA(-PI/3.0);
+  vec2 gp = p;
+  float hoff = 0.15*dot(n, p);
+  vec3 gcol = neon(vec3(clamp(0.7+hoff, 0.6, 0.8), 0.90, 0.02));
+  vec2 pt = p;
+  pt.y = -pt.y;
+  const float zt = 1.0;
+  float dt = equilateralTriangle(pt/zt)*zt;
+//  col += 2.0*gcol;
+  col = dt < 0.0 ? sphereEffect(1.5*(p)) : col;
+  col += (gcol/max(abs(dt), 0.001))*smoothstep(0.25, 0.0, dt);
+  // (the kick's light running round the rim: a warm light on the cool rim itself, not on the glass inside)
+  if (abs(dt) < 0.15) col += kickLight*rimPulse(pt)*neon(vec3(0.85, 0.55, 0.03))/max(abs(dt), 0.002)*smoothstep(0.15, 0.0, abs(dt));
+  if (dt < 0.0) {
+    maxt = tpd;
+  }
+  return col;
+}
+
+float heightFactor(vec2 p) {
+  return 4.0*smoothstep(7.0, 0.5, abs(p.x))+.5;
+}
+
+float hifbm(vec2 p) {
+  p *= 0.25;
+  float hf = heightFactor(p);
+  const float aa = 0.5;
+  const float pp = 2.0-0.;
+
+  float sum = 0.0;
+  float a   = 1.0;
+
+  for (int i = 0; i < 5; ++i) {
+    sum += a*vnoise(p);
+    a *= aa;
+    p *= pp;
+  }
+
+  return hf*sum;
+}
+
+float hiheight(vec2 p) {
+  return hifbm(p);
+}
+
+float lofbm(vec2 p) {
+  p *= 0.25;
+  float hf = heightFactor(p);
+  const float aa = 0.5;
+  const float pp = 2.0-0.;
+
+  float sum = 0.0;
+  float a   = 1.0;
+
+  for (int i = 0; i < 3; ++i) {
+    sum += a*vnoise(p);
+    a *= aa;
+    p *= pp;
+  }
+
+  return hf*sum;
+}
+
+float loheight(vec2 p) {
+  return lofbm(p)-0.5;
+}
+
+vec3 mountainRender(vec3 col, vec3 ro, vec3 rd, bool flip, inout float maxt) {
+  const vec3 tpn = normalize(vec3(0.0, 0.0, 1.0));
+  const vec4 tpdim = vec4(tpn, mountainPos);
+  float tpd = rayPlane(ro, rd, tpdim);
+
+  if (tpd < 0.0 || tpd > maxt) {
+    return col;
+  }
+
+  vec3 pp = ro+rd*tpd;
+  vec2 p = pp.xy;
+  const float cw = 1.0-0.25;
+  float hz = 0.0*TIME+1.0;
+  float lo = ridgeY(p.x, loheight(vec2(p.x, hz)));
+  vec2 cp = p;
+  float cn = mod1(cp.x, cw);
+
+
+  const float reps = 1.0;
+
+  float d = 1E3;
+
+  for (float i = -reps; i <= reps; ++i) {
+    float x0 = (cn -0.5 + (i))*cw;
+    float x1 = (cn -0.5 + (i + 1.0))*cw;
+
+    float y0 = ridgeY(x0, hiheight(vec2(x0, hz)));
+    float y1 = ridgeY(x1, hiheight(vec2(x1, hz)));
+
+    float dd = segment(cp, vec2(-cw*0.5 + cw * float(i), y0), vec2(cw*0.5 + cw * float(i), y1));
+
+    d = min(d, dd);
+  }
+
+  vec3 rcol = neon(vec3(clamp(0.7+(0.5*(rd.x)), 0.6, 0.8), 0.95, 0.125));
+
+  float sd = 1.0001-((dot(sunDir, rd)));
+
+  vec3 mcol = col;
+  float aa = fwidth(p.y);
+  if ((dFdy(d) < 0.0) == !flip) {
+    mcol *= mix(0.0, 1.0, smoothstep(aa, -aa, d-aa));
+    mcol += neon(vec3(0.55, 0.85, 0.8))*smoothstep(0.0, 5.0, lo-p.y);
+    col = mcol;
+    maxt = tpd;
+  }
+  // (the line glows brighter where its band is loud)
+  col += ridgeGlow*(0.6 + 0.8*bandLevel(ridgeBand(p.x)))*3.*rcol/(abs(d)+0.005+800.*sd*sd*sd*sd);
+  col += sunGlow*neon(vec3(0.55, 0.96, 0.075))/(abs(p.y)+0.05);
+
+  return col;
+}
+
+vec3 groundRender(vec3 col, vec3 ro, vec3 rd, inout float maxt) {
+  const vec3 gpn = normalize(vec3(0.0, 1.0, 0.0));
+  const vec4 gpdim = vec4(gpn, 0.0);
+  float gpd = rayPlane(ro, rd, gpdim);
+
+  if (gpd < 0.0) {
+    return col;
+  }
+
+  maxt = gpd;
+
+  vec3 gp     = ro + rd*gpd;
+  float gpfre = 1.0 + dot(rd, gpn);
+  gpfre *= gpfre;
+  gpfre *= gpfre;
+  gpfre *= gpfre;
+
+  vec3 grr = reflect(rd, gpn);
+
+  vec2 ggp    = gp.xz;
+  ggp.y += gridSpeed*TIME;
+  float dfy   = dFdy(ggp.y);
+  float gcf = sin(ggp.x)*sin(ggp.y);
+  vec2 ggn    = mod2(ggp, vec2(1.0));
+  float ggd   = min(abs(ggp.x), abs(ggp.y));
+
+  vec3 gcol = neon(vec3(0.7+0.1*gcf, 0.90, 0.02));
+
+  float rmaxt = 1E6;
+  vec3 rcol = outerSkyRender(gp, grr);
+  rcol = mountainRender(rcol, gp, grr, true, rmaxt);
+  rcol = triRender(rcol, gp, grr, rmaxt);
+
+  col = gcol/max(ggd, 0.0+0.25*dfy)*exp(-0.25*gpd);
+  // (a kick's band of light: a warm light over the floor, the grid's lines brightest in it)
+  float fw = waves*floorWave(gp.z);
+  col = col*(1.0 + 2.0*fw) + fw*neon(vec3(0.85, 0.55, 1.0))*(0.35 + 0.02/max(ggd, 0.0+0.25*dfy))*exp(-0.06*gpd);
+  rcol += neon(vec3(0.65, 0.85, 1.0))*gpfre;
+  rcol = 4.0*tanh(rcol*0.25);
+  col += mirror*rcol*gpfre;
+
+  return col;
+}
+
+vec3 render(vec3 ro, vec3 rd) {
+  float maxt = 1E6;
+
+  vec3 col = outerSkyRender(ro, rd);
+  col = groundRender(col, ro, rd, maxt);
+  col = mountainRender(col, ro, rd, false, maxt);
+  col = triRender(col, ro, rd, maxt);
+
+  return col;
+}
+
+vec3 effect(vec2 p, vec2 pp) {
+  const float fov = tan(TAU/6.0);
+  const vec3 ro = 1.0*vec3(0.0, 1.0, -4.);
+  const vec3 la = vec3(0.0, 1.0, 0.0);
+  const vec3 up = vec3(0.0, 1.0, 0.0);
+
+  vec3 ww = normalize(la - ro);
+  vec3 uu = normalize(cross(up, ww));
+  vec3 vv = cross(ww,uu);
+  // (in the player's band the view slides up or down: the horizon at p.y = Horizon)
+  float py = p.y - (uFull > 0.5 ? 0.0 : horizon);
+  vec3 rd = normalize(-p.x*uu + py*vv + fov*ww);
+  XHALF = 0.92*(FAR - ro.z)*(RESOLUTION.x/RESOLUTION.y)/fov;
+
+  float aa = 2.0/RESOLUTION.y;
+
+  vec3 col = render(ro, rd);
+#if defined(THAT_CRT_FEELING)
+  col *= smoothstep(1.5, 0.5, length(pp));
+  col *= 1.25*mix(vec3(0.5), vec3(1.0),smoothstep(-0.9, 0.9, sin(0.25*TAU*p.y/aa+TAU*vec3(0.0, 1., 2.0)/3.0)));
+#endif
+  col -= colours == 0 ? 0.05*vec3(.00, 1.0, 2.0).zyx : vec3(0.05);
+  col = aces_approx(bright*col);
+  col = sRGB(col);
+  return col;
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
+  setColours();
+  vec2 q = fragCoord/RESOLUTION.xy;
+
+  vec2 p = -1. + 2. * q;
+  vec2 pp = p;
+  p.x *= RESOLUTION.x/RESOLUTION.y;
+  vec3 col = effect(p, pp);
+  // In the player's band a soft shade behind the title and the technical lines (the left, above the middle) keeps
+  // the text readable over the ridge and the horizon.
+  if (uFull < 0.5) {
+    float yt = 1.0 - q.y;
+    col *= 1.0 - 0.6*smoothstep(0.28, 0.40, yt)*smoothstep(0.64, 0.54, yt)*smoothstep(0.68, 0.50, q.x);
+  }
+
+  fragColor = vec4(col, 1.0);
+}

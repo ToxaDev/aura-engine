@@ -1,0 +1,42 @@
+# AuraEngine
+
+> AuraEngine is a free audiophile music player and FIR audio upsampler for Windows, Linux and macOS, written in Rust. It plays and converts music through one engine with precomputed FIR filters of 5 thousand to 1 billion taps, a Hybrid-Phase transient engine and bit-perfect output up to 1536 kHz and DSD256. Aura Streamer is the same engine without a window: it runs on the computer next to the DAC and is played from a phone or tablet browser or any UPnP / OpenHome control point. Free for personal use (PolyForm Noncommercial 1.0.0).
+
+Key facts:
+
+- Two programs: the AuraEngine desktop app (player + converter) and Aura Streamer (headless network streamer with a browser remote). Current version 2.0.0.
+- Platforms: Windows 10/11 (x64), Linux (x86_64 AppImage and .deb), macOS (universal .dmg, Apple Silicon and Intel).
+- Upsampling: FIR filters from 5k to 1G taps, designed in 128-bit precision, f64 processing end to end. Multistage upsampling runs a 30M-tap filter on a few CPU cores; a 1G-tap filter plays on about 3 % of an i9-14900K. No graphics card needed; optional GPU convolution.
+- Output: bit-perfect playback through WASAPI exclusive mode (Windows), ALSA hw: (Linux) and CoreAudio exclusive/hog mode (macOS). PCM up to 1536 kHz for playback; DSD64/128/256 over DoP; DSF/DFF playback.
+- Converter: 44.1/48 kHz FLAC, WAV or MP3 to 24-bit FLAC up to 768 kHz, or DSF; every output file is re-decoded and checked sample by sample.
+- DSP: Hybrid-Phase, Aura EQ (up to 24 bands, AutoEq headphone profiles), crosstalk cancellation (XTC) for speakers, Cue Consistency, true-peak protection, noise-shaped dither.
+- Internet radio: MP3, AAC, HE-AAC, FLAC, Vorbis, Opus, HLS, upsampled live.
+- ASIO input (Windows): other players such as foobar2000, JRiver, HQPlayer or Roon can play into AuraEngine's virtual ASIO device and go through its chain.
+- Aura Streamer: browser remote for phone, tablet and computer; music library by album, artist, genre and folder; UPnP AV and OpenHome renderer (BubbleUPnP, JRiver, mConnect); signed self-update; home network only.
+- Comparable software: HQPlayer (FIR upsampling), foobar2000 / JRiver / Roon / Audirvana (audiophile players), UPnP renderers. AuraEngine is free and needs no GPU for long filters.
+- Web converter: the same engine in the browser on Hugging Face, up to 30M taps.
+
+## Main pages
+
+- [Home](https://aura-engine.app/): overview, live demo, downloads
+- [Aura Streamer](https://aura-engine.app/streamer.html): the network streamer and UPnP / OpenHome renderer
+- [Documentation](https://aura-engine.app/docs.html): install, player, converter, filters, DSD, ASIO input, Aura Streamer, FAQ
+- [Privacy](https://aura-engine.app/privacy.html): what the app sends over the network
+
+## Source and downloads
+
+- [GitHub repository](https://github.com/ToxaDev/aura-engine): source, README, issues and discussions
+- [Releases](https://github.com/ToxaDev/aura-engine/releases/latest): Windows, Linux and macOS builds of the app and Aura Streamer
+- [Changelog](https://github.com/ToxaDev/aura-engine/blob/master/CHANGELOG.md)
+- [Web converter on Hugging Face](https://huggingface.co/spaces/toxadev/aura-engine-audio-upscaler)
+
+## Technical documents
+
+- [DSP manifesto](https://github.com/ToxaDev/aura-engine/blob/master/DSP_MANIFESTO.md)
+- [Hybrid-Phase proof](https://github.com/ToxaDev/aura-engine/blob/master/docs/06-hybrid-phase-proof.md)
+- [Precomputed FIR matrix](https://github.com/ToxaDev/aura-engine/blob/master/docs/12-precomputed-fir-matrix.md)
+- [Measurements](https://github.com/ToxaDev/aura-engine/blob/master/docs/15-measurements.md)
+- [Filter length and rate](https://github.com/ToxaDev/aura-engine/blob/master/docs/16-filter-length-and-rate.md)
+- [Multistage upsampling](https://github.com/ToxaDev/aura-engine/blob/master/docs/21-multistage-upsampling.md)
+- [DSD](https://github.com/ToxaDev/aura-engine/blob/master/docs/20-dsd.md)
+- [Aura Streamer guide](https://github.com/ToxaDev/aura-engine/blob/master/docs/23-aura-streamer.md)

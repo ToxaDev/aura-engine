@@ -1,0 +1,116 @@
+# The workspace root stays here, with the app: its .cargo/config.toml, toolchain,
+# target and Cargo.lock are where the start script and CI expect them. Build
+# everything from this folder.
+[workspace]
+members = ["../../crates/aura-core", "../../apps/streamer"]
+# vendor/symphonia-common is a [patch] below, not a member.
+exclude = ["vendor"]
+resolver = "2"
+
+[workspace.package]
+version = "2.0.1"
+edition = "2021"
+rust-version = "1.88"
+
+[package]
+name = "aura-engine"
+version.workspace = true
+description = "Aura Engine High-Fidelity Audio Upsampler"
+authors = ["you"]
+edition.workspace = true
+rust-version.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# The engine: converter, player, spatial scenes.
+aura-core = { path = "../../crates/aura-core" }
+tauri = { version = "2", features = [] }
+# The frontend's dialogs (ask, save), file writes, opening links in the
+# browser and the clipboard: Tauri 2 ships them as plugins.
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-clipboard-manager = "2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = { version = "0.8", features = ["small_rng"] } # Required for generating noise shaping dither
+lazy_static = "1.4" # Global state management for audio streams
+rayon = "1.8" # Parallel DSP filter initialization only
+wgpu = { version = "0.19", features = ["spirv"] } # WebGPU bindings + SPIR-V passthrough for DS-precision GPU path
+tokio = { version = "1.29.1", features = ["full"] }
+sysinfo = "0.29.5"
+chrono = { version = "0.4", default-features = false, features = ["clock"] } # Local-time timestamps for log lines
+
+# Signed in-app updater.
+reqwest = { version = "0.11", default-features = false, features = ["default-tls", "stream", "json"] }
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+base64 = "0.21"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+# Crash reports: redacted (known values by Aho-Corasick, shapes by regex),
+# deflated and sealed to the project's public key (X25519 + XSalsa20-Poly1305,
+# the libsodium sealed box), so only the holder of the private key reads one.
+crypto_box = { version = "0.9", features = ["seal"] }
+aho-corasick = "1.1"
+regex = "1.12"
+flate2 = "1.1"
+
+# The single-instance lock and the self-install on macOS and Linux.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["processthreadsapi", "winbase", "timeapi", "avrt", "errhandlingapi", "winuser", "winreg", "winnt", "shellapi", "dxgi", "dxgi1_4", "winerror", "unknwnbase", "pdh", "combaseapi", "objbase", "synchapi", "fileapi", "wincon", "dwmapi", "libloaderapi", "handleapi", "tlhelp32", "consoleapi"] } # Thread priority, timer resolution, MMCSS; plus the startup diagnostics: registry probe, message boxes, and opening the page that fixes it; DXGI and PDH for how much video memory is free; the single-instance mutex; free disk space for a long file's temporaries; the console window minimized at start, once (dwmapi: without the animation if the terminal brings it back)
+# The analyzer's Screenshot: WebView2 draws a window's page as a PNG
+# (webview_png.rs). The versions Tauri's WebView (wry 0.57) is built on, so
+# its controller is the same type here.
+webview2-com = "0.39"
+# COM streams: the analyzer's Screenshot reads WebView2's PNG out of one
+# (webview_png.rs).
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Com", "Win32_System_Com_StructuredStorage"] }
+
+[dev-dependencies]
+# SigningKey::generate() in unit tests needs rand_core. Cargo unifies features
+# per crate, so this extends the main dep; no private-key API is exposed in
+# the updater's public surface.
+ed25519-dalek = { version = "2", default-features = false, features = ["std", "rand_core"] }
+rand = "0.8"
+tempfile = "3"
+
+# symphonia-common 0.6.1 (MPL-2.0), from vendor/symphonia-common: the crate
+# as published, so that a FLAC above 655 350 Hz — FS16, 705.6 and 768 kHz —
+# can be read back. Its STREAMINFO parser refuses any rate above what a frame
+# header can name, while the STREAMINFO field itself is 20 bits (RFC 9639).
+# What was changed is marked at the top of the changed file.
+[patch.crates-io]
+symphonia-common = { path = "vendor/symphonia-common" }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+# Enable the GPU convolver equivalence and throughput tests (ignored by default).
+gpu-player-tests = ["aura-core/gpu-player-tests"]
+
+# DSP hot loops (partitioned OLS Kahan-MAC, DS pack/unpack) live behind
+# crate boundaries (rustfft, bytemuck); without fat LTO the AVX2/FMA codegen
+# enabled via .cargo/config.toml target-cpu=native cannot inline across them.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+# Iteration build: optimised code, no fat-LTO relink (tests and quick checks).
+#     cargo build --profile fast
+[profile.fast]
+inherits = "release"
+lto = false
+codegen-units = 16
+incremental = true
+
+# Test exe: thin LTO and 16 codegen units, so a UI-only rebuild is far shorter than the release's.
+#     cargo build --profile test-exe
+[profile.test-exe]
+inherits = "release"
+lto = "thin"
+codegen-units = 16

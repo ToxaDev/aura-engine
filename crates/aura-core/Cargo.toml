@@ -1,0 +1,98 @@
+[package]
+name = "aura-core"
+version.workspace = true
+description = "The Aura Engine: converter, player, spatial scenes"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+# The workspace lives in the app's folder: its .cargo/config.toml, toolchain,
+# target and Cargo.lock stay where the start script and CI expect them.
+# Build from desktop-app/src-tauri.
+workspace = "../../desktop-app/src-tauri"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rustfft = "6.1" # Extreme performance 64-bit convolution matrices
+realfft = "3.5" # Real-input FFT over rustfft: half spectra (N/2 + 1 bins) for the convolvers, f64
+rand = { version = "0.8", features = ["small_rng"] } # Required for generating noise shaping dither
+lazy_static = "1.4" # Global state management for audio streams
+rubato = "0.15" # High-quality async sinc resampling
+rayon = "1.8" # Parallel DSP filter initialization only
+wgpu = { version = "0.19", features = ["spirv"] } # WebGPU bindings + SPIR-V passthrough for DS-precision GPU path
+bytemuck = { version = "1.14", features = ["derive"] } # Zero-cost casting between GPU buffers and Rust types
+pollster = "0.3" # Synchronous block_on for async wgpu functions
+symphonia = { version = "0.6", features = ["all"] } # Audio file decoding (FLAC, WAV, MP3, OGG)
+# Opus for radio streams (symphonia has no Opus decoder): libopus 1.6.1, built
+# from its bundled source (needs cmake), BSD-3-Clause.
+symphonia-adapter-libopus = "0.3"
+# HE-AAC (SBR, PS), for radio streams and files, which symphonia does not
+# decode: the FDK AAC decoder in Rust, from AOSP (platform/external/aac,
+# rust/, tag android-17.0.0_r1), under its own licence (FDK-AAC:
+# vendor/aac/NOTICE). Vendored unchanged in vendor/aac and built from there
+# (.cargo/config.toml).
+aac = { git = "https://android.googlesource.com/platform/external/aac", tag = "android-17.0.0_r1", default-features = false, features = ["aac_dec"] }
+tokio = { version = "1.29.1", features = ["full"] }
+sysinfo = "0.29.5"
+chrono = { version = "0.4", default-features = false, features = ["clock"] } # Local-time timestamps for log lines
+flacenc = { version = "0.5.1", default-features = false }
+# The input: the link another player's ASIO driver (Aura Player ASIO,
+# desktop-app/asio) hands its samples to the player through. MIT; its own
+# workspace (the driver is built apart, for x64 and x86).
+aura-link = { path = "../../desktop-app/asio/link" }
+# Radio streams and the spatial pack's download.
+reqwest = { version = "0.11", default-features = false, features = ["default-tls", "stream", "json"] }
+zip = { version = "0.6", default-features = false, features = ["deflate"] }
+sha2 = "0.10"
+base64 = "0.21"
+# Update signatures (update_sig.rs): the app and the streamer verify with one key.
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+# Filter files the storage view removes go to the Recycle Bin (Windows,
+# macOS, the freedesktop trash), not straight off the disk (filters_dl). MIT.
+trash = { version = "5.2", default-features = false, features = ["coinit_apartmentthreaded"] }
+# The `aura` protocol's answers (protocol.rs): the type the webviews and the
+# streamer's server both take.
+http = "1"
+
+# Spatial scenes: the separation network runs on the ONNX Runtime the spatial
+# pack brings (loaded at run time; nothing is linked or downloaded at build).
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic", "api-24"] }
+
+# The load badge's process CPU time on macOS and Linux (getrusage; perf.rs).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Linux sound output: ALSA straight to the card's hw: device (libasound),
+# and the audio thread's real-time priority through rtkit (libdbus, which
+# the window layer links already).
+[target.'cfg(target_os = "linux")'.dependencies]
+alsa = "0.10"
+dbus = "0.9"
+
+# Player mode on macOS: CoreAudio's HAL (hog mode, nominal rate, physical
+# format, IOProc). Pre-generated bindings, the objc2 family Tauri already uses.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-audio = { version = "0.3.2", default-features = false, features = ["std", "AudioHardware", "objc2-core-audio-types"] }
+objc2-core-audio-types = { version = "0.3.2", default-features = false, features = ["std", "CoreAudioBaseTypes"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFString"] }
+
+# Player mode: event-driven WASAPI output (exclusive, bit-perfect when asked).
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["processthreadsapi", "winbase", "timeapi", "avrt", "errhandlingapi", "winuser", "winreg", "winnt", "shellapi", "dxgi", "dxgi1_4", "winerror", "unknwnbase", "pdh", "combaseapi", "objbase", "synchapi", "fileapi", "wincon", "dwmapi", "libloaderapi", "handleapi", "tlhelp32", "consoleapi"] }
+wasapi = "0.24"
+# DirectML for the spatial separation network (Windows only; elsewhere the CPU).
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["directml"] }
+
+[dev-dependencies]
+rand = "0.8"
+tempfile = "3"
+# libopus's own encoder makes the Opus test streams (radio/decode.rs).
+opusic-sys = { version = "0.7", default-features = false }
+# The FDK AAC encoder (C, built by cc) makes the AAC-LC, HE-AAC and HE-AAC v2
+# test streams, the same on every system (player/radio/he_aac.rs).
+fdk-aac = "0.8"
+
+[features]
+# Enable the GPU convolver equivalence and throughput tests (ignored by default).
+gpu-player-tests = []

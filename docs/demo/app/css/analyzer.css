@@ -1,0 +1,1228 @@
+/* ══════════════════════════════════════════════════════════════════════
+   analytics.css — AuraEngine Analyzer window styles.
+
+   Loaded only in analytics.html (separate Tauri window, decorations:false,
+   transparent:true).  Copies the design tokens from dsprack.css so that
+   the analyzer window reads as the same design family as the main window.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Design tokens (copied from dsprack.css :root) ───────────────────── */
+
+:root {
+  /* Stage hues */
+  --lab-aa:   #34d399;
+  --lab-hp:   #a78bfa;
+  --lab-pfr:  #facc15;
+  --lab-dc:   #fb7185;
+  --lab-isp:  #fb923c;
+  --lab-tfs:  #a3e635;
+  --lab-ahp:  #e879f9;
+  --lab-ahr:  #f472b6;
+  --lab-xtc:  #2dd4bf;
+  --lab-sub:  #60a5fa;
+  --lab-alb:  #cbd5e1;
+
+  /* Typography */
+  --lab-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
+  --lab-sans: 'SF Pro Display', 'Segoe UI', Tahoma, Arial, sans-serif;
+
+  /* Provenance badge colors */
+  --prov-analytic:  #38bdf8;
+  --prov-forecast:  #a78bfa;
+  --prov-measured:  #6ee7b7;
+  --prov-unchanged: #64748b;
+  --prov-hp-border: #fbbf24;
+  --prov-stale:     #fb923c;
+
+  /* Analyzer-specific tokens */
+  --an-s:            #4ade80;
+  --an-b:            #94a3b8;
+  --an-o:            #38bdf8;
+  --an-h:            #f59e0b;
+  --an-overlay-bg:   rgba(11,25,44,0.85);
+  --an-cursor:       rgba(255,255,255,0.6);
+  --an-grid:         rgba(255,255,255,0.07);
+  --an-axis-label:   #7dd3fc;
+
+  /* Window chrome */
+  --win-border:      rgba(56,189,248,0.38);
+  --win-glow:        rgba(56,189,248,0.07);
+  --win-bg-deep:     #000000;
+  --win-bg-center:   #0B192C;
+
+  /* Text */
+  --text-primary:    #e2e8f0;
+  --text-label:      #7dd3fc;
+  --text-dim:        #94a3b8;
+  --text-vdim:       #64748b;
+
+  /* Accent */
+  --accent-sky:      #0ea5e9;
+  --accent-focus:    #38bdf8;
+  --amber:           #fbbf24;
+  --amber-dim:       #facc15;
+  --error:           #f87171;
+  --success:         #34d399;
+}
+
+/* ── Global reset for the analyzer window ────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--lab-sans);
+  font-size: 13px;
+  user-select: none;
+  overflow: hidden;
+  margin: 0;
+}
+
+/* ── Root panel ───────────────────────────────────────────────────────── */
+
+.an-panel {
+  border-radius: 11px;
+  border: 1px solid var(--win-border);
+  box-shadow:
+    0 0 0 1px rgba(124,58,237,0.18),
+    0 10px 36px rgba(0,0,0,0.80),
+    0 0 18px var(--win-glow);
+  background:
+    radial-gradient(circle at 50% 30%, rgba(14,165,233,0.12) 0%, transparent 58%),
+    radial-gradient(circle at center, var(--win-bg-center) 0%, var(--win-bg-deep) 100%);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  padding: 0 9px 9px;
+}
+
+/* ── Utility ─────────────────────────────────────────────────────────── */
+
+.an-hidden   { display: none !important; }
+.metrics-hidden { display: none !important; }
+
+/* ── Title bar ───────────────────────────────────────────────────────── */
+
+#anTitleBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  flex-shrink: 0;
+  padding: 0 4px 0 8px;
+  cursor: default;
+  -webkit-app-region: drag;
+}
+
+.an-title-text {
+  font-family: var(--lab-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-label);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+/* Its parts (analytics/title.js): the window's name and LIVE in the app's
+   blue, a stream's station in the gold of the analysis line, the song or
+   the file in white, the dots between them dim, a file's "(converted)" less
+   bright than its name. */
+.an-title-text .an-t-app,
+.an-title-text .an-t-mode    { color: var(--accent-focus); }
+.an-title-text .an-t-station { color: #fcd34d; }
+.an-title-text .an-t-song,
+.an-title-text .an-t-file    { color: #f8fafc; }
+.an-title-text .an-t-sep     { color: var(--text-vdim); font-weight: 400; }
+.an-title-text .an-t-note    { color: var(--text-dim); font-weight: 400; }
+
+.an-win-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.an-win-btn {
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0.5;
+  transition: opacity 0.15s, background 0.15s;
+  padding: 0;
+}
+.an-win-btn:hover { opacity: 1; }
+/* The main window's pair: sky minimize, grey close turning red on hover. */
+.an-win-btn--min  { background: rgba(56, 189, 248, 0.65); }
+.an-win-btn--min:hover  { background: #38bdf8; }
+.an-win-btn--max  { background: rgba(167, 139, 250, 0.65); }
+.an-win-btn--max:hover  { background: #a78bfa; }
+.an-win-btn--close { background: rgba(148, 163, 184, 0.45); }
+.an-win-btn--close:hover { background: #ef4444; }
+.an-win-btn svg { display: none; }
+
+/* ── Chain strip ─────────────────────────────────────────────────────── */
+
+#anChainWrap {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgba(30,41,59,.40), rgba(15,23,42,.24));
+  border: 1px solid rgba(56,189,248,.09);
+  margin-bottom: 5px;
+  min-height: 28px;
+  overflow-x: auto;
+}
+
+#anChainLabel {
+  font-family: var(--lab-mono);
+  font-size: 0.44rem;
+  font-weight: 700;
+  color: var(--text-vdim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#anChainStrip {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.chain-chip {
+  font-family: var(--lab-mono);
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+  background: rgba(255,255,255,0.06);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  cursor: default;
+}
+.chain-chip--on {
+  border-color: var(--chip-color, #7dd3fc);
+  color: var(--chip-color, #7dd3fc);
+  background: color-mix(in srgb, var(--chip-color, #7dd3fc) 12%, transparent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--chip-color, #7dd3fc) 30%, transparent);
+}
+.chain-chip--off {
+  opacity: 0.35;
+}
+
+/* The whole-track analysis in progress: a 2 px gold line under the chain
+   strip, in an 8 px strip that takes the pointer for its tooltip. */
+#anProgress {
+  position: relative;
+  flex-shrink: 0;
+  height: 8px;
+  margin: -6px 8px -2px;
+  cursor: default;
+  transition: opacity 0.3s;
+}
+#anProgress.an-progress--idle { opacity: 0; pointer-events: none; }
+#anProgress::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 3px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(251,191,36,0.14);
+}
+#anProgressFill {
+  position: absolute;
+  left: 0; top: 3px;
+  height: 2px;
+  width: 0;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #f59e0b, #fcd34d);
+  box-shadow: 0 0 5px rgba(251,191,36,0.55);
+  transition: width 0.45s ease;
+}
+/* The whole's percentage: a small gold tag on the line, riding with the
+   fill's end (window.js keeps it inside the line); it goes with the line. */
+#anProgressPct {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  z-index: 2;
+  padding: 0 4px;
+  font-family: var(--lab-mono);
+  font-size: 0.5rem;
+  font-weight: 700;
+  line-height: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: #fcd34d;
+  background: rgba(15,23,42,0.96);
+  border: 1px solid rgba(251,191,36,0.55);
+  border-radius: 4px;
+  box-shadow: 0 0 5px rgba(251,191,36,0.3);
+  /* It rises over a toolbar button under it (window.js, progress.js placeBadge). */
+  transition: left 0.45s ease, transform 0.2s ease;
+}
+
+/* ── HP banner ───────────────────────────────────────────────────────── */
+
+#anHpBanner {
+  background: rgba(251,191,36,0.12);
+  border: 1px solid rgba(251,191,36,0.3);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 0.65rem;
+  color: var(--amber);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────────────── */
+
+#anToolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 3px 2px;
+  margin-bottom: 4px;
+}
+
+.an-btn {
+  font-family: var(--lab-mono);
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid rgba(56,189,248,0.25);
+  background: rgba(14,165,233,0.08);
+  color: var(--text-label);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.12s, border-color 0.12s;
+  display: flex; align-items: center; gap: 5px;
+}
+.an-btn:hover {
+  background: rgba(14,165,233,0.15);
+  border-color: rgba(56,189,248,0.45);
+}
+.an-btn.active {
+  background: rgba(56,189,248,0.18);
+  border-color: var(--accent-focus);
+  color: var(--accent-focus);
+}
+.an-btn svg { flex-shrink: 0; }
+
+.an-spacer { flex: 1; }
+
+/* ── Sections / panels ──────────────────────────────────────────────── */
+
+.an-section {
+  border-radius: 9px;
+  padding: 6px 8px 8px;
+  background: linear-gradient(180deg, rgba(30,41,59,.40), rgba(15,23,42,.24));
+  border: 1px solid rgba(56,189,248,.09);
+  margin-bottom: 5px;
+  flex-shrink: 0;
+}
+
+.an-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  cursor: default;
+}
+
+.an-section-title {
+  font-family: var(--lab-mono);
+  font-size: 0.46rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+/* Collapsible panels */
+
+.an-panel-collapsible .an-panel-body {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.2s ease;
+}
+.an-panel-collapsible.an-panel--expanded .an-panel-body {
+  max-height: 600px;
+}
+.an-panel-collapsible .an-section-head {
+  cursor: pointer;
+}
+.an-panel-collapsible .an-section-head:hover .an-section-title {
+  color: var(--accent-focus);
+}
+.an-panel-chevron {
+  transition: transform 0.2s;
+  color: var(--text-dim);
+}
+.an-panel--expanded .an-panel-chevron {
+  transform: rotate(180deg);
+}
+
+/* ── Body: numbers | splitter | graphs ─────────────────────────────── */
+
+#anBody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 0;
+}
+/* The numbers: as wide as the table needs by default, set by dragging the
+   splitter (window.js keeps it in --an-left-w). */
+#anLeft {
+  flex: 0 0 var(--an-left-w, 400px);
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+#anLeft #anMetricsSection { flex-shrink: 0; }
+#anLeft #anCardStrip { margin-top: auto; flex-wrap: wrap; row-gap: 4px; }
+#anSplit {
+  flex: 0 0 7px;
+  cursor: col-resize;
+  position: relative;
+}
+#anSplit::after {
+  content: '';
+  position: absolute; top: 0; bottom: 0; left: 3px;
+  width: 1px;
+  background: rgba(56, 189, 248, 0.10);
+  transition: background 0.15s;
+}
+#anSplit:hover::after,
+#anSplit.an-split--drag::after { background: rgba(56, 189, 248, 0.5); }
+body.an-resizing { cursor: col-resize; }
+body.an-resizing * { user-select: none; }
+
+/* ── Panel scroll container ─────────────────────────────────────────── */
+
+#anPanels {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  padding-right: 2px;
+}
+
+/* ── Graph tabs (window.js): one graph at a time, the column's height ── */
+
+#anPanels.an-tabbed {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-right: 0;
+}
+#anTabs {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-bottom: 5px;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.12);
+}
+.an-tab {
+  padding: 5px 10px 4px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-family: var(--lab-mono);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-label);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.an-tab:hover { color: var(--text-primary); }
+.an-tab--on { color: var(--accent-focus); border-bottom-color: var(--accent-focus); }
+#anPanels.an-tabbed > .an-section { display: none; margin-bottom: 0; }
+#anPanels.an-tabbed > .an-section.an-tab-active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+#anPanels.an-tabbed > .an-section > .an-section-head { display: none; }
+#anPanels.an-tabbed .an-panel-body {
+  max-height: none;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  transition: none;
+}
+#anPanels.an-tabbed .canvas-panel-wrap { height: auto; flex: 1; min-height: 0; }
+
+/* A narrow window: one column, the numbers above the graphs. */
+@media (max-width: 760px) {
+  #anBody { flex-direction: column; overflow-y: auto; }
+  #anLeft { flex: 0 0 auto; overflow: visible; min-width: 0; }
+  #anSplit { display: none; }
+  #anPanels { flex: 0 0 auto; overflow: visible; }
+  #anPanels.an-tabbed { height: 440px; }
+}
+#anPanels::-webkit-scrollbar { width: 4px; }
+#anPanels::-webkit-scrollbar-track { background: transparent; }
+#anPanels::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.2); border-radius: 2px; }
+
+/* ── Metrics table ───────────────────────────────────────────────────── */
+
+.metrics-wrap {
+  overflow-x: auto;
+}
+
+.metrics-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+
+.metrics-tbl thead th,
+.metrics-tbl tbody td {
+  padding: 2px 6px;
+  text-align: right;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.metrics-th {
+  font-family: var(--lab-mono);
+  font-size: 0.50rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-label);
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(56,189,248,0.12);
+  position: sticky;
+  top: 0;
+  background: rgba(11,25,44,0.95);
+  z-index: 1;
+}
+.metrics-th--label { text-align: left; }
+/* The column's name beside its letter ("S source"). */
+.metrics-th-name { color: var(--text-dim); font-weight: 400; letter-spacing: 0.5px; }
+
+.metrics-td--label {
+  text-align: left;
+  color: var(--text-dim);
+  font-family: var(--lab-sans);
+  font-size: 0.72rem;
+  cursor: default;
+}
+.metrics-td--label.metrics-td--has-tip { cursor: help; }
+.metrics-td--label:hover { color: var(--text-primary); }
+
+.metrics-td--val {
+  font-family: var(--lab-mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  cursor: pointer;
+  position: relative;
+}
+.metrics-td--val:hover { background: rgba(56,189,248,0.04); }
+.metrics-td--copied { background: rgba(52,211,153,0.12) !important; transition: background 0.3s; }
+
+.metrics-row:hover .metrics-td { background: rgba(56,189,248,0.03); }
+.metrics-row--hidden { display: none; }
+
+/* Each val cell: number right-aligned + fixed-width badge sub-column */
+td.metrics-td--val {
+  display: table-cell; /* ensure table layout (overrides any flex rule above) */
+  text-align: right;
+  padding-right: 4px; /* tight right padding; badge provides its own gap */
+}
+.metrics-td--val .metrics-val {
+  /* inherits text-align: right from td */
+}
+.metrics-td--val .metrics-prov {
+  /* Fixed-width sub-column so value right edges align within 1 px across rows */
+  display: inline-block;
+  min-width: 32px;
+  text-align: center;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
+/* B column */
+.metrics-b-toggle {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-label); padding: 0 2px;
+  display: inline-flex; align-items: center;
+  vertical-align: middle;
+}
+.metrics-b-toggle:hover { color: var(--accent-focus); }
+.metrics-b-chevron { transition: transform 0.2s; }
+.metrics-b-chevron--open { transform: rotate(180deg); }
+.metrics-b-glow { box-shadow: 0 0 8px var(--an-b); transition: box-shadow 0.5s; }
+.metrics-b-ready .metrics-th--b { color: var(--an-b); }
+
+/* Short-track LRA warning */
+.metrics-lra-warn {
+  font-size: 0.55rem;
+  color: var(--amber);
+  margin-left: 3px;
+  cursor: help;
+}
+
+/* Coverage bar — 3 px per SPEC §5.1 */
+.metrics-coverage-bar {
+  height: 3px;
+  background: rgba(56,189,248,0.12);
+  border-radius: 1px;
+  margin-top: 2px;
+  overflow: hidden;
+}
+.metrics-coverage-fill {
+  height: 100%;
+  background: var(--an-o);
+  border-radius: 1px;
+  transition: width 0.3s;
+  min-width: 0;
+}
+
+/* Metric row groups — specificity must beat .metrics-tbl tbody td (0,1,2) */
+.metrics-tbl .metrics-group-row td {
+  padding: 6px 6px 2px;
+  font-family: var(--lab-mono);
+  font-size: 0.42rem;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--text-vdim);
+  border-top: 1px solid rgba(56,189,248,0.08);
+  text-align: left;
+  cursor: default;
+}
+/* LIVE / WHOLE TRACK section rows: above the groups, with per-column status */
+.metrics-tbl .metrics-section-row td {
+  padding: 8px 6px 3px;
+  font-family: var(--lab-mono);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent, #38bdf8);
+  border-top: 1px solid rgba(56,189,248,0.25);
+  cursor: default;
+}
+.metrics-tbl .metrics-section-row--first td { border-top: none; padding-top: 3px; }
+/* SELECTION: shown while a stretch is selected (metrics-table.js) */
+.metrics-tbl .metrics-sel--off { display: none; }
+.metrics-tbl .metrics-sel-range td {
+  font-family: var(--lab-mono); font-size: 0.6rem; color: #e2e8f0; padding: 0 6px 4px;
+}
+.metrics-sel-clear {
+  margin-left: 8px; background: transparent; border: 1px solid rgba(56,189,248,0.3); border-radius: 3px;
+  color: var(--text-dim); font-size: 0.55rem; line-height: 12px; padding: 0 5px; cursor: pointer;
+}
+.metrics-sel-clear:hover { color: #e2e8f0; border-color: rgba(56,189,248,0.6); }
+.metrics-tbl .metrics-section-row td.metrics-td--val {
+  font-size: 0.55rem;
+  letter-spacing: 0.5px;
+  text-transform: none;
+  color: var(--text-dim);
+}
+
+/* No top border for the very first group (flush to table header) */
+.metrics-tbl .metrics-group-row--first td {
+  border-top: none;
+  padding-top: 3px;
+}
+
+/* B column label hides when column is collapsed (only chevron remains) */
+.metrics-th--b .metrics-b-label { display: inline; }
+.metrics-th--b.b-collapsed .metrics-b-label { display: none; }
+.metrics-th--b.b-collapsed { min-width: 0; padding-left: 2px; padding-right: 2px; }
+/* B hidden: every row keeps its B cell, empty and narrow under the header's
+   arrow, so S and O stay under their own headers. Taken out of the rows, the
+   cells left O's numbers under the arrow and the O column looked empty. */
+.metrics-b-col.metrics-b-off { padding-left: 2px; padding-right: 2px; font-size: 0; }
+.metrics-b-col.metrics-b-off > * { display: none; }
+
+/* A stream (the radio): S and O live, the song and the session — no whole
+   track's rows (its line says why), no B (metrics-table.js). */
+.metrics-stream-only { display: none; }
+.metrics--stream .metrics-stream-only { display: table-row; }
+.metrics--stream .metrics-row:not(.metrics-row--live):not(.metrics-row--stream),
+.metrics--stream .metrics-group-row,
+.metrics--stream .metrics-show-all,
+.metrics--stream .metrics-b-col { display: none; }
+.metrics-stream-reset { margin-left: 6px; }
+/* What the stream says it is, and how far its spectrum really reaches. In a
+   narrow column the reach goes to a second line whole, not cut with "…"
+   ("Source bandwidth: full, 22.05 …", 3.10): each part keeps to one line. */
+.an-stream-line {
+  font-family: var(--lab-mono);
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  padding: 2px 8px 6px;
+}
+.an-stream-line > span { white-space: nowrap; }
+.an-stream-line .an-stream-bw { color: var(--text-primary); cursor: default; }
+
+/* A stream's songs (songs-view.js): the one playing first, then the last ones. */
+.an-songs { overflow: auto; height: 100%; padding: 4px 8px; font-family: var(--lab-mono); font-size: 0.62rem; }
+.an-songs-tbl { border-collapse: collapse; width: 100%; }
+.an-songs-tbl th { color: var(--text-label); font-weight: 600; text-align: right; padding: 2px 5px; white-space: nowrap; }
+.an-songs-tbl td { color: var(--text-primary); padding: 3px 5px; border-top: 1px solid rgba(148,163,184,0.12); }
+.an-songs-tbl .an-songs-title { text-align: left; max-width: 22rem; }
+.an-songs-tbl .an-songs-group { text-align: center; }
+.an-songs-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.an-songs-o { color: var(--an-o); }
+.an-songs-now td { background: rgba(56,189,248,0.06); }
+.an-songs-mark { margin-left: 6px; padding: 0 4px; border-radius: 3px; font-size: 0.55rem; color: var(--text-dim);
+  border: 1px solid rgba(148,163,184,0.3); }
+.an-songs-station { color: var(--text-dim); font-size: 0.55rem; }
+.an-songs-empty { color: var(--text-dim); padding: 8px 4px; }
+
+/* Show all button */
+.metrics-show-all { padding: 3px 4px 0; }
+.metrics-show-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-dim); font-family: var(--lab-sans); font-size: 0.65rem;
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 4px; border-radius: 3px;
+}
+.metrics-show-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+.metrics-show-chevron { transition: transform 0.2s; }
+.metrics-show-chevron--open { transform: rotate(180deg); }
+
+/* ── Provenance badges ────────────────────────────────────────────────── */
+
+.prov-badge {
+  font-family: var(--lab-mono);
+  font-size: 0.50rem;
+  font-weight: 700;
+  padding: 0 3px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  cursor: help;
+  line-height: 1.4;
+}
+
+.prov-a        { color: var(--prov-analytic);  background: rgba(56,189,248,0.12);  }
+.prov-f        { color: var(--prov-forecast);  background: rgba(167,139,250,0.12); }
+.prov-m        { color: var(--prov-measured);  background: rgba(110,231,183,0.12); }
+.prov-eq       { color: var(--prov-unchanged); background: rgba(100,116,139,0.12); }
+.prov-hp       { color: var(--amber);          background: rgba(251,191,36,0.10);  border: 1px solid rgba(251,191,36,0.35); }
+.prov-stale    { color: var(--prov-stale);     background: rgba(251,146,60,0.12);  }
+.prov-computing { color: var(--text-vdim);     background: transparent; }
+.prov-unavail  { display: none; }
+
+/* ── Copyable-card strip ─────────────────────────────────────────────── */
+
+#anCardStrip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgba(30,41,59,.30), rgba(15,23,42,.20));
+  border: 1px solid rgba(56,189,248,.07);
+  margin-bottom: 4px;
+  min-height: 36px;
+}
+
+.an-card-btn {
+  font-family: var(--lab-mono);
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(56,189,248,0.18);
+  background: rgba(14,165,233,0.06);
+  color: var(--text-label);
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  display: flex; align-items: center; gap: 4px;
+  transition: background 0.12s, border-color 0.12s;
+}
+.an-card-btn:hover {
+  background: rgba(14,165,233,0.13);
+  border-color: rgba(56,189,248,0.35);
+}
+.an-card-dropdown {
+  padding: 3px 5px;
+  border-radius: 3px;
+  border: 1px solid rgba(56,189,248,0.15);
+  background: rgba(11,25,44,0.8);
+  color: var(--text-label);
+  font-family: var(--lab-mono);
+  font-size: 0.52rem;
+  cursor: pointer;
+}
+
+/* ── Layer strip (left edge of canvas panels) ────────────────────────── */
+
+.canvas-panel-wrap {
+  position: relative;
+  display: flex;
+}
+
+/* The column is as wide as its widest toggle (46 px at least): a longer name,
+   or larger system text, widens the column instead of spilling over its pill. */
+.layer-strip {
+  width: max-content;
+  min-width: 46px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 4px 3px;
+  background: rgba(15,23,42,0.4);
+  border-right: 1px solid rgba(56,189,248,0.07);
+}
+
+.layer-row { display: flex; justify-content: center; }
+
+.layer-dot {
+  width: 100%; min-width: 40px; height: 17px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  font-family: var(--lab-mono);
+  font-size: 0.5rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1.5px solid var(--layer-color, #7dd3fc);
+  background: color-mix(in srgb, var(--layer-color, #7dd3fc) 15%, transparent);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--layer-color, #7dd3fc);
+  transition: opacity 0.15s, background 0.15s;
+  padding: 0 5px;
+}
+.layer-dot--off {
+  opacity: 0.35;
+  background: transparent;
+}
+.layer-dot:hover { opacity: 1; }
+.layer-dot--hp {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.layer-dot--shift-sel {
+  box-shadow: 0 0 0 2px var(--accent-focus);
+}
+
+/* ── Canvas panels ─────────────────────────────────────────────────────── */
+
+.an-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+canvas.an-canvas-main {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+canvas.an-canvas-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+}
+
+/* Spectrum panel */
+#anSpectrumPanel {
+  /* the main graph: most of the column's height */
+  height: clamp(220px, 46vh, 460px);
+}
+
+/* Loudness panel */
+#anLoudnessPanel {
+  height: 140px;
+}
+
+/* Spectrogram panel */
+#anSpectrogramPanel {
+  height: 180px;
+}
+
+/* Waveform panel */
+#anWaveformPanel {
+  height: 120px;
+}
+
+/* Histogram panel */
+#anHistogramPanel {
+  height: 140px;
+}
+
+/* Stereo panel */
+#anStereoPanel {
+  height: 200px;
+}
+
+/* ── Status bar ──────────────────────────────────────────────────────── */
+
+#anStatusBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 8px;
+  border-top: 1px solid rgba(56,189,248,0.07);
+  background: rgba(11,25,44,0.5);
+  border-radius: 0 0 10px 10px;
+  font-family: var(--lab-mono);
+  font-size: 0.58rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  margin-top: auto;
+}
+
+#anPlayheadWrap {
+  flex: 1;
+  position: relative;
+  height: 2px;
+  background: rgba(56,189,248,0.12);
+  border-radius: 1px;
+  margin: 0 4px;
+}
+
+#anPlayheadFill {
+  position: absolute;
+  top: 0; left: 0;
+  width: 2px; height: 100%;
+  background: var(--an-o);
+  border-radius: 1px;
+  transform: translateX(-1px);
+  transition: left 0.1s linear;
+}
+
+/* The live window's seek bar: a 4 px track in a 14 px hit zone, the
+   played part in the output colour, a thumb on hover and while dragging. */
+#anPlayheadWrap.an-scrub {
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+#anPlayheadWrap.an-scrub #anPlayheadFill { display: none; }
+#anPlayheadWrap.an-scrub::before,
+#anPlayheadWrap.an-scrub::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 5px; height: 4px;
+  border-radius: 2px;
+}
+#anPlayheadWrap.an-scrub::before { right: 0; background: rgba(56, 189, 248, 0.14); }
+#anPlayheadWrap.an-scrub::after {
+  width: var(--an-scrub, 0%);
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.55), var(--an-o));
+}
+.an-scrub-thumb {
+  position: absolute;
+  left: var(--an-scrub, 0%); top: 3px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #e0f2fe;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+  transform: translateX(-50%);
+  opacity: 0;
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+#anPlayheadWrap.an-scrub:hover .an-scrub-thumb,
+#anPlayheadWrap.an-scrub--drag .an-scrub-thumb { opacity: 1; }
+/* the seek band: from the sound to the target, breathing until heard */
+.an-scrub-band {
+  position: absolute; top: 4px; height: 6px;
+  border-radius: 3px;
+  display: none;
+  pointer-events: none;
+  z-index: 1;
+}
+.an-scrub-band.active {
+  display: block;
+  background: linear-gradient(90deg, rgba(167, 139, 250, 0.25), rgba(56, 189, 248, 0.7));
+  animation: an-scrub-breathe 0.75s ease-in-out infinite alternate;
+}
+.an-scrub-band--back.active {
+  background: linear-gradient(270deg, rgba(167, 139, 250, 0.25), rgba(56, 189, 248, 0.7));
+}
+.an-scrub-band.active::after {
+  content: '';
+  position: absolute; top: 50%; right: 0;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  transform: translate(50%, -50%);
+  background: #e0f2fe;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.85);
+}
+.an-scrub-band--back.active::after { right: auto; left: 0; transform: translate(-50%, -50%); }
+@keyframes an-scrub-breathe { from { opacity: 0.5; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .an-scrub-band.active { animation: none; opacity: 0.8; }
+}
+#anPlayheadWrap.an-scrub--idle { cursor: default; opacity: 0.5; }
+#anPlayheadWrap.an-scrub--idle .an-scrub-thumb { display: none; }
+
+/* ▶/⏸ between the seek bar and the time: a small square, the main
+   player's row-button family. */
+#anPlayBtn {
+  flex: none;
+  width: 18px; height: 18px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: rgba(56, 189, 248, 0.08);
+  color: #7dd3fc;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+#anPlayBtn:hover { background: rgba(56, 189, 248, 0.25); color: #e0f2fe; }
+#anPlayBtn svg { width: 9px; height: 9px; display: block; }
+
+#anDurationText { white-space: nowrap; font-variant-numeric: tabular-nums; }
+#anCoverageText { white-space: nowrap; }
+
+/* Export screenshot button in status bar */
+#anExportBtn {
+  background: none; border: none;
+  color: var(--text-dim); cursor: pointer;
+  padding: 2px 4px; border-radius: 3px;
+  display: flex; align-items: center;
+}
+#anExportBtn:hover { color: var(--text-label); background: rgba(255,255,255,0.05); }
+
+/* ── Tooltip (#labTip) ────────────────────────────────────────────────── */
+
+/* Placed by tip-place.js (its top-left corner, whole inside the window). */
+#labTip {
+  position: fixed;
+  left: 0; top: 0;
+  z-index: 9999;
+  pointer-events: none;
+  max-width: 280px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+#labTip.visible { opacity: 1; }
+
+/* ── Waveform: the Follow switch (top-right of the detail view) ───────── */
+
+.an-wave-follow {
+  position: absolute; top: 6px; right: 8px; z-index: 2;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px;
+  font-family: var(--lab-mono); font-size: 0.55rem; font-weight: 700; letter-spacing: 0.3px;
+  border-radius: 4px;
+  border: 1px solid rgba(56,189,248,0.22);
+  background: rgba(11,25,44,0.82);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.an-wave-follow:hover { border-color: rgba(56,189,248,0.5); color: var(--text-label); }
+.an-wave-follow--on {
+  border-color: var(--accent-focus);
+  background: rgba(14,58,92,0.88);
+  color: var(--accent-focus);
+}
+.an-wave-follow[hidden] { display: none; }
+
+/* ── Export ▾ menu (export.js: fixed, under its button) ───────────────── */
+
+.an-export-pop {
+  position: fixed; left: 0; top: 0; z-index: 9000;
+  min-width: 230px;
+  padding: 5px;
+  border-radius: 8px;
+  border: 1px solid rgba(56,189,248,0.3);
+  background: rgba(8,18,32,0.98);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+  display: flex; flex-direction: column; gap: 1px;
+}
+.an-export-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none; border-radius: 5px;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--lab-sans); font-size: 0.68rem;
+  text-align: left; white-space: nowrap; cursor: pointer;
+}
+.an-export-item:hover, .an-export-item:focus-visible { background: rgba(14,165,233,0.14); outline: none; }
+.an-export-item svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--text-label); }
+.an-export-sep { height: 1px; margin: 3px 4px; background: rgba(56,189,248,0.12); }
+
+/* Nothing floating over the page while its picture is taken. */
+body.an-capturing #labTip, body.an-capturing .an-export-pop { visibility: hidden !important; }
+
+/* ── Spectrum: the snapshots' chips (in its mode bar) ─────────────────── */
+
+.an-snap-chips { display: inline-flex; align-items: center; gap: 4px; }
+.an-snap-chip {
+  display: inline-flex; align-items: center;
+  border: 1px solid var(--snap-color); border-radius: 4px; overflow: hidden;
+  background: rgba(11,25,44,0.85);
+}
+.an-snap-chip button {
+  border: none; background: transparent; cursor: pointer;
+  font-family: var(--lab-mono); font-size: 10px; line-height: 1; padding: 2px 5px;
+}
+.an-snap-eye { color: var(--snap-color); font-weight: 700; }
+.an-snap-eye::before {
+  content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--snap-color); margin-right: 4px; vertical-align: 1px;
+}
+.an-snap-del { color: var(--text-dim); padding: 2px 4px; border-left: 1px solid rgba(56,189,248,0.15); }
+.an-snap-del:hover { color: var(--error); }
+.an-snap-chip--off { opacity: 0.45; }
+.an-snap-chip--off .an-snap-eye::before { background: transparent; box-shadow: inset 0 0 0 1px var(--snap-color); }
+#labTip .hint {
+  display: block;
+  background: rgba(11,25,44,0.96);
+  border: 1px solid rgba(56,189,248,0.25);
+  border-radius: 5px;
+  padding: 5px 9px;
+  font-family: var(--lab-sans);
+  font-size: 0.68rem;
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  white-space: pre-line;
+  line-height: 1.4;
+}
+
+/* ── Cursor legend strip ─────────────────────────────────────────────── */
+
+.an-cursor-legend {
+  height: 20px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--lab-mono);
+  font-size: 0.60rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  background: var(--an-overlay-bg);
+  border-top: 1px solid rgba(56,189,248,0.07);
+  overflow: hidden;
+}
+.an-cursor-legend span { white-space: nowrap; }
+.an-cursor-legend .cleg-s  { color: var(--an-s); }
+.an-cursor-legend .cleg-b  { color: var(--an-b); }
+.an-cursor-legend .cleg-o  { color: var(--an-o); }
+.an-cursor-legend .cleg-h  { color: var(--an-h); }
+
+/* ── Popover (for card strip) ────────────────────────────────────────── */
+
+.an-popover {
+  position: absolute;
+  z-index: 100;
+  min-width: 320px;
+  max-width: 520px;
+  background: rgba(11,25,44,0.97);
+  border: 1px solid rgba(56,189,248,0.25);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.7);
+  padding: 12px 14px;
+  font-size: 0.68rem;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  font-family: var(--lab-mono);
+  line-height: 1.5;
+}
+.an-popover-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(56,189,248,0.1);
+  padding-bottom: 6px;
+}
+.an-popover-title {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--text-label);
+}
+.an-popover-copy-btn {
+  font-family: var(--lab-mono); font-size: 0.52rem;
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid rgba(56,189,248,0.25);
+  background: rgba(14,165,233,0.08); color: var(--text-label);
+  cursor: pointer;
+}
+.an-popover-copy-btn:hover { background: rgba(14,165,233,0.15); }
+
+/* ── Scrollbars ───────────────────────────────────────────────────────── */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56,189,248,0.2) transparent;
+}
+
+/* Spectrum panel: WHOLE / LIVE and the live kind, top right (spectrum-view.js) */
+.an-specview-modes {
+  position: absolute; top: 2px; right: 8px; z-index: 3;
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--lab-mono); font-size: 10px; color: var(--text-dim); white-space: nowrap;
+}
+.an-specview-live { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Spectrogram toolbar: view, scale, level, colour map, fit (spectrogram-view.js).
+   A narrow panel wraps it onto a second row; the plot starts under it. */
+.an-spec-toolbar {
+  position: absolute; left: 0; right: 0; top: 0; min-height: 24px;
+  display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; row-gap: 3px; padding: 3px 6px;
+  font-family: var(--lab-mono); font-size: 10px; color: var(--text-dim);
+  white-space: nowrap; box-sizing: border-box;
+}
+.an-spec-seg { display: inline-flex; border: 1px solid rgba(56,189,248,0.25); border-radius: 4px; overflow: hidden; }
+.an-spec-seg .an-spec-btn { border: none; border-radius: 0; }
+.an-spec-seg .an-spec-btn + .an-spec-btn { border-left: 1px solid rgba(56,189,248,0.2); }
+.an-spec-btn {
+  font: inherit; color: var(--text-dim); background: transparent; cursor: pointer;
+  border: 1px solid rgba(56,189,248,0.25); border-radius: 4px; padding: 1px 7px; line-height: 16px;
+}
+.an-spec-btn:hover { color: #e2e8f0; background: rgba(56,189,248,0.08); }
+.an-spec-btn--on { color: #0b192c; background: var(--accent-focus); }
+.an-spec-btn--on:hover { color: #0b192c; background: var(--accent-focus); }
+/* The histogram on a stream: this song or the session (histogram-view.js). */
+.an-hist-which {
+  position: absolute; top: 4px; right: 6px; z-index: 2;
+  font-family: var(--lab-mono); font-size: 10px; background: rgba(11,25,44,0.82);
+}
+.an-hist-which[hidden] { display: none; }
+.an-spec-range { display: inline-flex; align-items: center; gap: 4px; }
+.an-spec-range input[type="range"] { width: 70px; height: 12px; accent-color: var(--accent-focus); }
+.an-spec-val { min-width: 44px; color: #e2e8f0; }
+.an-spec-sel {
+  font: inherit; color: #e2e8f0; background: rgba(11,25,44,0.9);
+  border: 1px solid rgba(56,189,248,0.25); border-radius: 4px; padding: 0 4px; height: 18px;
+}
