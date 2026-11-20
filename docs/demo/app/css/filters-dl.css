@@ -1,0 +1,171 @@
+/* The filter download (js/filters-dl.js): the one-line bar above the rack
+   in place of the old yellow panel, its ⓘ popover, and the dialog in the
+   update dialog's look (update.css) — Download and Storage tabs.
+   Colours: amber #fcd34d, link #7dd3fc, violet #a78bfa / #7c3aed,
+   dialog #1e1b2e, text #e8e4f4. */
+
+/* ── 1. compact bar in place of the yellow panel ── */
+.filter-avail.fa-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 10px;
+  margin-top: 8px;
+  line-height: 1.2;
+  position: relative;
+  white-space: nowrap;
+}
+.fa-compact .fa-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.fa-compact .fa-text b { font-weight: 600; }
+.fa-compact .fa-text .fa-size { font-weight: 400; color: rgba(252, 211, 77, 0.75); }
+.fa-btn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(124, 58, 237, 0.9);
+  background: #7c3aed;
+  color: #fff;
+  font: inherit;
+  font-size: 1em;
+  font-weight: 500;
+  cursor: pointer;
+}
+.fa-btn.ghost { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); color: #d0c8f0; }
+.fa-info {
+  flex-shrink: 0;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(125, 211, 252, 0.55);
+  color: #7dd3fc;
+  font-size: 11px; font-weight: 700; font-style: italic; font-family: Georgia, serif;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  background: transparent;
+}
+.fa-info.open { background: rgba(125, 211, 252, 0.16); }
+/* downloading in the background */
+.filter-avail.fa-compact.is-dl { border-color: rgba(167, 139, 250, 0.40); background: rgba(76, 29, 149, 0.18); color: #ddd6fe; }
+.fa-compact.is-dl .fa-text { font-weight: 500; }
+.fa-compact.is-dl .fa-size { color: rgba(221, 214, 254, 0.65); }
+.fa-compact .fa-line { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 0 0 6px 6px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.fa-compact .fa-line i { display: block; height: 100%; background: #a78bfa; }
+/* ready */
+.filter-avail.fa-compact.is-ok { border-color: rgba(52, 211, 153, 0.40); background: rgba(6, 78, 59, 0.20); color: #6ee7b7; }
+
+/* ⓘ popover */
+.fa-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 330px;
+  z-index: 50;
+  background: #1e1b2e;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.65);
+  padding: 11px 13px 12px;
+  color: #e8e4f4;
+  font-size: 1em;
+  white-space: normal;
+  line-height: 1.45;
+}
+.fa-pop::before {
+  content: ''; position: absolute; top: -6px; right: 9px;
+  width: 10px; height: 10px; transform: rotate(45deg);
+  background: #1e1b2e; border-left: 1px solid rgba(255,255,255,0.14); border-top: 1px solid rgba(255,255,255,0.14);
+}
+.fa-pop .p-title { font-weight: 600; color: #f0ecff; margin-bottom: 3px; }
+.fa-pop .p-note { color: rgba(224, 216, 255, 0.65); margin-bottom: 6px; }
+.fa-pop a { display: block; color: #7dd3fc; text-decoration: underline; text-underline-offset: 2px; margin-top: 2px; cursor: pointer; }
+.fa-pop .p-path { margin-top: 7px; color: rgba(224, 216, 255, 0.55); font-size: 0.95em; word-break: break-all; }
+.fa-pop .p-path code { color: rgba(224, 216, 255, 0.85); font-family: Consolas, monospace; }
+
+/* ── 2/3. filter download dialog (update-dialog style) ── */
+#fdModal {
+  position: fixed; inset: 0; z-index: 9000;
+  background: rgba(0, 0, 0, 0.70);
+  align-items: center; justify-content: center;
+}
+#fdDialog {
+  background: #1e1b2e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 18px 20px 16px;
+  width: 380px; max-width: calc(100vw - 32px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.60);
+  color: #e8e4f4;
+  font-size: 0.88em;
+  display: flex; flex-direction: column; gap: 11px;
+  box-sizing: border-box;
+}
+#fdDialog .up-title { font-size: 0.98em; font-weight: 600; color: #f0ecff; margin: 0; }
+#fdDialog .up-sub { color: rgba(224, 216, 255, 0.65); font-size: 0.82em; margin: -6px 0 0; }
+.fd-tabs { display: flex; gap: 2px; border-bottom: 1px solid rgba(255,255,255,0.09); margin: -4px 0 0; }
+.fd-tabs span { padding: 4px 10px 6px; font-size: 0.82em; color: rgba(224,216,255,0.55); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.fd-tabs span.on { color: #f0ecff; border-bottom-color: #a78bfa; }
+.fd-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.82em;
+  color: rgba(224, 216, 255, 0.85);
+  line-height: 1.5;
+}
+.fd-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.fd-row .l { flex: 1; min-width: 0; }
+.fd-row .r { color: rgba(224, 216, 255, 0.70); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fd-row .hint { display: block; font-size: 0.88em; color: rgba(200, 190, 255, 0.50); }
+.fd-row.off .l, .fd-row.off .r { color: rgba(224, 216, 255, 0.45); }
+.fd-row.total { border-top: 1px solid rgba(255,255,255,0.08); margin-top: 4px; padding-top: 6px; font-weight: 600; color: #f0ecff; }
+.fd-row.total .r { color: #f0ecff; }
+.fd-cap { font-size: 0.78em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: rgba(200, 190, 255, 0.55); margin-bottom: 3px; }
+.fd-chk { width: 13px; height: 13px; border-radius: 3px; border: 1px solid rgba(167,139,250,0.6); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 10px; color: #fff; line-height: 1; }
+.fd-chk.on { background: #7c3aed; border-color: #7c3aed; }
+.fd-free { font-size: 0.80em; color: rgba(224, 216, 255, 0.60); display: flex; justify-content: space-between; }
+.fd-free b { color: #6ee7b7; font-weight: 500; }
+.fd-free b.bad { color: #f87171; }
+.fd-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.10); overflow: hidden; }
+.fd-bar i { display: block; height: 100%; background: #a78bfa; border-radius: 2px; }
+.fd-bar.paused i { background: rgba(251, 191, 36, 0.8); }
+.fd-bar.done i { background: #34d399; }
+.fd-prog { display: flex; flex-direction: column; gap: 6px; font-size: 0.82em; color: rgba(224, 216, 255, 0.75); }
+.fd-prog .top { display: flex; justify-content: space-between; }
+.fd-prog .file { font-family: Consolas, monospace; font-size: 0.95em; color: rgba(224,216,255,0.85); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-prog .nums { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; color: rgba(224,216,255,0.60); }
+.fd-msg { font-size: 0.82em; line-height: 1.45; }
+.fd-msg.warn { color: #fcd34d; }
+.fd-msg.ok { color: #6ee7b7; }
+.fd-msg.err { color: #f87171; }
+.fd-msg .dim { color: rgba(224, 216, 255, 0.60); }
+.fd-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 2px; }
+.fd-btns .sp { flex: 1; }
+.fd-btns button { padding: 6px 14px; border-radius: 5px; border: none; font-size: 0.84em; font-weight: 500; cursor: pointer; font-family: inherit; }
+.fd-btns .pri { background: #7c3aed; color: #fff; }
+.fd-btns .sec { background: rgba(255, 255, 255, 0.09); color: #d0c8f0; }
+.fd-btns .txt { background: transparent; color: rgba(200, 190, 240, 0.55); padding-left: 6px; padding-right: 6px; }
+.fd-btns .dng { background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
+.fd-list { margin-top: 4px; font-family: Consolas, monospace; font-size: 0.92em; color: rgba(224,216,255,0.6); }
+.fd-list div { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
+.fd-list div span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-exp { color: rgba(167, 139, 250, 0.85); cursor: pointer; font-size: 0.95em; }
+.fd-usebar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: rgba(255,255,255,0.08); margin: 4px 0 6px; }
+.fd-usebar i { display: block; height: 100%; }
+.fd-dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
+
+/* the app's own pieces on top of the approved pictures */
+.fd-row.pick { cursor: pointer; user-select: none; }
+.fd-btns button:disabled { opacity: 0.38; cursor: default; }
+.fd-bar.failed i { background: #f87171; }
+.fd-row.fd-head { border: 0; margin: 0; padding: 0; }
+.fd-row .fd-n { min-width: 52px; text-align: right; }
+.fd-row .fd-sz { min-width: 48px; text-align: right; }
+.fd-usebar .fd-unused-fill { background: repeating-linear-gradient(45deg, rgba(251,191,36,.55) 0 3px, rgba(251,191,36,.2) 3px 6px); }
+.fd-box.fd-unused { border-color: rgba(251, 191, 36, 0.30); background: rgba(120, 53, 15, 0.14); }
+.fd-unused .fd-unused-title { color: #fcd34d; }
+.fd-dot.fd-dot-unused { background: rgba(251, 191, 36, 0.7); }
+.fa-btn.fd-trash { background: rgba(239, 68, 68, 0.16); border-color: rgba(239, 68, 68, 0.4); color: #fca5a5; font-size: 0.95em; }
+.fa-btn.fd-trash:disabled { opacity: 0.45; cursor: default; }
+.fd-list .fd-why { display: block; color: rgba(200, 190, 255, 0.45); font-family: 'Segoe UI', sans-serif; }
+#fdModal { display: none; }
+#fdDialog { max-height: calc(100vh - 32px); overflow-y: auto; }

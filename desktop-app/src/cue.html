@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cue Consistency</title>
+<!--
+  Cue Consistency's SET window. Everything here but the Speakers / Headphones
+  switch goes straight to the stage (`player_set_cue`), nothing rebuilt. The
+  stage sits in the chain, in front of XTC, so a change is heard when the
+  render it reached plays: after the player's buffer.
+-->
+<style>
+  :root{ --ink:#e2e8f0; --dim:#94a3b8; --mute:#64748b; --label:#7dd3fc; --focus:#38bdf8; --line:rgba(148,163,184,.14); --cue:#d9b38c; --warn:#fbbf24; --good:#2dd4bf;
+    --ui:'SF Pro Display','Segoe UI',Tahoma,Arial,sans-serif;
+    --mono: ui-monospace,'Cascadia Mono','Segoe UI Mono',Consolas,monospace; }
+  *{box-sizing:border-box}
+  html,body{margin:0; height:100%; background:transparent; overflow:hidden}
+  body{color:var(--ink); font:13px var(--ui); -webkit-font-smoothing:antialiased; user-select:none}
+  button{font-family:inherit}
+  .win{height:100vh; display:flex; flex-direction:column; overflow:hidden; background:radial-gradient(circle at 50% 0%,#0b192c 0%,#04070d 100%);
+    border:1px solid rgba(217,179,140,.28); border-radius:11px}
+  header{display:flex; align-items:center; gap:9px; flex:none; padding:9px 14px; border-bottom:1px solid rgba(217,179,140,.2); background:rgba(8,14,26,.92)}
+  header .tok{font:700 .72rem var(--mono); letter-spacing:.8px; padding:2px 7px; border-radius:5px; color:var(--cue);
+    border:1px solid color-mix(in srgb,var(--cue) 40%,transparent); background:color-mix(in srgb,var(--cue) 12%,transparent)}
+  header .ttl{font-weight:600; margin-right:auto; white-space:nowrap}
+  .win-btns{display:flex; gap:5px; margin-left:4px}
+  .win-btn{width:13px; height:13px; border-radius:50%; border:none; padding:0; cursor:pointer; font-size:0; opacity:.5}
+  .win-btn:hover{opacity:1}
+  #winMin{background:#38bdf8} #winClose{background:#94a3b8}
+  #winClose:hover{background:#ef4444}
+  .modes{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; flex:none}
+  .modes button{background:transparent; border:0; color:var(--dim); font-size:.76rem; padding:5px 11px; cursor:pointer; white-space:nowrap}
+  .modes button+button{border-left:1px solid var(--line)}
+  .modes button:hover{color:var(--ink)}
+  .modes button.on{color:#1c1408; background:var(--cue); font-weight:600}
+  .modes button.b.on{background:var(--warn)}
+  #scene{position:relative; flex:1 1 350px; min-height:260px; border-bottom:1px solid rgba(217,179,140,.14); overflow:hidden}
+  #scene canvas{position:absolute; inset:0; width:100%; height:100%; display:block}
+  .hud{position:absolute; left:14px; top:11px; right:14px; display:flex; align-items:flex-start; gap:12px; pointer-events:none}
+  #state{color:var(--dim); font-size:.76rem; margin-right:auto; text-shadow:0 0 8px #000}
+  .conf{display:flex; align-items:center; gap:7px; flex:none; font-size:.68rem; color:var(--mute); text-transform:uppercase; letter-spacing:.8px}
+  #meter{display:block; width:74px; height:4px; border-radius:2px; background:var(--line); overflow:hidden}
+  #meterFill{display:block; height:100%; width:0; background:var(--good)}
+  #confText{font:.72rem var(--mono); color:var(--dim); letter-spacing:0}
+  #tip{position:absolute; display:none; pointer-events:none; background:rgba(4,8,15,.92); border:1px solid rgba(217,179,140,.3); border-radius:6px; padding:4px 8px; font:.72rem/1.5 var(--mono); color:var(--dim); white-space:nowrap; z-index:2}
+  #tip b{color:var(--ink); font-weight:600}
+  main{flex:none; max-height:70vh; overflow:auto; padding:10px 12px 12px; display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .zone{min-width:0; border-radius:9px; padding:7px 11px 9px; background:linear-gradient(180deg,rgba(30,41,59,.40),rgba(15,23,42,.24)); border:1px solid rgba(56,189,248,.09)}
+  .zone.span{grid-column:1 / -1}
+  .hi{display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; margin-left:5px; padding:0; border-radius:50%; border:1px solid rgba(125,211,252,.45); background:transparent; color:#7dd3fc; font:italic 600 9.5px Georgia,serif; cursor:help; vertical-align:1px}
+  .hi:hover,.hi:focus-visible{background:rgba(56,189,248,.18); outline:none}
+  #help{position:fixed; display:none; z-index:50; max-width:min(300px,calc(100vw - 12px)); padding:8px 10px; border-radius:7px; background:rgba(8,17,31,.97); border:1px solid rgba(56,189,248,.35); color:#e2e8f0; font:12px/1.45 'Segoe UI',system-ui,sans-serif; box-shadow:0 6px 24px rgba(0,0,0,.5); pointer-events:none}
+  .zt{font:700 .62rem var(--mono); letter-spacing:1.5px; text-transform:uppercase; color:var(--label); margin:0 0 5px; display:flex; align-items:center}
+  .more{margin-left:auto; background:none; border:0; color:var(--mute); font:.7rem var(--ui); cursor:pointer; padding:0}
+  .more:hover{color:var(--ink)}
+  .sl{display:grid; grid-template-columns:1fr 58px; gap:0 8px; align-items:baseline; margin-bottom:4px}
+  .sl label{color:var(--dim); font-size:.78rem}
+  .sl output{font:.73rem var(--mono); text-align:right}
+  .sl input{grid-column:1 / -1; margin:1px 0 0}
+  input[type=range]{-webkit-appearance:none; appearance:none; width:100%; height:12px; background:transparent; cursor:pointer}
+  input[type=range]::-webkit-slider-runnable-track{height:3px; border-radius:2px; background:linear-gradient(90deg,var(--cue) var(--f,50%),rgba(148,163,184,.2) var(--f,50%))}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:11px; height:11px; margin-top:-4px; border-radius:50%; background:#f1e4d6; border:2px solid var(--cue); box-shadow:0 0 7px color-mix(in srgb,var(--cue) 55%,transparent)}
+  .chk{display:flex; align-items:center; justify-content:space-between; gap:8px; color:var(--dim); font-size:.78rem; margin-top:5px}
+  .sw{position:relative; width:26px; height:15px; border-radius:8px; border:1px solid #2f3d52; background:#141d2c; cursor:pointer; flex:none; padding:0}
+  .sw::after{content:""; position:absolute; top:3px; left:3px; width:7px; height:7px; border-radius:50%; background:#7b8aa0; transition:transform .15s}
+  .sw.on{border-color:color-mix(in srgb,var(--cue) 70%,#000); background:color-mix(in srgb,var(--cue) 25%,#0b1220)}
+  .sw.on::after{transform:translateX(11px); background:#f6ead9}
+  .lawrow{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+  .lawrow>label{color:var(--dim); font-size:.78rem}
+  .lawrow .sl{flex:1; min-width:150px; margin:0}
+  .lawrow .chk{margin:0; gap:7px}
+  select{background:rgba(2,6,14,.85); color:#bae6fd; border:1px solid rgba(56,189,248,.25); border-radius:6px; font:.78rem var(--ui); padding:3px 6px}
+  .act{font:.76rem var(--ui); padding:4px 10px; border-radius:6px; cursor:pointer; color:var(--ink); background:transparent; border:1px solid rgba(148,163,184,.26)}
+  .act:hover{border-color:var(--focus)}
+  #calibText{color:var(--mute); font-size:.74rem}
+  table{width:100%; border-collapse:collapse; font:.72rem var(--mono); margin-top:3px}
+  th{color:var(--mute); font-weight:500; text-align:right; padding:1px 6px}
+  td{text-align:right; padding:1px 6px; color:var(--dim)}
+  #bands[hidden]{display:none}
+</style>
+<!-- The Cue window's own tour and its ? in the title bar. -->
+<link rel="stylesheet" href="css/tour.css">
+</head>
+<body>
+<div class="win">
+  <header id="drag">
+    <span class="tok">CUE</span><span class="ttl">Cue Consistency</span>
+    <span class="modes">
+      <button type="button" id="a" title="The stage plays">A · Stage</button>
+      <button type="button" id="b" class="b" title="The dry signal, at the same level, bit for bit (key B)">B · Bypass</button>
+    </span>
+    <span class="modes">
+      <button type="button" id="dSpeakers" title="XTC after the stage">Speakers · XTC</button>
+      <button type="button" id="dPhones" title="The stage alone, delivered directly">Headphones</button>
+    </span>
+    <span class="win-btns">
+      <button type="button" class="win-btn" id="winMin" title="Minimize">Minimize</button>
+      <button type="button" class="win-btn" id="winClose" title="Close">Close</button>
+    </span>
+  </header>
+  <div id="scene" title="Near and far are read from how much of a place is direct sound, not a distance in metres">
+    <canvas id="stage"></canvas>
+    <div class="hud">
+      <span id="state"></span>
+      <span class="conf">Pan-pot confidence <span id="meter"><span id="meterFill"></span></span> <span id="confText"></span></span>
+    </div>
+    <div id="tip"></div>
+  </div>
+  <main>
+    <section class="zone"><h4 class="zt">The cues</h4><div id="zCues"></div></section>
+    <section class="zone"><h4 class="zt">Head shadow</h4><div id="zShadow"></div></section>
+    <section class="zone span"><h4 class="zt">Reading the mix</h4>
+      <div class="lawrow">
+        <label for="panLaw">Pan law</label>
+        <span id="panLawBox"></span><select id="panLaw"><option value="sin3">−3 dB sin/cos</option><option value="mid45">−4.5 dB</option><option value="lin6">−6 dB linear</option></select>
+        <button type="button" class="act" id="calib">Calibrate</button><span id="calibBox"></span>
+        <button type="button" class="act" id="uncalib">Clear</button><span id="uncalibBox"></span>
+        <span id="calibText"></span>
+        <div class="sl" id="zRead"></div>
+        <span class="chk" id="zOnset"></span>
+      </div>
+    </section>
+    <section class="zone span"><h4 class="zt">Bands <button type="button" class="more" id="bandsToggle">Show ▾</button></h4>
+      <table id="bands" hidden><thead><tr><th>Hz</th><th>ITD µs</th><th>ILD in dB</th><th>ILD out dB</th></tr></thead><tbody></tbody></table>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+import { loadCueParams, saveCueParams, CUE_DEFAULTS } from './js/cue.js';
+import { createScene, speakerDeg } from './js/cue-scene.js';
+
+const $ = id => document.getElementById(id);
+const T = () => window.__TAURI__;
+const p = loadCueParams();
+
+const send = () => {
+    saveCueParams(p);
+    T()?.core?.invoke('player_set_cue', { params: p }).catch(() => {});
+};
+
+const HELP = {
+    "strength": "How far the stage moves each source toward the place a real head would hear it. 0 % leaves the mix as it is; 100 % gives the full time and level cues. Lower it if the image feels too wide or too processed.",
+    "stageWidth": "Where a hard-panned sound is put, in degrees off centre; the other pans follow in proportion. 30° is about where stereo speakers stand; 90° puts a hard pan right at your side. Wider opens the stage, narrower keeps it between the speakers.",
+    "itdScale": "The arrival-time difference between your ears, as for a head of this size. Above 100 % sounds pull further to the sides; below, they sit closer to the centre. Set it to taste, or to match your own head.",
+    "lfIld": "How much of the mix's level difference is taken off in the bass, below f₁. A real head hears low notes nearly as loud in both ears and places them by timing; removing the level difference there makes panned bass sound natural instead of stuck in one ear.",
+    "f1Hz": "Below this frequency the stage works with timing only (where your ears judge direction by phase). Between f₁ and f₂ it hands over from timing to level.",
+    "f2Hz": "Above this frequency the head blocks sound and direction comes from level: the head shadow.",
+    "shadowBlend": "How much of the level difference above f₂ follows a real head's shadow instead of the mix's own pan. 0 % keeps the mix's levels; 100 % gives the shadow a head would cast for that angle.",
+    "tauSMs": "How fast the stage follows a moving pan. Short follows quick changes but can make images wander; long keeps them steady.",
+    "envItd": "Keeps the time difference above f₂ too, in the sound's envelope, as a real head hears it. Off: the timing fades out between f₁ and f₂, and only level is left up high.",
+    "headShadow": "Shapes the high-frequency levels like a head's shadow for each source's angle, so a sound off to one side is duller in the far ear, as in life.",
+    "onsetReset": "On a sudden attack (a drum hit, a new note) the angle is read afresh at once, so short sounds are placed right instead of smeared with what came before.",
+    panLaw: "How the mix was panned: the law that turns a level difference into an angle. −3 dB sin/cos is the most common in mixers; −4.5 dB and −6 dB linear are found in some consoles and older mixes. Pick the one that puts known sources where they belong.",
+    calib: "Takes the places found so far as the mix's sources: a band close to one of them is read as being exactly there, so images stop wandering between them. Play a passage where every instrument is heard, then press.",
+    uncalib: "Forgets the calibration: every band is read on its own again.",
+};
+
+const SLIDERS = [
+    ['zCues', 'strength', 'Strength', 0, 100, 1, v => `${v} %`],
+    ['zCues', 'stageWidth', 'Stage width (hard pan)', 30, 90, 1, v => `${v}°`],
+    ['zCues', 'itdScale', 'ITD scale (head)', 50, 150, 1, v => `${v} %`],
+    ['zCues', 'lfIld', 'LF level removed', 0, 100, 1, v => `${v} %`],
+    ['zShadow', 'f1Hz', 'f₁ time / level', 200, 1400, 10, v => `${v} Hz`],
+    ['zShadow', 'f2Hz', 'f₂ head shadow', 800, 3000, 10, v => `${v} Hz`],
+    ['zShadow', 'shadowBlend', 'Head shadow share', 0, 100, 1, v => `${v} %`],
+    ['zRead', 'tauSMs', 'Smoothing', 5, 500, 5, v => `${v} ms`],
+];
+const CHECKS = [
+    ['zCues', 'envItd', 'ITD above f₂'],
+    ['zShadow', 'headShadow', 'Head shadow above f₂'],
+    ['zOnset', 'onsetReset', 'Reset angle at onsets'],
+];
+
+/// A small (i) after a control's name; its text shows on hover, on focus and on a tap.
+const bubble = Object.assign(document.createElement('div'), { id: 'help' });
+document.body.append(bubble);
+function help(el, k) {
+    const t = HELP[k];
+    if (!t) return;
+    const i = Object.assign(document.createElement('button'), { type: 'button', className: 'hi', textContent: 'i' });
+    i.setAttribute('aria-label', t);
+    const show = () => {
+        bubble.textContent = t;
+        bubble.style.display = 'block';
+        const r = i.getBoundingClientRect(), b = bubble.getBoundingClientRect();
+        bubble.style.left = `${Math.max(6, Math.min(innerWidth - b.width - 6, r.left + r.width / 2 - b.width / 2))}px`;
+        bubble.style.top = `${r.top - b.height - 8 > 4 ? r.top - b.height - 8 : r.bottom + 8}px`;
+    };
+    const hide = () => { bubble.style.display = 'none'; };
+    i.addEventListener('mouseenter', show); i.addEventListener('focus', show);
+    i.addEventListener('mouseleave', hide); i.addEventListener('blur', hide);
+    // A tap focuses the button first (shown) and then clicks it: that click
+    // must not put away what the focus just showed (a phone, a tablet).
+    let shownAt = 0;
+    i.addEventListener('focus', () => { shownAt = performance.now(); });
+    i.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (bubble.style.display === 'block' && bubble.textContent === t && performance.now() - shownAt > 400) hide(); else show();
+    });
+    el.append(i);
+}
+document.addEventListener('click', () => { bubble.style.display = 'none'; });
+
+for (const [zone, k, name, lo, hi, step, text] of SLIDERS) {
+    const box = zone === 'zRead' ? $(zone) : Object.assign(document.createElement('div'), { className: 'sl' });
+    const lab = document.createElement('label'); lab.textContent = name; help(lab, k);
+    const r = document.createElement('input');
+    Object.assign(r, { type: 'range', id: `s_${k}`, min: lo, max: hi, step, value: p[k] });
+    const o = document.createElement('output');
+    const show = () => { r.style.setProperty('--f', `${(p[k] - lo) / (hi - lo) * 100}%`); o.textContent = text(p[k]); };
+    show();
+    r.addEventListener('input', () => { p[k] = Number(r.value); show(); send(); });
+    r.addEventListener('dblclick', () => { p[k] = CUE_DEFAULTS[k]; r.value = p[k]; show(); send(); });
+    box.append(lab, o, r);
+    if (box !== $(zone)) $(zone).append(box);
+}
+for (const [zone, k, name] of CHECKS) {
+    const row = zone === 'zOnset' ? $(zone) : Object.assign(document.createElement('div'), { className: 'chk' });
+    const sw = Object.assign(document.createElement('button'), { type: 'button', className: 'sw' });
+    sw.setAttribute('aria-label', name);
+    const show = () => { sw.classList.toggle('on', !!p[k]); sw.setAttribute('aria-pressed', String(!!p[k])); };
+    show();
+    sw.addEventListener('click', () => { p[k] = !p[k]; show(); send(); });
+    const nm = document.createElement('span'); nm.textContent = name; help(nm, k);
+    row.append(nm, sw);
+    if (row !== $(zone)) $(zone).append(row);
+}
+
+const paintAB = () => { $('a').classList.toggle('on', !p.bypass); $('b').classList.toggle('on', p.bypass); };
+const setBypass = (on) => { p.bypass = on; paintAB(); send(); };
+$('a').addEventListener('click', () => setBypass(false));
+$('b').addEventListener('click', () => setBypass(true));
+document.addEventListener('keydown', (e) => { if (e.key === 'b' || e.key === 'B') setBypass(!p.bypass); });
+paintAB();
+
+$('panLaw').value = p.panLaw;
+help($('panLawBox'), 'panLaw'); help($('calibBox'), 'calib'); help($('uncalibBox'), 'uncalib');
+$('panLaw').addEventListener('change', () => { p.panLaw = $('panLaw').value; send(); });
+const paintCalib = () => { $('calibText').textContent = p.snapDb.length ? `${p.snapDb.length} places held` : ''; };
+let lastDots = [];
+$('calib').addEventListener('click', () => { p.snapDb = lastDots.map(d => d.rhoDb); paintCalib(); send(); });
+$('uncalib').addEventListener('click', () => { p.snapDb = []; paintCalib(); send(); });
+paintCalib();
+
+const delivery = (xtc) => T()?.event?.emit('cue:delivery', { xtc }).catch(() => {});
+$('dSpeakers').addEventListener('click', () => delivery(true));
+$('dPhones').addEventListener('click', () => delivery(false));
+
+/// The speakers on the floor: the angle the XTC geometry gives.
+function savedSpeakers() {
+    try { return speakerDeg(JSON.parse(localStorage.getItem('auraSettings') || '{}').xtcGeometry); } catch (e) { return 30; }
+}
+const speakers = savedSpeakers();
+const scene = createScene($('stage'), $('tip'));
+
+$('bandsToggle').addEventListener('click', () => {
+    const t = $('bands');
+    t.hidden = !t.hidden;
+    $('bandsToggle').textContent = t.hidden ? 'Show ▾' : 'Hide ▴';
+    fitHeight();
+});
+
+// What the table lists: a few bands across the range.
+const SHOW_HZ = [100, 200, 400, 700, 1000, 1500, 2500, 4000, 7000, 12000];
+function paint(v) {
+    const running = !!v?.running;
+    $('dSpeakers').classList.toggle('on', running && v.xtc);
+    $('dPhones').classList.toggle('on', running && !v.xtc);
+    $('state').textContent = !running ? 'Stage not in the chain: switch CUE on in the rack and play a track live.'
+        : p.bypass ? 'Bypass: the dry signal.'
+        : v.mono ? 'Mono recording: passes bit for bit.'
+        : !v.open ? 'Time differences are already there (or no panned source yet): passes bit for bit.'
+        : `Playing, wet ${Math.round(v.wet * 100)} %.  A change is heard after the player's buffer.`;
+    const conf = running ? v.confidence : 0;
+    $('meterFill').style.width = `${conf * 100}%`;
+    $('confText').textContent = conf.toFixed(2);
+    lastDots = running ? v.dots : [];
+    scene.update(v, p.bypass, speakers, p);
+    if ($('bands').hidden) return;
+    const body = $('bands').tBodies[0];
+    body.textContent = '';
+    for (const hz of SHOW_HZ) {
+        // The rows stay when nothing plays: the window keeps its height.
+        const bands = running ? v.bands : [];
+        const b = bands.reduce((x, y) => Math.abs(y.hz - hz) < Math.abs(x.hz - hz) ? y : x, bands[0]);
+        const tr = document.createElement('tr');
+        for (const t of b ? [Math.round(b.hz), b.itdUs.toFixed(0), b.ildInDb.toFixed(1), b.ildOutDb.toFixed(1)] : [hz, '–', '–', '–']) {
+            const td = document.createElement('td'); td.textContent = t; tr.appendChild(td);
+        }
+        body.appendChild(tr);
+    }
+}
+paint(null);
+
+/// The whole window shows, whatever size was saved: it takes the width of the
+/// design and what the form needs under a scene of its full height, short of
+/// the screen's height (only then does the scene shrink and `main` scroll).
+function fitHeight() {
+    const tw = T()?.window;
+    if (!tw) return;
+    const parts = document.querySelector('header').offsetHeight + document.querySelector('main').scrollHeight + 352;
+    const want = Math.min(Math.max(window.innerHeight, parts), screen.availHeight);
+    const width = Math.max(window.innerWidth, 720);
+    if (want === window.innerHeight && width === window.innerWidth) return;
+    const w = tw.getCurrentWindow();
+    w.setSize(new tw.LogicalSize(width, want))
+        .then(() => (window.screenY + want > screen.availHeight ? w.center() : null))
+        .catch(() => {});
+}
+fitHeight();
+
+// Ten looks a second: each brings the hops of every source's wave just heard,
+// the scene scrolls between them on its own.
+setInterval(() => { T()?.core?.invoke('player_cue_view').then(paint).catch(() => {}); }, 100);
+
+$('winClose').addEventListener('click', () => { try { T().window.getCurrentWindow().close(); } catch (e) { /* not in Tauri */ } });
+$('winMin').addEventListener('click', () => { try { T().window.getCurrentWindow().minimize(); } catch (e) { /* not in Tauri */ } });
+$('drag').addEventListener('mousedown', (e) => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    try { T().window.getCurrentWindow().startDragging(); } catch (err) { /* not in Tauri */ }
+});
+</script>
+<!-- The tour of this window (its ? in the title bar) -->
+<script type="module" src="js/tour-cue.js"></script>
+</body>
+</html>

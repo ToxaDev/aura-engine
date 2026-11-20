@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aura Engine · Load</title>
+<!--
+  The load window: this app's share of the processor and of the video card,
+  and the memory it holds (working set, its own scale in GB), a second at a time, from the badge beside the version (perf.rs keeps the
+  last hour; this page asks for it when it opens, then hears each new second).
+
+  It holds nothing the app needs: closed, the sampling goes on, and it comes
+  back where it was left (window_state.rs). Where the app was playing or
+  converting is a faint band under every graph; the pointer over them reads
+  out the second under it.
+-->
+<style>
+  :root{
+    --ink:#e2e8f0; --dim:#b6c2d2; --mute:#64748b; --line:rgba(148,163,184,.12);
+    --cpu:#38bdf8; --gpu:#a78bfa; --ram:#34d399; --play:rgba(45,212,191,.10); --conv:rgba(250,204,21,.09);
+    --play-k:#2dd4bf; --conv-k:#facc15;
+    --mono: ui-monospace,'Cascadia Mono','Segoe UI Mono',Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  /* Frameless and transparent like the app's other windows: the rounded
+     panel is .win, the head bar drags it. */
+  html,body{margin:0; height:100%; background:transparent; overflow:hidden}
+  body{color:var(--ink); font:13px 'SF Pro Display','Segoe UI',Tahoma,Arial,sans-serif; -webkit-font-smoothing:antialiased; user-select:none}
+  .win{
+    height:100vh; display:flex; flex-direction:column; overflow:hidden;
+    background:radial-gradient(circle at 50% 0%,#0b192c 0%,#04070d 100%);
+    border:1px solid rgba(14,165,233,.24); border-radius:11px;
+  }
+  header{
+    display:flex; align-items:center; gap:10px; flex:none;
+    padding:9px 14px 9px 16px; border-bottom:1px solid rgba(14,165,233,.16);
+    background:rgba(8,14,26,.92);
+  }
+  /* One centre line for the pill, the title and the range buttons (Anton
+     19.10: the title stood off the pill's line): each box is trimmed to its
+     capitals (text-box) with even padding, so the header's centring puts
+     every word's capitals on the same middle. */
+  header .tok, header .t, .range button{line-height:1; text-box:trim-both cap alphabetic}
+  header .tok{
+    font-family:var(--mono); font-size:.68rem; font-weight:700; letter-spacing:.8px;
+    padding:5px 7px; border-radius:5px; color:var(--cpu);
+    border:1px solid rgba(56,189,248,.35); background:rgba(56,189,248,.10);
+  }
+  header .t{flex:1; font-size:.74rem; letter-spacing:1.2px; text-transform:uppercase; color:var(--cpu); white-space:nowrap; overflow:clip; overflow-clip-margin:3px; text-overflow:ellipsis}
+  .range{display:flex; gap:2px; flex:none}
+  .range button{
+    font:inherit; font-size:.68rem; letter-spacing:.4px; padding:5px 7px; border-radius:4px; cursor:pointer;
+    color:var(--mute); background:transparent; border:1px solid transparent;
+  }
+  .range button:hover{color:var(--dim)}
+  .range button.on{color:var(--cpu); border-color:rgba(56,189,248,.35); background:rgba(56,189,248,.08)}
+  .win-btns{display:flex; gap:5px; align-items:center; flex:none; margin-left:6px}
+  .win-btn{
+    width:13px; height:13px; border-radius:50%; border:none; padding:0; cursor:pointer;
+    font-size:0; color:transparent; opacity:.5; transition:opacity .15s, background .15s;
+  }
+  .win-btn:hover{opacity:1}
+  .win-btn-min{background:rgba(56,189,248,.65)}
+  .win-btn-min:hover{background:#38bdf8}
+  .win-btn-close{background:rgba(148,163,184,.45)}
+  .win-btn-close:hover{background:#ef4444}
+
+  main{flex:1; min-height:0; display:flex; flex-direction:column; gap:6px; padding:10px 14px 6px}
+  .g{flex:1; min-height:0; display:flex; flex-direction:column}
+  .g .h{display:flex; align-items:baseline; gap:8px; flex:none; padding:0 2px 3px}
+  .g .k{font-size:.7rem; letter-spacing:1px; text-transform:uppercase}
+  .g .v{font-family:var(--mono); font-size:.95rem; font-variant-numeric:tabular-nums}
+  .g .n{flex:1; font-size:.68rem; color:var(--mute); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  #gCpu .k, #gCpu .v{color:var(--cpu)}
+  #gGpu .k, #gGpu .v{color:var(--gpu)}
+  #gRam .k, #gRam .v{color:var(--ram)}
+  .plot{position:relative; flex:1; min-height:60px}
+  .plot canvas{position:absolute; inset:0; width:100%; height:100%; display:block; cursor:crosshair}
+
+  footer{
+    flex:none; display:flex; align-items:center; gap:14px; padding:6px 16px 9px;
+    font-size:.68rem; color:var(--mute); border-top:1px solid var(--line);
+  }
+  footer .sw{display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:5px}
+  footer .read{flex:1; text-align:right; font-family:var(--mono); color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<div class="win">
+  <header id="head">
+    <span class="tok">LOAD</span>
+    <span class="t">This app's load</span>
+    <div class="range" id="range">
+      <button type="button" data-min="10" class="on">10 min</button>
+      <button type="button" data-min="30">30 min</button>
+      <button type="button" data-min="60">1 h</button>
+    </div>
+    <div class="win-btns">
+      <button type="button" class="win-btn win-btn-min" id="winMin" title="Minimize">Minimize</button>
+      <button type="button" class="win-btn win-btn-close" id="winClose" title="Close">Close</button>
+    </div>
+  </header>
+  <main>
+    <section class="g" id="gCpu">
+      <div class="h"><span class="k">CPU</span><span class="v" id="vCpu">–</span><span class="n">share of the whole processor, all cores</span></div>
+      <div class="plot"><canvas id="cCpu"></canvas></div>
+    </section>
+    <section class="g" id="gGpu">
+      <div class="h"><span class="k">GPU</span><span class="v" id="vGpu">–</span><span class="n">share of the video card's time (0 when the card is not used)</span></div>
+      <div class="plot"><canvas id="cGpu"></canvas></div>
+    </section>
+    <section class="g" id="gRam">
+      <div class="h"><span class="k">RAM</span><span class="v" id="vRam">–</span><span class="n" id="nRam">memory this app uses (working set), scale in GB</span></div>
+      <div class="plot"><canvas id="cRam"></canvas></div>
+    </section>
+  </main>
+  <footer>
+    <span><span class="sw" style="background:rgba(45,212,191,.35)"></span>playing</span>
+    <span><span class="sw" style="background:rgba(250,204,21,.32)"></span>converting</span>
+    <span class="read" id="read"></span>
+  </footer>
+</div>
+<script type="module">
+import {
+    loadText1, nearestIndex, stretches, scaleTop, clockText, pushCapped, ramText, ramScaleTop, gbAxisText,
+} from './js/perf-core.js';
+
+const $ = id => document.getElementById(id);
+const T = () => window.__TAURI__;
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+const samples = [];
+let spanMin = 10;
+let hoverT = null;      // the time under the pointer, or null
+let tickUs = 0;
+let ramTotalMb = 0;     // the machine's RAM, for the memory scale; 0 = unknown
+
+// Each graph: its sample field, the top of its scale for the shown values, and
+// how a scale value reads (percent, or GB for the memory).
+const pct = { top: max => scaleTop(max), label: v => String(v) };
+const graphs = [
+    { key: 'cpu', canvas: $('cCpu'), color: css('--cpu'), ...pct },
+    { key: 'gpu', canvas: $('cGpu'), color: css('--gpu'), ...pct },
+    { key: 'ram', canvas: $('cRam'), color: css('--ram'), top: max => ramScaleTop(max, ramTotalMb), label: gbAxisText },
+];
+const PAD = { l: 34, r: 8, t: 6, b: 16 };
+
+function view() {
+    const end = samples.length ? samples[samples.length - 1].t : Date.now();
+    return { t0: end - spanMin * 60_000, t1: end };
+}
+
+function fit(c) {
+    const r = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    return { w: r.width, h: r.height, dpr };
+}
+
+function draw() {
+    const { t0, t1 } = view();
+    const shown = samples.filter(s => s.t >= t0 - 1000);
+    const bands = [['play', css('--play')], ['conv', css('--conv')]]
+        .map(([k, fill]) => ({ fill, list: stretches(shown, k) }));
+    for (const g of graphs) {
+        const { w, h, dpr } = fit(g.canvas);
+        const ctx = g.canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, w, h);
+        const pw = w - PAD.l - PAD.r, ph = h - PAD.t - PAD.b;
+        if (pw <= 0 || ph <= 0) continue;
+        const x = t => PAD.l + (t - t0) / (t1 - t0) * pw;
+        const top = g.top(Math.max(0, ...shown.map(s => s[g.key] || 0)));
+        const y = v => PAD.t + ph - Math.min(1, v / top) * ph;
+
+        // Playing / converting under the line.
+        for (const b of bands) {
+            ctx.fillStyle = b.fill;
+            for (const s of b.list) {
+                const a = Math.max(PAD.l, x(s.t0)), z = Math.min(PAD.l + pw, x(s.t1));
+                if (z > a) ctx.fillRect(a, PAD.t, z - a, ph);
+            }
+        }
+        // The scale: 0, half, top.
+        ctx.font = '10px ' + css('--mono');
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (const v of [0, top / 2, top]) {
+            ctx.strokeStyle = 'rgba(148,163,184,.12)';
+            ctx.beginPath(); ctx.moveTo(PAD.l, Math.round(y(v)) + .5); ctx.lineTo(PAD.l + pw, Math.round(y(v)) + .5); ctx.stroke();
+            ctx.fillStyle = '#64748b';
+            ctx.fillText(g.label(v), PAD.l - 6, y(v));
+        }
+        // Minutes along the bottom.
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const step = spanMin <= 10 ? 2 : spanMin <= 30 ? 5 : 10;
+        for (let m = 0; m <= spanMin; m += step) {
+            const xx = x(t1 - m * 60_000);
+            ctx.fillStyle = '#475569';
+            ctx.fillText(m === 0 ? 'now' : `-${m} min`, Math.min(PAD.l + pw - 12, Math.max(PAD.l + 14, xx)), PAD.t + ph + 3);
+        }
+        // The line and its fill; a gap of more than 2.5 s (a sleep) breaks it.
+        const path = new Path2D(), area = new Path2D();
+        let open = false, first = 0, prevT = 0, lastX = 0;
+        const close = () => { area.lineTo(lastX, y(0)); area.lineTo(first, y(0)); area.closePath(); };
+        for (const s of shown) {
+            const xx = x(s.t), yy = y(s[g.key] || 0);
+            if (open && s.t - prevT > 2500) { close(); open = false; }
+            if (!open) { path.moveTo(xx, yy); area.moveTo(xx, y(0)); area.lineTo(xx, yy); first = xx; open = true; }
+            else { path.lineTo(xx, yy); area.lineTo(xx, yy); }
+            prevT = s.t; lastX = xx;
+        }
+        if (open) close();
+        ctx.save();
+        ctx.beginPath(); ctx.rect(PAD.l, PAD.t, pw, ph); ctx.clip();
+        const grad = ctx.createLinearGradient(0, PAD.t, 0, PAD.t + ph);
+        grad.addColorStop(0, g.color + '55'); grad.addColorStop(1, g.color + '05');
+        ctx.fillStyle = grad; ctx.fill(area);
+        ctx.strokeStyle = g.color; ctx.lineWidth = 1.4; ctx.lineJoin = 'round'; ctx.stroke(path);
+        ctx.restore();
+
+        // The crosshair: the second under the pointer, on every graph.
+        const i = hoverT === null ? -1 : nearestIndex(samples, hoverT);
+        if (i >= 0 && samples[i].t >= t0) {
+            const s = samples[i], xx = x(s.t);
+            ctx.strokeStyle = 'rgba(226,232,240,.45)';
+            ctx.setLineDash([3, 3]);
+            ctx.beginPath(); ctx.moveTo(Math.round(xx) + .5, PAD.t); ctx.lineTo(Math.round(xx) + .5, PAD.t + ph); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = g.color;
+            ctx.beginPath(); ctx.arc(xx, y(s[g.key] || 0), 3, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+    readout();
+}
+
+function readout() {
+    const last = samples[samples.length - 1];
+    const i = hoverT === null ? -1 : nearestIndex(samples, hoverT);
+    const s = i >= 0 ? samples[i] : null;
+    // The headings: the second under the pointer, or the last one.
+    const shownS = s || last;
+    $('vCpu').textContent = shownS ? loadText1(shownS.cpu) : '–';
+    $('vGpu').textContent = shownS ? loadText1(shownS.gpu) : '–';
+    $('vRam').textContent = shownS ? ramText(shownS.ram) : '–';
+    if (s) {
+        const what = [s.play && 'playing', s.conv && 'converting'].filter(Boolean).join(', ');
+        $('read').textContent = `${clockText(s.t)}  ·  CPU ${loadText1(s.cpu)}  ·  GPU ${loadText1(s.gpu)}  ·  RAM ${ramText(s.ram)}${what ? '  ·  ' + what : ''}`;
+    } else {
+        $('read').textContent = tickUs ? `sampled each second (${tickUs} µs a second)` : '';
+    }
+}
+
+// The pointer over either graph points at a time; leaving clears it.
+for (const g of graphs) {
+    g.canvas.addEventListener('mousemove', e => {
+        const r = g.canvas.getBoundingClientRect();
+        const pw = r.width - PAD.l - PAD.r;
+        const { t0, t1 } = view();
+        const f = Math.min(1, Math.max(0, (e.clientX - r.left - PAD.l) / pw));
+        hoverT = t0 + f * (t1 - t0);
+        draw();
+    });
+    g.canvas.addEventListener('mouseleave', () => { hoverT = null; draw(); });
+}
+
+$('range').addEventListener('click', e => {
+    const b = e.target.closest('button[data-min]');
+    if (!b) return;
+    spanMin = Number(b.dataset.min);
+    for (const o of $('range').children) o.classList.toggle('on', o === b);
+    draw();
+});
+
+// The head bar drags the window; its buttons do not.
+$('head').addEventListener('mousedown', e => {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    try { T().window.getCurrentWindow().startDragging(); } catch (_) { /* not in Tauri */ }
+});
+$('winMin').addEventListener('click', () => { try { T().window.getCurrentWindow().minimize(); } catch (_) { /* not in Tauri */ } });
+// The place first (Tauri 1's close() gives no CloseRequested), then close.
+$('winClose').addEventListener('click', async () => {
+    try { await T().core.invoke('window_keep_place'); } catch (_) { /* not in Tauri */ }
+    try { T().window.getCurrentWindow().close(); } catch (_) { /* not in Tauri */ }
+});
+
+new ResizeObserver(() => draw()).observe(document.querySelector('main'));
+
+(async () => {
+    try {
+        const h = await T().core.invoke('perf_history');
+        tickUs = h.tickUs || 0;
+        ramTotalMb = h.ramTotalMb || 0;
+        if (ramTotalMb) $('nRam').textContent = `memory this app uses (working set); scale in GB, ${ramText(ramTotalMb)} installed`;
+        for (const s of h.samples || []) pushCapped(samples, s);
+    } catch (_) { /* not in Tauri */ }
+    draw();
+    try {
+        await T().event.listen('perf:tick', e => {
+            const s = e.payload;
+            if (samples.length && s.t <= samples[samples.length - 1].t) return;
+            pushCapped(samples, s);
+            draw();
+        });
+    } catch (_) { /* not in Tauri */ }
+})();
+</script>
+</body>
+</html>

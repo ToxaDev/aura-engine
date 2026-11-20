@@ -1,0 +1,488 @@
+/* The web remote's look, over the app's own sheets. The app's window is a fixed
+   440 px; here the page takes the browser. Two columns from 760 px; below that
+   one view at a time, with bottom tabs and a mini player. */
+html, body { height: 100%; overflow: auto; background: #000; }
+body.rm { display: block; }
+body.rm .slide-panel { position: static; width: 100%; max-width: 1280px; height: auto; min-height: 100%; margin: 0 auto; overflow: visible; transform: none; opacity: 1; padding: 0 14px 14px; box-sizing: border-box; }
+.win-btns, .dz-empty-hint, #convLoadFilterBtn, #convClearFilterBtn, .custom-filter-row, #dzCancelBtn, .conv-progress-wrap, .specs, .lab-sec { display: none !important; }
+#rmShell { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); grid-template-areas: "top top" "left right"; gap: 10px 16px; }
+#rmTop { grid-area: top; position: relative; }
+#rmTop .rk-pop { left: 0; right: 0; max-width: 100%; z-index: 700; }
+#rmLeft { grid-area: left; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+#rmRight { grid-area: right; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+#rmTop h2 { margin: 0 0 8px; text-align: center; }
+.rm-hint { text-align: right; font: 10px ui-monospace, Consolas, monospace; letter-spacing: 1.2px; text-transform: uppercase; color: #64748b; margin-top: 4px; }
+
+.rm-head { display: flex; align-items: center; gap: 10px; }
+.rm-title { font-size: 15px; letter-spacing: 3px; text-transform: uppercase; color: #38bdf8; font-weight: 300; }
+.rm-sub { flex: 1; font: 10px ui-monospace, Consolas, monospace; color: #64748b; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rm-seg { display: flex; gap: 3px; padding: 3px; border-radius: 8px; border: 1px solid rgba(56,189,248,0.25); background: rgba(15,23,42,0.8); margin-left: auto; }
+.rm-seg button { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 5px; font: 10px ui-monospace, Consolas, monospace; letter-spacing: 1.5px; text-transform: uppercase; color: #94a3b8; }
+.rm-seg button.on { color: #fff; background: rgba(14,165,233,0.2); box-shadow: inset 0 0 0 1px rgba(56,189,248,0.5); }
+body[data-rm-view="library"] #rmSound, body[data-rm-view="sound"] #rmLib { display: none; }
+
+.rm-libtabs { display: flex; gap: 2px; padding: 3px; border-radius: 8px; border: 1px solid rgba(56,189,248,0.2); background: rgba(15,23,42,0.7); }
+.rm-libtabs button { all: unset; flex: 1; text-align: center; cursor: pointer; padding: 6px 2px; border-radius: 5px; font: 10px ui-monospace, Consolas, monospace; letter-spacing: 1.5px; text-transform: uppercase; color: #94a3b8; }
+.rm-libtabs button.on { color: #fff; background: rgba(14,165,233,0.18); box-shadow: inset 0 0 0 1px rgba(56,189,248,0.45); }
+.rm-libtabs button:disabled { opacity: 0.35; cursor: default; }
+.rm-crumb { font: 10px ui-monospace, Consolas, monospace; color: #94a3b8; margin: 8px 0 4px; overflow-wrap: anywhere; }
+.rm-folder { display: flex; flex-direction: column; gap: 3px; }
+.rm-row { all: unset; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 12px; box-sizing: border-box; cursor: pointer; border-radius: 8px; border: 1px solid rgba(56,189,248,0.1); background: rgba(15,23,42,0.5); color: #e2e8f0; font-size: 13px; }
+.rm-row:hover { border-color: rgba(56,189,248,0.45); }
+.rm-row-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rm-row-tag { font: 10px ui-monospace, Consolas, monospace; color: #6ee7b7; }
+.rm-row.dir .rm-row-name::before { content: "▸ "; color: #38bdf8; }
+.rm-row.up { color: #94a3b8; }
+.rm-row.act { color: #7dd3fc; border-color: rgba(56,189,248,0.35); }
+
+#rmNow { display: flex; flex-direction: column; gap: 8px; }
+.rm-now-row { display: flex; gap: 14px; align-items: center; min-height: 92px; }
+#rmArt { width: 92px; height: 92px; border-radius: 8px; object-fit: cover; flex: none; background: rgba(15,23,42,0.8); }
+.rm-now-meta { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.rm-track { font: 10px ui-monospace, Consolas, monospace; letter-spacing: 1.5px; text-transform: uppercase; color: #7dd3fc; }
+.rm-now-title { font-size: 20px; color: #fff; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.rm-now-sub { font-size: 13px; color: #7dd3fc; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+#rmArt.none, #rmMiniArt.none { background: rgba(15,23,42,0.8) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-opacity='.45' stroke-width='1.4'%3E%3Cpath d='M9 18V6l10-2v12'/%3E%3Ccircle cx='6.5' cy='18' r='2.5'/%3E%3Ccircle cx='16.5' cy='16' r='2.5'/%3E%3C/svg%3E") center / 42% no-repeat; border: 1px solid rgba(56,189,248,0.15); box-sizing: border-box; }
+.rm-tags { display: flex; gap: 6px; margin-top: 4px; }
+.rm-tags:empty { display: none; }
+.rm-tag { font: 10px ui-monospace, Consolas, monospace; letter-spacing: 0.5px; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(52,211,153,0.5); color: #6ee7b7; }
+.rm-tag.out { border-color: rgba(167,139,250,0.55); color: #c4b5fd; }
+
+/* The list as UP NEXT: numbered rows, the one playing in green; nothing to
+   convert or drop here (the streamer converts nothing, files come from the library). */
+#rmQueue { border-radius: 10px; border: 1px solid rgba(56,189,248,0.15); background: rgba(15,23,42,0.45); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.rm-upnext { font: 10px ui-monospace, Consolas, monospace; letter-spacing: 2px; text-transform: uppercase; color: #7dd3fc; }
+#plCaSplit, .pl-conv, #fileQueue .pl-mem, #fileQueue .pl-speed, #fileQueue .badge-container, #fileQueue .file-item-progress, #reportProblem, #tourHelp, #dzEmpty { display: none !important; }
+body.rm #dropZone { border: 0; height: auto; min-height: 0; padding: 0; background: none; }
+/* The rows as the app draws them (Anton 8.11): one line, its parts on one
+   middle; the number (♪ while it plays), the title, length and format, ▶ and
+   × — the app's own buttons, a finger's size. No convert, no M: the streamer
+   converts nothing. */
+#fileQueue { counter-reset: rmq; }
+#fileQueue .file-item.pl-item { counter-increment: rmq; justify-content: center; padding: 0 6px 0 10px; border-radius: 8px; border: 1px solid rgba(56,189,248,0.12); background: rgba(15,23,42,0.55); color: #cbd5e1; }
+#fileQueue .file-item.pl-item:hover { border-color: rgba(56,189,248,0.35); background: rgba(15,23,42,0.8); }
+#fileQueue .fi-head { height: 100%; gap: 8px; align-items: center; }
+#fileQueue .fi-head::before { content: counter(rmq); width: 20px; flex: none; text-align: right; font: 11px ui-monospace, Consolas, monospace; color: #64748b; font-variant-numeric: tabular-nums; }
+#fileQueue .file-item-icon { display: none; }
+#fileQueue .file-item-name { flex: 1; min-width: 0; font-size: 13px; line-height: 1.2; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#fileQueue .pl-meta { font: 11px ui-monospace, Consolas, monospace; color: #64748b; white-space: nowrap; }
+#fileQueue .pl-btn, #fileQueue .file-item-close { flex: none; width: 28px; height: 24px; padding: 0; margin: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; opacity: 0.55; cursor: pointer; transition: opacity .15s, background .15s, border-color .15s, color .15s; }
+#fileQueue .file-item-close { position: static; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.06); color: #fca5a5; }
+#fileQueue .file-item-close:hover { opacity: 1; border-color: #ef4444; background: rgba(239,68,68,0.2); color: #fee2e2; }
+#fileQueue .file-item.pl-item:hover .pl-btn, #fileQueue .file-item.pl-item:hover .file-item-close { opacity: 0.85; }
+#fileQueue .pl-btn:hover { opacity: 1 !important; }
+@media (hover: none) { #fileQueue .pl-btn, #fileQueue .file-item-close { opacity: 0.8; } }
+/* The title and the artist from the tags (remote.js decorateRows) in place of the file's name. */
+#fileQueue .pl-item:has(.rm-qt) .file-item-name, #fileQueue .pl-item:has(.rm-qm) .pl-meta { display: none; }
+#fileQueue .rm-qt { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+#fileQueue .rm-qt > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#fileQueue .rm-qt-title { font-size: 13px; line-height: 16px; color: #e2e8f0; }
+#fileQueue .rm-qt-sub { font-size: 11px; line-height: 14px; color: #64748b; }
+#fileQueue .rm-qt-nosub .rm-qt-sub { display: none; }
+#fileQueue .rm-qm { flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 1px; font: 11px/14px ui-monospace, Consolas, monospace; color: #94a3b8; font-variant-numeric: tabular-nums; }
+#fileQueue .rm-qm-tag { font-size: 9.5px; color: #64748b; letter-spacing: .3px; }
+#fileQueue .rm-qm span:empty { display: none; }
+#fileQueue .pl-now .rm-qt-title { color: #fff; }
+#fileQueue .pl-now .rm-qt-sub { color: #6ee7b7; opacity: .8; }
+@media (max-width: 420px) { #fileQueue .rm-qm-tag { display: none; } }
+/* The track on the air: green, as on the design; its number gives way to the app's ♪ (❚❚ paused). */
+#fileQueue .file-item.pl-item.pl-now, #fileQueue .file-item.pl-item.pl-now:hover { border-color: rgba(52,211,153,0.55); background: rgba(16,185,129,0.1); color: #fff; }
+#fileQueue .file-item.pl-now .fi-head::before { display: none; }
+#fileQueue .file-item.pl-now .file-item-icon { display: block; width: 20px; flex: none; text-align: right; color: #34d399; text-shadow: 0 0 6px rgba(52,211,153,0.5); font-size: 12px; }
+#fileQueue .file-item.pl-now .pl-btn { border-color: rgba(52,211,153,0.45); background: rgba(16,185,129,0.12); color: #6ee7b7; opacity: 0.9; }
+
+/* The player bar on touch: no hover to bring the transport back from the
+   spectrum's showcase, so it stays; a seek bar a finger can hit. */
+body.rm #plBar .pl-top.pl-showcase .pl-transport { opacity: 1 !important; transform: none !important; }
+body.rm #plBar .pl-top.pl-showcase .pl-now { transform: none !important; pointer-events: auto; }
+body.rm #plBar .pl-transport button { opacity: 0.9; width: 30px; height: 30px; }
+body.rm #plBar .pl-transport button.pl-main { width: 36px; height: 36px; }
+body.rm #plSeek { touch-action: none; position: relative; }
+body.rm #plSeek::before { content: ""; position: absolute; left: 0; right: 0; top: -12px; bottom: -12px; }
+body.rm #plVol { touch-action: none; }
+/* No big player on the streamer (Anton 8.11): its ^ strip is gone and
+   remote.js keeps the app's listening mode off. */
+body.rm #plModeStrip { display: none !important; }
+/* No cover in the bar: NOW PLAYING above has the big one (on a phone the
+   collapsed mini player has its own). No scenes here: the spectrum bars only. */
+body.rm #plBar .pl-art-wrap, body.rm #plBar .pl-waves-wrap, body.rm #plWavesBtn, body.rm #plFullBtn, body.rm #plBarsBtn { display: none !important; }
+/* The track row: the title on the transport's line, its middle on theirs. */
+body.rm #plBar .pl-top { align-items: center; }
+body.rm #plBar .pl-now { min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+
+#rmTabs, #rmMini { display: none; }
+/* The app's windows as pages (remote.js overlays): the whole screen, a bar
+   with Back and the window's name on top, the window's page under it. */
+#rmOverlay { position: fixed; inset: 0; z-index: 9000; background: #02060f; display: flex; flex-direction: column; animation: rm-page-in .16s ease-out; }
+@keyframes rm-page-in { from { opacity: 0; transform: translateX(14px); } }
+@media (prefers-reduced-motion: reduce) { #rmOverlay { animation: none; } }
+body.rm-paged { overflow: hidden; }
+.rm-page-bar { flex: none; display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 12px 0 6px; padding-top: env(safe-area-inset-top, 0px); box-sizing: content-box; border-bottom: 1px solid rgba(56,189,248,0.18); background: linear-gradient(180deg, rgba(15,23,42,0.98), rgba(8,15,30,0.98)); }
+.rm-back { all: unset; display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 14px 0 8px; border-radius: 8px; cursor: pointer; color: #7dd3fc; font: 13px system-ui, sans-serif; letter-spacing: .3px; border: 1px solid rgba(56,189,248,0.3); background: rgba(14,165,233,0.08); -webkit-tap-highlight-color: transparent; }
+.rm-back:hover, .rm-back:focus-visible { color: #e0f2fe; border-color: #38bdf8; background: rgba(14,165,233,0.2); }
+.rm-back:active { transform: translateY(1px); }
+.rm-page-title { font-size: 14px; letter-spacing: 3px; text-transform: uppercase; color: #38bdf8; font-weight: 300; white-space: nowrap; }
+.rm-page-now { flex: 1; min-width: 0; text-align: right; font: 11px ui-monospace, Consolas, monospace; color: #64748b; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#rmOverlay iframe { flex: 1; width: 100%; min-height: 0; border: 0; background: #000; display: block; }
+@media (max-width: 480px) { .rm-page-title { font-size: 12px; letter-spacing: 2px; } .rm-page-now { display: none; } }
+
+/* Inside such a page: the window's own buttons (minimize, maximize, close)
+   are the remote's Back now. */
+html.rm-frame .an-win-btns, html.rm-frame .win-btns, html.rm-frame [data-press-through].an-win-btn { display: none !important; }
+
+@media (max-width: 759px) {
+  body.rm .slide-panel { padding: 0 10px 130px; }
+  #rmShell { display: block !important; }
+  #rmTop h2 { font-size: 20px; }
+  .rm-hint { display: none; }
+  .rm-seg { display: none; }
+  #rmLeft, #rmRight { display: none; }
+  body[data-rm-tab="library"] #rmLeft, body[data-rm-tab="sound"] #rmLeft { display: flex; margin-top: 8px; }
+  body[data-rm-tab="library"] #rmSound, body[data-rm-tab="sound"] #rmLib { display: none; }
+  body[data-rm-tab="library"] #rmLib { display: block; }
+  body[data-rm-tab="sound"] #rmSound { display: block; }
+  body[data-rm-tab="player"] #rmRight { display: flex; margin-top: 8px; }
+  #rmTabs { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 800; justify-content: space-around; padding: 0 6px env(safe-area-inset-bottom, 0px); background: #02060f; border-top: 1px solid rgba(56,189,248,0.12); }
+  #rmTabs button { all: unset; flex: 1; text-align: center; height: 48px; line-height: 48px; position: relative; font: 11px ui-monospace, Consolas, monospace; letter-spacing: 2px; text-transform: uppercase; color: #64748b; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  #rmTabs button.on { color: #38bdf8; }
+  #rmTabs button.on::before { content: ""; position: absolute; top: 0; left: 32%; right: 32%; height: 2px; border-radius: 2px; background: #38bdf8; box-shadow: 0 0 8px #38bdf8; }
+}
+
+/* ── The dock (Anton 9.11): the app's own player bar, always at the bottom ──
+   on a phone and a tablet. The page scrolls in the room above it (its
+   scrollbar ends there too), the window pages end above it, their Back down
+   by the thumb. A big screen keeps the bar in its column. */
+:root { --rm-dock: 0px; --rm-tabs: 0px; }
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  html, body { overflow: hidden; }
+  body.rm .slide-panel { position: fixed; top: 0; left: 0; right: 0; bottom: calc(var(--rm-dock) + var(--rm-tabs)); max-width: none; min-height: 0; height: auto; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 14px; scrollbar-width: thin; scrollbar-color: rgba(56,189,248,0.3) transparent; }
+  body.rm .slide-panel::-webkit-scrollbar { width: 4px; }
+  body.rm .slide-panel::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.3); border-radius: 2px; }
+  body.rm #plBar { position: fixed; left: 0; right: 0; bottom: var(--rm-tabs); z-index: 790; margin: 0; border-radius: 14px 14px 0 0; border-width: 1px 0 0; padding: 10px 14px 10px; background: linear-gradient(180deg, rgba(17,26,46,0.98), rgba(8,14,28,0.99)); box-shadow: 0 -12px 30px -12px rgba(0,0,0,0.8); }
+  /* the transport and its icons a finger's size, as the app draws them */
+  body.rm #plBar .pl-transport { gap: 6px; }
+  body.rm #plBar .pl-transport button { width: 40px; height: 40px; }
+  body.rm #plBar .pl-transport button.pl-main { width: 48px; height: 48px; }
+  body.rm #plBar .pl-transport button svg { transform: scale(1.25); }
+  body.rm #plBar { --pl-ctl-h: 30px; }
+  body.rm #plSeek { height: 6px; }
+  #rmOverlay { bottom: calc(var(--rm-dock) + var(--rm-tabs)); }
+  /* Back by the thumb: the page's bar at its foot, over the player. */
+  .rm-page-bar { order: 2; padding-top: 0; height: 56px; border-bottom: 0; border-top: 1px solid rgba(56,189,248,0.18); }
+  .rm-back { height: 44px; padding: 0 18px 0 10px; border-radius: 22px; font-size: 14px; }
+  #rmOverlay iframe { order: 1; }
+}
+/* the rack under a finger: one stage to a row, everything half as big again */
+@media (max-width: 759px) {
+  body.rm #labField.lab-field { grid-template-columns: 1fr; zoom: 1.45; }
+  body.rm #labField .lab-badge { min-height: 30px; }
+  body.rm #labField .lab-badge + .lab-badge { margin-top: 4px; }
+}
+@media (min-width: 760px) and (max-width: 1199px) {
+  body.rm #plBar { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  body.rm #labField.lab-field { zoom: 1.2; }
+  body.rm #labField .lab-badge { min-height: 28px; }
+}
+/* The library on the Aura sky, not on black. */
+body.rm { background: radial-gradient(120% 70% at 12% 0%, rgba(30,58,138,0.35), transparent 60%), radial-gradient(90% 60% at 95% 45%, rgba(91,33,182,0.22), transparent 65%), radial-gradient(80% 60% at 25% 100%, rgba(14,116,144,0.22), transparent 60%), #050a17; background-attachment: fixed; }
+
+/* The analyzer on a phone (anpager.js): one page at a time, the numbers or
+   one graph, the whole height; dots and arrows at the foot. */
+#rmAnFoot { display: none; }
+html.rm-pager #anRoot { display: flex; flex-direction: column; height: 100%; }
+html.rm-pager #anBody { flex: 1 1 auto; min-height: 0; flex-direction: column; overflow: hidden; }
+html.rm-pager #anSplit, html.rm-pager #anTabs { display: none !important; }
+html.rm-pager[data-an-page="metrics"] #anPanels { display: none !important; }
+html.rm-pager[data-an-page="metrics"] #anLeft { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+html.rm-pager[data-an-page="graph"] #anLeft { display: none !important; }
+html.rm-pager[data-an-page="graph"] #anPanels { flex: 1 1 auto; min-height: 0; height: auto !important; }
+html.rm-pager #anBody.rm-an-in-r > * { animation: rm-an-r .2s ease-out; }
+html.rm-pager #anBody.rm-an-in-l > * { animation: rm-an-l .2s ease-out; }
+@keyframes rm-an-r { from { opacity: .3; transform: translateX(24px); } }
+@keyframes rm-an-l { from { opacity: .3; transform: translateX(-24px); } }
+@media (prefers-reduced-motion: reduce) { html.rm-pager #anBody > * { animation: none !important; } }
+html.rm-pager #rmAnFoot { display: flex; flex: none; align-items: center; gap: 6px; height: 52px; padding: 0 6px; border-top: 0; background: transparent; }
+.rm-an-step { all: unset; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 22px; font: 24px/1 system-ui, sans-serif; color: #7dd3fc; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.rm-an-step:disabled { opacity: .2; cursor: default; }
+.rm-an-mid { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.rm-an-name { font: 10px ui-monospace, Consolas, monospace; letter-spacing: 2px; text-transform: uppercase; color: #7dd3fc; }
+.rm-an-dots { display: flex; gap: 2px; }
+.rm-an-dot { all: unset; width: 18px; height: 14px; display: grid; place-items: center; cursor: pointer; }
+.rm-an-dot::before { content: ""; width: 6px; height: 6px; border-radius: 3px; background: #334155; transition: width .2s, background .2s; }
+.rm-an-dot.on::before { width: 16px; background: #38bdf8; box-shadow: 0 0 6px rgba(56,189,248,0.6); }
+
+/* The cover (Anton 9.11): a soft plate with a shadow, rounded; a note on it
+   while there is no cover, the cover on the same plate when there is. */
+#rmArt { border-radius: 14px; border: 0; box-shadow: 0 12px 28px -10px rgba(0,0,0,0.85), 0 0 0 1px rgba(125,211,252,0.10); background: linear-gradient(145deg, rgba(30,58,138,0.55), rgba(15,23,42,0.9) 60%, rgba(76,29,149,0.45)); }
+#rmArt.none { border: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237dd3fc' stroke-opacity='.75' stroke-width='1.3' stroke-linecap='round'%3E%3Cpath d='M9 18V6l10-2v12'/%3E%3Ccircle cx='6.5' cy='18' r='2.5'/%3E%3Ccircle cx='16.5' cy='16' r='2.5'/%3E%3C/svg%3E") center / 40% no-repeat, radial-gradient(80% 80% at 30% 25%, rgba(56,189,248,0.22), transparent 70%), linear-gradient(145deg, rgba(30,58,138,0.55), rgba(15,23,42,0.92) 60%, rgba(76,29,149,0.45)); }
+
+/* The dock lies over the page (Anton 9.11): the page runs on under it, its
+   last 16 px above the player fade out, so what is further down shows there
+   is more to scroll to. The queue's panel goes on under the player. */
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  body.rm .slide-panel { bottom: var(--rm-tabs); display: flex; flex-direction: column; padding-bottom: calc(var(--rm-dock) + 18px);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--rm-dock) - 16px), transparent calc(100% - var(--rm-dock) + 2px));
+            mask-image: linear-gradient(to bottom, #000 calc(100% - var(--rm-dock) - 16px), transparent calc(100% - var(--rm-dock) + 2px)); }
+  body.rm #plBar { border-top-color: rgba(56,189,248,0.28); }
+}
+@media (max-width: 759px) {
+  body[data-rm-tab="player"] .slide-panel { padding-bottom: 0 !important; }
+  body[data-rm-tab="player"] #rmShell { display: flex !important; flex-direction: column; flex: 1 0 auto; }
+  body[data-rm-tab="player"] #rmRight { flex: 1 0 auto; }
+  body[data-rm-tab="player"] #rmQueue { flex: 1 0 auto; padding-bottom: calc(var(--rm-dock) + 18px); border-bottom: 0; border-radius: 10px 10px 0 0; }
+}
+@media (min-width: 760px) and (max-width: 1199px) {
+  body.rm .slide-panel { padding-bottom: 0 !important; }
+  #rmShell { flex: 1 0 auto; }
+  #rmLeft { padding-bottom: calc(var(--rm-dock) + 18px); }
+  #rmQueue { flex: 1 0 auto; padding-bottom: calc(var(--rm-dock) + 18px); border-bottom: 0; border-radius: 10px 10px 0 0; }
+}
+
+/* One ground under everything (Anton 9.11): the colour of the window page's
+   foot, a shade darker than the player; the panels, the player and the
+   window pages lie on it, so their round corners show it, not black. */
+:root { --rm-ground: #0b1426; }
+html, body, body.rm { background: var(--rm-ground); }
+body.rm { background: radial-gradient(110% 60% at 10% 0%, rgba(30,58,138,0.16), transparent 60%), radial-gradient(90% 60% at 95% 50%, rgba(91,33,182,0.10), transparent 65%), var(--rm-ground); background-attachment: fixed; }
+#rmOverlay, #rmOverlay iframe, .rm-page-bar, #rmTabs { background: var(--rm-ground); }
+html.rm-frame, html.rm-frame body { background: var(--rm-ground) !important; }
+.rm-page-bar { border-top-color: transparent; }
+#rmTabs { border-top-color: rgba(56,189,248,0.08); }
+/* The ground is one colour to the very edge (Anton 9.11): no tint in the
+   middle of the page and no frame of the app's panel around it, so nothing
+   darker shows at the round corners of the player and the window pages. */
+body.rm { background: var(--rm-ground) !important; }
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  body.rm .slide-panel { background: none !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
+  body.rm .slide-panel::before, body.rm .slide-panel::after { display: none !important; }
+}
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  /* its shadow darkened the ground at its round corners: none */
+  body.rm #plBar { box-shadow: none !important; }
+}
+
+/* Round corners on the ground (Anton 9.11: no square edges). */
+/* A window page's own panel keeps its round corners and its frame, without
+   the window's shadow (it darkened the ground at the corners). */
+html.rm-frame body > [class*="panel"], html.rm-frame #anRoot { box-shadow: none !important; }
+/* Scrollbars thin, on the ground (a classic one drew a grey strip). */
+html, html * { scrollbar-width: thin; scrollbar-color: rgba(56,189,248,0.3) transparent; }
+/* The library's search and its tabs: apart, not edge on edge. */
+#rmLib .lb-search + .lb-tabs, #rmLib .lb-search ~ .lb-tabs { margin-top: 8px; }
+
+/* Shadows that fall on the ground (Anton 9.11). A window page lives in a
+   frame, which cut its panel's shadow to the frame's square: the frame
+   itself is the panel's shape now, set in from the edges, and throws the
+   shadow onto the page's ground. The player throws a soft one upwards,
+   round its corners. */
+#rmOverlay iframe { margin: 10px 10px 0; width: calc(100% - 20px); border-radius: 11px; box-shadow: 0 0 0 1px rgba(124,58,237,0.18), 0 10px 32px rgba(0,0,0,0.75), 0 0 18px rgba(56,189,248,0.14); }
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  body.rm #plBar { box-shadow: 0 -8px 26px rgba(0,0,0,0.55), 0 0 16px rgba(56,189,248,0.08) !important; }
+}
+
+/* Straight edges with soft shadows (Anton 9.11, v3): the window page takes
+   the whole room, no frame, no round corners, nothing of it eaten; where it
+   meets the ground (the Back bar) and where the ground meets the player, a
+   soft shadow says which lies on which. Back has its own shadow. */
+#rmOverlay iframe { margin: 0 !important; width: 100% !important; border-radius: 0 !important; box-shadow: none !important; }
+html.rm-frame body > [class*="panel"], html.rm-frame #anRoot { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
+.rm-page-bar { position: relative; }
+.rm-page-bar::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 18px; pointer-events: none; background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.18) 45%, transparent); }
+.rm-back { box-shadow: 0 6px 16px -2px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4); }
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  body.rm #plBar { border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; box-shadow: 0 -2px 6px rgba(0,0,0,0.35), 0 -10px 26px rgba(0,0,0,0.45) !important; }
+}
+
+/* Anton 9.11, v4. The window page runs down to the player; Back is a tab
+   cut out of its bottom left corner, the player's colour, a soft curve
+   into the player's edge. No name line (the window says what it is). */
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  .rm-page-bar { position: absolute; left: 0; bottom: 0; z-index: 2; height: auto; padding: 0; border: 0; background: transparent !important; pointer-events: none; }
+  .rm-page-bar::before { display: none; }
+  .rm-page-title, .rm-page-now { display: none !important; }
+  .rm-back { pointer-events: auto; height: 46px; padding: 0 20px 0 12px; border-radius: 0 22px 0 0; border: 1px solid rgba(56,189,248,0.28); border-left: 0; border-bottom: 0; background: rgb(17,26,46); color: #7dd3fc; box-shadow: 0 -4px 14px rgba(0,0,0,0.5); }
+  .rm-back:hover, .rm-back:focus-visible { background: rgb(22,36,62); }
+  /* the curve from the tab's foot into the player's edge */
+  .rm-page-bar::after { content: ""; position: absolute; bottom: 0; right: -18px; width: 18px; height: 18px; background: radial-gradient(circle at 100% 0, transparent 17.5px, rgba(56,189,248,0.28) 17.5px, rgba(56,189,248,0.28) 18.5px, rgb(17,26,46) 18.5px); }
+  #rmOverlay iframe { flex: 1 1 auto; }
+  /* the app's tip of the button that opened the page stays behind */
+  body.rm-paged #labTip { display: none !important; }
+  /* the player: the seek bar apart from the buttons, wider for a finger;
+     the device row and the badges a little lower */
+  body.rm #plBar { gap: 8px; }
+  body.rm #plSeek { height: 8px; margin: 8px 0 6px; border-radius: 4px; }
+  body.rm #plSeek::before { top: -9px; bottom: -9px; }
+  body.rm #plBar .pl-dev { margin-top: 2px; }
+  body.rm #plStatus { margin-top: 2px; }
+  /* PCM in the middle of its button */
+  body.rm #plOutFmt .pl-outfmt-text { transform: translateY(1px); }
+}
+@media (hover: none) and (pointer: coarse) { #labTip { display: none !important; } }
+/* The analyzer's own head on a phone: no title line (the player says what
+   plays), no empty chain line; the pager's foot clear of the Back tab. */
+html.rm-pager #anTitleBar { display: none !important; }
+html.rm-frame #anChainWrap:has(#anChainStrip:empty), html.rm-pager #anChainWrap { display: none !important; }
+html.rm-pager #rmAnFoot { padding-left: 108px; }
+
+/* Back, v5 (Anton 9.11): a lower tab whose right side runs down at 45° into
+   the player's edge, small round corners where the slope meets the top and
+   the player; one outline with the player's. The tab and the player lie
+   above the window: both throw a soft shadow onto it. */
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  .rm-page-bar { width: 100px; height: 27px; bottom: -1px; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='27' viewBox='0 0 100 27'%3E%3Cpath d='M0 0.5H62Q68 0.5 72.2 4.7L89.3 21.8Q93.9 26.5 100 26.5V27H0Z' fill='rgb%2817%2C26%2C46%29'/%3E%3Cpath d='M0 0.5H62Q68 0.5 72.2 4.7L89.3 21.8Q93.9 26.5 100 26.5' fill='none' stroke='rgb%2820%2C62%2C87%29' stroke-width='1'/%3E%3C/svg%3E") left bottom / 100px 27px no-repeat !important; filter: drop-shadow(0 -3px 7px rgba(0,0,0,0.55)); }
+  .rm-page-bar::after { display: none !important; }
+  .rm-back { position: relative; height: 26px; width: 70px; box-sizing: border-box; justify-content: flex-start; padding: 0 0 0 10px; border: 0 !important; border-radius: 0; background: transparent !important; box-shadow: none !important; }
+  .rm-back:active { transform: none; opacity: .7; }
+  #rmOverlay::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 14px; pointer-events: none; z-index: 1; background: linear-gradient(0deg, rgba(0,0,0,0.5), rgba(0,0,0,0.15) 50%, transparent); }
+}
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  /* the tab is 26 px tall to the eye; a finger gets 40 */
+  .rm-back::before { content: ""; position: absolute; left: 0; right: -14px; top: -14px; bottom: 0; }
+}
+/* Analyzer status bar as its own card: the same edges and corners as the
+   panels above it, and the same gap around its two buttons on every side. */
+html.rm-frame #anStatusBar {
+  box-sizing: border-box; height: 34px; margin-top: 8px; padding: 0 5px; gap: 8px;
+  border: 1px solid rgba(56,189,248,0.09); border-radius: 9px;
+}
+html.rm-frame #anPlayheadWrap { margin: 0 2px 0 4px; }
+html.rm-frame #anPlayBtn,
+html.rm-frame #anExportBtn {
+  box-sizing: border-box; width: 22px; height: 22px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(56,189,248,0.3); border-radius: 5px;
+}
+html.rm-frame #anExportBtn { background: rgba(56,189,248,0.08); color: #7dd3fc; }
+/* The metrics list scrolls in the page's own side margin, so a phone's
+   floating scrollbar never lies over the panel's edge. */
+html.rm-pager #anLeft { margin-right: -9px; padding-right: 9px; }
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  /* Back rises 26 px into the window from the player: every window page
+     keeps that strip free, so the tab never lies over a panel or a button
+     (the analyzer on a phone has its page dots there instead). */
+}
+/* ── Parametric EQ on a phone ──────────────────────────────────────────
+   The window scrolls as one page: a tall graph first, then the tools,
+   output and speakers, each on rows that fit the width. */
+@media (max-width: 759px) {
+  html.rm-frame:has(#eqWin) body { overflow-x: hidden; overflow-y: auto; }
+  html.rm-frame #eqWin { height: auto; min-height: 100%; overflow: visible; border: 0; border-radius: 0; box-shadow: none; }
+  html.rm-frame #winHead { gap: 8px; padding: 8px 12px; }
+  html.rm-frame #winHead .wt,
+  html.rm-frame #winHead .grp > .lbl:first-child:not(:only-child) { display: none; }
+  html.rm-frame #winHead .grp:has(#presetSel) { flex: 1 1 auto; min-width: 0; }
+  html.rm-frame #presetSel { flex: 1 1 auto; min-width: 0; }
+  html.rm-frame #eqWin .tools { gap: 8px; padding: 8px 12px; }
+  html.rm-frame #eqWin .tools .grow { display: none; }
+  html.rm-frame #eqWin .tools #undoB { margin-left: auto; }
+  html.rm-frame #graphBox { flex: none; height: max(270px, 50vh); }
+  html.rm-frame #eqWin .chips { padding: 8px 12px 10px; }
+  html.rm-frame #eqFooter { padding: 10px 12px; }
+  html.rm-frame #eqWin .frow { flex-wrap: wrap; row-gap: 8px; }
+  html.rm-frame #eqFooter .frow + .frow > .grp,
+  html.rm-frame #spkBox .frow + .frow > .grp { flex: 1 1 100%; min-width: 0; }
+  html.rm-frame #eqFooter .lbl, html.rm-frame #spkBox .ballbl { flex: none; width: 58px; }
+  html.rm-frame #outGain, html.rm-frame #spkBox .balg { flex: 1 1 auto; width: auto; min-width: 0; }
+  html.rm-frame #spkBox { margin: 0 12px 12px; }
+  html.rm-frame #spkBox .frow:first-child .spkh { flex: 1 1 100%; }
+  html.rm-frame #spkBox .delcm:empty { display: none; }
+}
+@media (max-width: 759px) {
+  /* a band's panel wraps instead of running off the screen */
+  html.rm-frame #bandPop { flex-wrap: wrap; row-gap: 6px; max-width: calc(100% - 12px); }
+}
+/* ── Back and each window's last row ─────────────────────────────────────
+   Back rises 26 px into the window from the player, at its left. A row held
+   at the window's foot gets shorter and starts after the tab; a page that
+   scrolls ends 28 px lower, so its last row comes up above the tab. */
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  html.rm-frame:not(.rm-pager) #anStatusBar { margin-left: 100px; }
+  html.rm-frame .win > footer { padding-left: 104px; }
+  html.rm-frame #spkBox { margin-left: 100px; }
+  html.rm-frame:has(.lawrow) .win > main { padding-bottom: 30px; }
+}
+@media (max-width: 759px) {
+  html.rm-frame #spkBox { margin-left: 12px; }
+  html.rm-frame:has(#eqWin) body { padding-bottom: 30px; }
+}
+/* ── Bigger for a finger: the queue, the seek bar and the volume ───────── */
+html:root { --pl-row-h: 58px; }
+body.rm #plListHead { min-height: 40px; gap: 8px; }
+body.rm #plView { width: 40px; height: 36px; }
+body.rm #plDdTrigger { height: 36px; padding: 0 12px; }
+body.rm #plDdTrigger .pl-dd-name { font-size: 13px; line-height: 16px; height: auto; }
+body.rm #plClear { height: 36px; padding: 0 14px; font-size: 13px; }
+#fileQueue .file-item.pl-item { padding: 0 8px 0 10px; }
+#fileQueue .fi-head { gap: 10px; }
+#fileQueue .rm-qt-title { font-size: 15px; line-height: 19px; }
+#fileQueue .rm-qt-sub { font-size: 12.5px; line-height: 16px; }
+#fileQueue .rm-qm { font-size: 12.5px; line-height: 16px; }
+#fileQueue .rm-qm-tag { font-size: 10.5px; }
+#fileQueue .pl-btn, #fileQueue .file-item-close { width: 42px; height: 38px; border-radius: 8px; }
+#fileQueue .pl-btn svg, #fileQueue .file-item-close svg { transform: scale(1.25); }
+body.rm #plSeek { height: 13px; border-radius: 6.5px; }
+body.rm #plSeek::before { top: -8px; bottom: -8px; }
+body.rm #plVol { height: 9px; border-radius: 4.5px; }
+body.rm #plVol::-webkit-slider-thumb { width: 24px; height: 24px; }
+body.rm #plVol::-moz-range-thumb { width: 24px; height: 24px; }
+#fileQueue { padding-right: 12px; }
+/* ── The docked player folds (remote.js dockFold) ──────────────────────── */
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  body.rm > #plBar { touch-action: none; }
+  body.rm.rm-dock-min > #plBar .pl-dev,
+  body.rm.rm-dock-min > #plBar #plStatus { display: none !important; }
+  body.rm.rm-dock-min > #plBar #plSeek { height: 5px; margin: 4px 0 2px; pointer-events: none; }
+  body.rm.rm-dock-min > #plBar #plSeek::before { display: none; }
+}
+/* No grey square flashing under a finger on a tap, on any page */
+html, html * { -webkit-tap-highlight-color: transparent; }
+/* Cue in a window: the panels under the stage scroll in what room is left */
+html.rm-frame:has(.lawrow) .win > main { flex: 1 1 auto; min-height: 0; max-height: none; }
+/* ── The head: the title nearer the strip, no rule under it ────────────── */
+#rmTop h2 { border-bottom: 0 !important; padding-bottom: 0 !important; margin: 12px 0 10px !important; }
+/* ── The library: room between its tabs and the chips under them ─────── */
+#rmLib .lb-tabs { margin-bottom: 9px; }
+#rmLib .lb-chips { margin-bottom: 9px; }
+/* ── Full screen (remote.js fullScreen): corners at the top right, no body ── */
+.rm-fs { all: unset; position: absolute; top: 6px; right: 6px; z-index: 5; width: 42px; height: 42px; display: grid; place-items: center; cursor: pointer; }
+.rm-fs svg { width: 26px; height: 26px; overflow: visible; fill: none; stroke: #38bdf8; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+  filter: drop-shadow(0 0 2px rgba(56,189,248,0.9)) drop-shadow(0 0 7px rgba(56,189,248,0.45)) drop-shadow(0 2px 3px rgba(0,0,0,0.7));
+  transition: transform .18s ease, filter .18s ease; }
+.rm-fs .i { display: none; }
+.rm-fs.on .o { display: none; }
+.rm-fs.on .i { display: inline; }
+.rm-fs:active svg { transform: scale(0.9); filter: drop-shadow(0 0 3px rgba(125,211,252,1)) drop-shadow(0 0 12px rgba(56,189,248,0.7)) drop-shadow(0 2px 3px rgba(0,0,0,0.7)); }
+/* Over Chrome's note on going full screen (remote.js fullScreen). The player
+   reaches 1 px under the tabs: a rounded height left a hairline between them
+   that the page showed through once both were up over the note. */
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  body.rm > #plBar { bottom: calc(var(--rm-tabs) - 1px); }
+  body.rm > #plBar, body.rm #rmTabs { transition: transform .3s cubic-bezier(.4,0,.2,1); }
+  body.rm.rm-fs-lift > #plBar, body.rm.rm-fs-lift #rmTabs { transform: translateY(-136px); }
+}
+/* ── The head stays put on a phone and a tablet (Anton 10.11) ───────────
+   The version, the title and the strip; what scrolls goes under it and
+   fades in just below it (16 px), as it fades out above the player — only
+   once something is under it. The Library's own head (title, search, tabs,
+   chips, sort) stays too and its list scrolls in itself (remote.js fitLib);
+   the Player scrolls its queue in itself (fitQueue). */
+:root { --rm-head: 0px; }
+@media (max-width: 1199px), (hover: none) and (pointer: coarse) {
+  body.rm #rmTop { position: sticky; top: 0; z-index: 40; background: var(--rm-ground); }
+  body.rm.rm-under .slide-panel {
+    -webkit-mask-image: linear-gradient(to bottom, #000 var(--rm-head), transparent var(--rm-head), #000 calc(var(--rm-head) + 16px), #000 calc(100% - var(--rm-dock) - 16px), transparent calc(100% - var(--rm-dock) + 2px));
+            mask-image: linear-gradient(to bottom, #000 var(--rm-head), transparent var(--rm-head), #000 calc(var(--rm-head) + 16px), #000 calc(100% - var(--rm-dock) - 16px), transparent calc(100% - var(--rm-dock) + 2px)); }
+  #rmLib .lb-body.rm-under, #fileQueue.rm-under {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 16px);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 16px); }
+}
+@media (max-width: 759px) {
+  body.rm.rm-libfit .slide-panel { padding-bottom: 0 !important; }
+  body.rm.rm-nopanel .slide-panel { overflow-y: hidden !important; }
+  body.rm.rm-libfit #rmLib .lb-body { overflow-y: auto; overscroll-behavior: contain; padding-bottom: calc(var(--rm-dock) + 18px); box-sizing: border-box; scrollbar-width: none; }
+  body.rm.rm-libfit #rmLib .lb-body::-webkit-scrollbar { display: none; }
+}
+/* The filter download's Storage tab: "Open folder" opens it on the computer,
+   not on the phone (the streamer does not offer it). */
+.fd-btns [data-act="folder"] { display: none; }

@@ -1,0 +1,114 @@
+// @name     Tunnel
+// @author   Aura Engine
+// @about    The sound ahead waits deep in the tunnel and flies at you: a ring is heard as it crosses the bright circle.
+//
+// @section  "Rings"         "Each ring is a moment of the music, its spectrum around the circle"
+// @param    float  rings      5.0   1.0  16.0 0.5         "Rings a second"  "How many rings each second of sound leaves"
+// @param    float  lineWidth  1.4   0.6  5.0  0.1   px    "Line width"      "How thick a ring is"
+// @param    float  react      1.0   0.0  2.0  0.05  x     "Reaction"        "How much the spectrum shapes and lights the rings"
+// @param    float  bright     1.0   0.3  2.5  0.05  x     "Brightness"      "How bright the rings are"
+// @param    float  haze       1.0   0.0  3.0  0.05  x     "Haze"            "The soft light between the rings"
+//
+// @section  "Colour"
+// @param    choice colours    0     "Album cover|App|Custom"    "Colours"   "Where the colours come from"
+// @param    color  colourA    #38bdf8                     "Custom colour 1"  "With Custom: the colour of the bass side"
+// @param    color  colourB    #f472b6                     "Custom colour 2"  "With Custom: the colour of the treble side"
+// @param    float  spread     0.75  0.0  2.0  0.05  x     "Colour spread"   "How much the colour changes around a ring"
+//
+// @section  "Motion"        "How the tunnel follows the music"
+// @param    float  ahead      3.0   1.0  3.5  0.1   s     "Look ahead"      "Seconds of the future between the far end and the bright circle"
+// @param    float  twist      0.8   0.0  3.0  0.05  x     "Twist"           "How much the music's energy winds the tunnel"
+// @param    float  spin       0.03  -0.3 0.3  0.01  x     "Spin"            "How fast the tunnel turns by itself"
+//
+// @section  "Focus circle"  "Where the sound is heard"
+// @param    float  focus      0.62  0.3  1.1  0.01        "Size"            "The size of the bright circle"
+// @param    float  glow       1.0   0.0  2.0  0.05  x     "Glow"            "How bright the circle is, and how it flashes on a kick"
+//
+// @section  "Sparks"        "Sparks carried in by the highs"
+// @param    float  sparks     0.7   0.0  2.0  0.05  x     "Amount"          "How many sparks and how bright"
+// @param    float  sparkSize  1.0   0.4  2.5  0.05  x     "Size"            "How big a spark is"
+//
+// @section  "Layout"
+// @param    float  center     -0.22 -0.6 0.4  0.01        "Height"          "Where the tunnel's middle lies in the player (full screen: always the middle)"
+
+// Depth is time. A ring shows the music of one moment: born at the far end
+// (the middle of the picture) from the sound `ahead` seconds away, it comes
+// towards you, and the moment it sounds it crosses the focus circle; past
+// it, it rushes out of the picture. The radius falls off exponentially with
+// time, so every second of the future gets the same room.
+
+const float FAR_R = 0.035;                 // the radius of the far end
+
+vec3 tint(float x, float f) {
+    if (colours == 2) return mix(colourA, colourB, f);            // Custom: bass side → treble side
+    if (colours == 1) return auraAppPalette(x);                  // App
+    return auraPalette(x);                                       // Album cover
+}
+
+vec4 scene(vec2 uv, vec2 p) {
+    vec2 c = vec2(0.0, uFull > 0.5 ? 0.0 : center);
+    vec2 q = p - c;
+    float r = max(length(q), 1e-4);
+    float kz = log(focus / FAR_R) / ahead;    // log-radius per second
+    float t = log(focus / r) / kz;           // the sound's time here: + inside the circle, − outside
+    if (t > ahead + 0.25) return vec4(0.0);
+
+    float live = uLive;
+    // The sound's own clock: rings stay with their moment of music.
+    float tt = (live > 0.5 ? uTrackTime : uTime * 0.6) + t;
+
+    // Around the circle: bass at the bottom, highs at the top, both sides alike.
+    float wind = twist * (live > 0.5 ? musicEnergy(t) : 0.3) * 1.4 + 0.25 * twist * t;
+    float ang = atan(q.x, -q.y) + spin * uTime * TAU + wind;
+    float f = abs(mod(ang + PI, TAU) - PI) / PI;          // 0 bottom … 1 top
+
+    float lvl, hitB, hitM, trb;
+    if (live > 0.5) {
+        lvl = musicSpectrum(f, t);
+        hitB = musicHit(0, t);
+        hitM = musicHit(1, t);
+        trb = musicTreble(t);
+    } else {
+        lvl = 0.28 + 0.18 * sin(tt * 1.3 + f * 5.0) * sin(uTime * 0.4 + 1.3);
+        hitB = 0.0; hitM = 0.0; trb = 0.2;
+    }
+    lvl = clamp(lvl * react, 0.0, 1.5);
+
+    // The rings: a line every 1/rings seconds of sound, bent by the level.
+    float ph = tt * rings + 0.35 * lvl * lvl;
+    float fw = max(fwidth(ph), 1e-4);
+    float dl = abs(fract(ph) - 0.5);
+    float line = smoothstep(0.5 - fw * (lineWidth + 3.0 * hitB), 0.5 - fw * max(0.1, lineWidth - 1.0), dl);
+    // Deep in, rings closer than a few pixels would shimmer: they melt into the haze.
+    line *= smoothstep(0.34, 0.12, fw);
+    float ringLight = bright * line * (0.12 + 1.6 * pow(lvl, 1.6) + 1.2 * hitB + 0.4 * hitM);
+
+    // The walls between the rings: a faint spectral haze.
+    float hz = haze * (0.12 * lvl * lvl + 0.05 * hitB);
+
+    // Sparks: a sparse grid in (angle, sound time), lit by the highs.
+    vec2 cell = vec2(floor(ang / TAU * 48.0), floor(tt * rings * 2.0));
+    float h = auraHash(cell);
+    vec2 inCell = vec2(fract(ang / TAU * 48.0), fract(tt * rings * 2.0)) - 0.5;
+    float spark = step(0.93, h) * smoothstep(0.22 * sparkSize, 0.0, length(inCell * vec2(1.0, 0.6))) * sparks * (0.3 + 1.7 * trb);
+
+    // Deep far away, fading once it has gone by.
+    float depth = smoothstep(ahead + 0.2, ahead * 0.55, t) * (t < 0.0 ? smoothstep(-0.9, 0.0, t) : 1.0);
+    // Brighter near the circle: that is where it sounds.
+    float near = 0.55 + 0.45 * exp(-t * t / 0.08);
+
+    vec3 col = tint(f * spread + 0.07 * tt, f) * (ringLight + hz) + tint(h + 0.3, h) * spark;
+    float a = (ringLight + hz + spark) * depth * near;
+
+    // The focus circle: now.
+    float px = 2.0 / uResolution.y;
+    float fd = abs(r - focus);
+    float fc = glow * (smoothstep(px * 2.5, 0.0, fd) * (0.35 + 0.9 * uHit.x + 0.4 * uLoudness)
+             + exp(-fd * fd / 0.004) * (0.08 + 0.35 * uHit.x) * uPlaying);
+    if (live < 0.5) fc = glow * smoothstep(px * 2.5, 0.0, fd) * (0.18 + 0.08 * sin(uTime * 0.9));
+    vec3 fcol = mix(tint(0.05 * uTime, 0.5), vec3(1.0), 0.35 + 0.4 * uHit.x);
+
+    vec3 rgb = col * depth * near + fcol * fc;
+    float alpha = clamp(a + fc, 0.0, 1.0);
+    return vec4(rgb / max(alpha, 1e-3), alpha);
+}

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Motion test</title>
+<!-- Steady motion to judge presented frames by eye and by numbers.
+     Opens as a plain file in a browser or, with AURA_MOTION_TEST set, as
+     a window of the program. Query: gl=1 draws with WebGL, hz=<refresh>
+     (the display's exact rate; without it the median rAF step is used),
+     speed=<px/s>. In the program a line goes to the log every 10 s. -->
+<style>
+  html, body { margin: 0; height: 100%; background: #101014; overflow: hidden; }
+  canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+  #info { position: absolute; left: 8px; top: 8px; font: 12px/1.35 Consolas, monospace; color: #e8e8f0;
+          background: rgba(0, 0, 0, .6); padding: 6px 8px; white-space: pre; pointer-events: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info"></div>
+<script>
+'use strict';
+const q = new URLSearchParams(location.search);
+const GL = q.get('gl') === '1';
+const HZ = parseFloat(q.get('hz')) || 0;
+const SPEED = parseFloat(q.get('speed')) || 480;
+const BOXES = 16;
+const WINDOW_MS = 10000;
+
+const canvas = document.getElementById('c');
+const info = document.getElementById('info');
+const tauri = window.__TAURI__ && window.__TAURI__.core;
+const log = (m) => { if (tauri) tauri.invoke('player_ui_log', { level: 'motion', message: m }).catch(() => {}); };
+
+let W = 0, H = 0;
+function fit() {
+  const d = window.devicePixelRatio || 1;
+  W = Math.round(canvas.clientWidth * d); H = Math.round(canvas.clientHeight * d);
+  if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+}
+
+// One picture per frame from the rAF time only, so a lost or repeated
+// frame shows as a jump/stall of the stripes, the bar and the lit box.
+function scene(t) {
+  const x = t * SPEED / 1000;
+  return { stripe: x % 80, bar: (x * 0.5) % Math.max(1, W), box: frames % BOXES };
+}
+
+let ctx2d = null, gl = null, prog = null, uRect = null, uColor = null;
+if (GL) {
+  gl = canvas.getContext('webgl', { antialias: false, alpha: false });
+  const vs = 'attribute vec2 p; uniform vec4 r; void main(){ gl_Position = vec4(r.xy + p * r.zw, 0., 1.); }';
+  const fs = 'precision mediump float; uniform vec4 c; void main(){ gl_FragColor = c; }';
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
+  prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog); gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 1, 1]), gl.STATIC_DRAW);
+  const a = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+  uRect = gl.getUniformLocation(prog, 'r'); uColor = gl.getUniformLocation(prog, 'c');
+} else {
+  ctx2d = canvas.getContext('2d', { alpha: false });
+}
+
+function rect(x, y, w, h, col) {
+  if (ctx2d) { ctx2d.fillStyle = `rgb(${col[0] * 255},${col[1] * 255},${col[2] * 255})`; ctx2d.fillRect(x, y, w, h); return; }
+  // Pixels to clip space, y down.
+  gl.uniform4f(uRect, x / W * 2 - 1, 1 - y / H * 2, w / W * 2, -h / H * 2);
+  gl.uniform4f(uColor, col[0], col[1], col[2], 1);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+function draw(t) {
+  fit();
+  const s = scene(t);
+  if (gl) { gl.viewport(0, 0, W, H); gl.clearColor(0.06, 0.06, 0.08, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
+  else rect(0, 0, W, H, [0.06, 0.06, 0.08]);
+  const band = Math.round(H * 0.45), top = Math.round(H * 0.3);
+  for (let x = -80 + s.stripe; x < W; x += 80) rect(Math.round(x), top, 40, band, [0.32, 0.36, 0.46]);
+  rect(Math.round(s.bar), top - 30, 6, band + 60, [1, 1, 1]);
+  const bw = Math.max(8, Math.floor(W / BOXES) - 4);
+  for (let i = 0; i < BOXES; i++) rect(i * (bw + 4) + 2, H - bw - 10, bw, bw, i === s.box ? [1, 0.75, 0.2] : [0.2, 0.2, 0.24]);
+}
+
+// rAF steps over the last 10 s; buckets in display periods.
+let frames = 0;
+const ts = [];
+let lastLog = 0, lastInfo = 0;
+function stats(now) {
+  while (ts.length && now - ts[0] > WINDOW_MS) ts.shift();
+  if (ts.length < 10) return null;
+  const d = [];
+  for (let i = 1; i < ts.length; i++) d.push(ts[i] - ts[i - 1]);
+  const sorted = d.slice().sort((a, b) => a - b);
+  const med = sorted[sorted.length >> 1];
+  const T = HZ ? 1000 / HZ : med;
+  const h = [0, 0, 0, 0];
+  let m = 0, v = 0;
+  for (const x of d) { m += x; const k = x / T; h[k < 0.5 ? 0 : k < 1.5 ? 1 : k < 2.5 ? 2 : 3]++; }
+  m /= d.length;
+  for (const x of d) v += (x - m) * (x - m);
+  const rate = 1000 * d.length / (ts[ts.length - 1] - ts[0]);
+  return { rate, med, T, h, sd: Math.sqrt(v / d.length), min: sorted[0], max: sorted[sorted.length - 1] };
+}
+const f = (x, n) => x.toFixed(n);
+
+// Steps of 1.5 periods or more since the last line, as wall-clock time
+// (unix s) / length (ms), logged with it to line them up with the log.
+const longs = [];
+function frame(t) {
+  frames++;
+  if (ts.length && HZ && t - ts[ts.length - 1] >= 1.5 * 1000 / HZ) {
+    longs.push(`${((performance.timeOrigin + t) / 1000).toFixed(3)}/${(t - ts[ts.length - 1]).toFixed(1)}`);
+  }
+  ts.push(t);
+  draw(t);
+  if (t - lastInfo > 500) {
+    lastInfo = t;
+    const s = stats(t);
+    if (s) {
+      const miss = HZ ? `  display ${f(HZ, 3)} Hz -> ${f(HZ - s.rate, 2)} frames/s not new\n` : '\n';
+      info.textContent = `${GL ? 'WebGL' : '2D'}  ${W}x${H}  speed ${SPEED} px/s\n`
+        + `rAF ${f(s.rate, 2)} /s  step med ${f(s.med, 3)} sd ${f(s.sd, 3)} min ${f(s.min, 2)} max ${f(s.max, 2)} ms\n`
+        + `steps in periods of ${f(s.T, 3)} ms: <0.5:${s.h[0]} 1:${s.h[1]} 2:${s.h[2]} 3+:${s.h[3]}` + miss;
+      if (t - lastLog > WINDOW_MS) {
+        lastLog = t;
+        log(`${GL ? 'gl' : '2d'} ${W}x${H} rate ${f(s.rate, 2)} med ${f(s.med, 3)} sd ${f(s.sd, 3)} min ${f(s.min, 2)} max ${f(s.max, 2)} `
+          + `T ${f(s.T, 3)} h ${s.h.join('/')}`);
+        if (longs.length) log(`long ${longs.splice(0).join(' ')}`);
+      }
+    }
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
