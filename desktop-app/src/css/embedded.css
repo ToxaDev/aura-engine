@@ -1,0 +1,12 @@
+/* A window of the app shown as a page of the Library window's centre
+   (centre-page.js: its address has `embedded`, js/vis/embed-shim.js marks
+   the root). The page there has Back and the name: the window's own
+   buttons and frame are left out, its ground is the centre's. */
+html.embedded, html.embedded body { background: transparent !important; }
+html.embedded .win-btns, html.embedded .an-win-btns, html.embedded #winMin, html.embedded #winClose,
+html.embedded .win-btn, html.embedded [data-win-btn] { display: none !important; }
+html.embedded body > [class*="panel"], html.embedded #eqWin {
+  border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+}
+html.embedded #eqWin { width: 100% !important; height: 100% !important; max-width: none !important; }
+html.embedded #winHead { cursor: default !important; -webkit-app-region: no-drag; }

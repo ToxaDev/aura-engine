@@ -1,0 +1,537 @@
+/* ═══ The landscape window (js/landscape.js) ════════════════════════════
+   The compact window's own blocks laid out wide: the converter panel moves
+   into #lsShell and becomes display: contents, so its heading, its right
+   column (Queue | Sound) and the player take places in the shell's grid
+   beside the library's two columns. */
+
+/* ── the switch, by the window's buttons (both windows) ─────────────── */
+/* COMPACT | LIBRARY: both looks named, the one shown lit, as the Queue |
+   Sound switch (Anton 23.11: one button whose word changed read as out of
+   place). 24 px tall in both windows, as the capsule beside it (perf.css);
+   in the compact window it takes no more of the head's height than that
+   row has (style.css). A press on the dark half turns the window. */
+.win-orient {
+  height: 24px;
+  margin: 0 8px 0 0;
+  padding: 0;
+  display: inline-flex; align-items: stretch;
+  box-sizing: border-box;
+  border-radius: 6px;
+  border: 1px solid rgba(56, 189, 248, 0.32);
+  background: rgba(2, 6, 23, 0.35);
+  overflow: hidden;
+  color: rgba(148, 163, 184, 0.72);
+  font: 600 9px/1 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+.win-orient:focus-visible { outline: 1px solid #38bdf8; outline-offset: 1px; }
+.wo-seg {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 0 7px;
+  transition: color 0.15s, background 0.15s;
+}
+.wo-seg + .wo-seg { border-left: 1px solid rgba(56, 189, 248, 0.22); }
+.wo-seg:hover { color: #e0f2fe; background: rgba(56, 189, 248, 0.10); }
+body:not(.win-landscape) .wo-c,
+body.win-landscape .wo-l {
+  color: #e0f2fe;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.26), rgba(14, 165, 233, 0.10));
+  box-shadow: inset 0 0 8px rgba(56, 189, 248, 0.25);
+  cursor: default;
+}
+/* A small window drawn in each half: standing for COMPACT, lying with its
+   side column for LIBRARY. */
+.wo-i { display: block; box-sizing: border-box; border: 1.4px solid currentColor; border-radius: 2px; }
+.wo-c .wo-i { width: 7px; height: 10px; }
+.wo-l .wo-i { width: 12px; height: 8px; position: relative; }
+.wo-l .wo-i::before { content: ""; position: absolute; left: 2px; top: 0; bottom: 0; width: 1.2px; background: currentColor; }
+
+/* Maximize: the landscape window's alone (the compact one is fixed size). */
+.win-btn-max { display: none; background: rgba(56, 189, 248, 0.45); }
+.win-btn-max:hover { background: #38bdf8; }
+body.win-landscape .win-btn-max { display: block; }
+
+/* ── the shell ─────────────────────────────────────────────────────── */
+#lsShell { display: none; }
+body.win-landscape { overflow: hidden; }
+body.win-landscape #lsShell {
+  position: fixed; inset: 0;
+  display: grid;
+  grid-template-columns: 214px minmax(0, 1fr) clamp(420px, 30vw, 480px);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "logo bar   bar"
+    "side centre right"
+    "foot foot  foot";
+  box-sizing: border-box;
+  overflow: hidden;
+  /* The compact window's frame and ground (style.css .slide-panel). */
+  border-radius: 11px;
+  border: 1px solid rgba(56, 189, 248, 0.38);
+  background:
+    radial-gradient(circle at 50% 30%, rgba(14, 165, 233, 0.10) 0%, transparent 58%),
+    radial-gradient(circle at center, #0B192C 0%, #000000 100%);
+}
+/* Maximized or on the whole screen: square, edge to edge. */
+body.win-landscape.ls-max #lsShell { border-radius: 0; border-color: transparent; }
+
+body.win-landscape #converterPanel {
+  display: contents;
+}
+/* Anything of the panel's not placed here is the compact window's. */
+body.win-landscape #converterPanel > :not(.app-head-bar):not(h2):not(#lsRight):not(#plBar) {
+  display: none !important;
+}
+
+/* ── head ──────────────────────────────────────────────────────────── */
+body.win-landscape #converterPanel > h2 {
+  grid-area: logo;
+  margin: 0;
+  padding: 0 14px;
+  /* one line, centred by its height (not a flex row: the number hangs on
+     the name's baseline, style.css .hd-ver-a) */
+  display: block; line-height: 46px;
+  height: 46px; box-sizing: border-box;
+  font-size: 17px; letter-spacing: 4px;
+  white-space: nowrap;
+  text-align: left;
+  border-bottom: 1px solid rgba(14, 165, 233, 0.18);
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.5), rgba(2, 6, 23, 0.2));
+}
+body.win-landscape #converterPanel > .app-head-bar {
+  grid-area: bar;
+  height: 46px; box-sizing: border-box;
+  padding: 0 12px 0 4px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(14, 165, 233, 0.18);
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.5), rgba(2, 6, 23, 0.2));
+}
+body.win-landscape .win-btns { padding-top: 0; gap: 6px; }
+
+/* ── side and centre: the library's (medialib) ─────────────────────── */
+.ls-side {
+  grid-area: side;
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid rgba(14, 165, 233, 0.14);
+  background: rgba(2, 6, 23, 0.25);
+}
+.ls-centre {
+  grid-area: centre;
+  min-width: 0; min-height: 0;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.ls-centre > * { flex: 1 1 auto; min-height: 0; }
+/* Until the library is in the build. */
+.ls-ph-side {
+  padding: 14px 18px;
+  font: 600 8.5px ui-monospace, Consolas, monospace; letter-spacing: 2px; color: #475569;
+}
+.ls-ph {
+  margin: 24px; padding: 60px 20px;
+  border: 1px dashed rgba(56, 189, 248, 0.25); border-radius: 12px;
+  color: #64748b; font-size: 13px; text-align: center;
+}
+
+/* ── right: Queue | Sound ──────────────────────────────────────────── */
+.ls-right {
+  grid-area: right;
+  min-height: 0;
+  display: flex; flex-direction: column;
+  border-left: 1px solid rgba(14, 165, 233, 0.14);
+  background: rgba(2, 6, 23, 0.3);
+}
+.ls-tabs { display: flex; gap: 4px; padding: 10px 12px 0; flex: none; }
+.ls-tab {
+  padding: 4px 12px;
+  border-radius: 6px 6px 0 0;
+  border: 1px solid transparent; border-bottom: 0;
+  background: transparent;
+  color: #64748b;
+  font: 600 9px ui-monospace, Consolas, monospace; letter-spacing: 1.5px; text-transform: uppercase;
+  cursor: pointer;
+}
+.ls-tab:hover { color: #cbd5e1; }
+.ls-tab.on {
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.3);
+  background: rgba(14, 165, 233, 0.08);
+}
+.ls-pane {
+  display: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  box-sizing: border-box;
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgba(56, 189, 248, 0.18);
+}
+.ls-right[data-tab="queue"] > .ls-queue { display: flex; flex-direction: column; overflow: hidden; }
+.ls-right[data-tab="sound"] > .ls-sound { display: block; overflow-y: auto; overflow-x: hidden; }
+.ls-queue > * { flex-shrink: 0; }
+.ls-sound::-webkit-scrollbar { width: 4px; }
+.ls-sound::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.2); border-radius: 2px; }
+
+/* ── foot: the player ──────────────────────────────────────────────── */
+body.win-landscape #converterPanel > #plBar {
+  grid-area: foot;
+  margin: 0;
+  padding: 10px 18px 7px;
+  border-radius: 0;
+  border-width: 1px 0 0;
+  border-color: rgba(14, 165, 233, 0.22);
+  background: linear-gradient(180deg, rgba(8, 16, 32, 0.85), rgba(2, 6, 23, 0.95));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 560px);
+  grid-template-areas:
+    "top  dev"
+    "seek seek"
+    "stat stat";
+  column-gap: 24px;
+  row-gap: 6px;
+  align-items: center;
+}
+body.win-landscape #plBar > .pl-top { grid-area: top; }
+body.win-landscape #plBar > .pl-seek { grid-area: seek; }
+body.win-landscape #plBar > .pl-dev { grid-area: dev; }
+body.win-landscape #plBar > .pl-status { grid-area: stat; }
+/* Listening mode's own controls (the fold strip, the waves, full screen,
+   the bars) are the compact window's. */
+body.win-landscape #plBar > .pl-mode-strip,
+body.win-landscape #plBar > .pl-waves-wrap,
+body.win-landscape #plBar > .pl-waves-btn { display: none !important; }
+
+/* ── the corner to resize by ───────────────────────────────────────── */
+.ls-grip {
+  grid-area: 1 / 1 / -1 / -1;
+  align-self: end; justify-self: end;
+  width: 14px; height: 14px;
+  z-index: 50;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(56, 189, 248, 0.5) 50%, transparent 62%,
+    transparent 70%, rgba(56, 189, 248, 0.5) 70%, transparent 82%);
+  opacity: 0.6;
+}
+.ls-grip:hover { opacity: 1; }
+body.ls-max .ls-grip { display: none; }
+
+/* ═══ The second pass (21.11) ═══════════════════════════════════════════ */
+
+/* The way back to the compact window: a button of the head's own size. */
+body.win-landscape .win-orient { border-radius: 7px; font-size: 9.5px; }
+body.win-landscape .wo-seg { padding: 0 11px; }
+
+/* Queue | Sound: one switch across the column. */
+.ls-tabs { gap: 0; padding: 10px 12px 8px; }
+.ls-tab { flex: 1; padding: 7px 0; border-radius: 0; border: 1px solid rgba(56, 189, 248, 0.25); font-size: 9.5px; }
+.ls-tab:first-child { border-radius: 8px 0 0 8px; border-right: 0; }
+.ls-tab:last-child { border-radius: 0 8px 8px 0; }
+.ls-tab.on { color: #e0f2fe; background: rgba(14, 165, 233, 0.2); border-color: rgba(56, 189, 248, 0.55); }
+.ls-pane { border-top: 0; padding-top: 0; }
+/* The queue: a list, not a place to drop on (dropping still works). */
+.ls-queue #dropZone.smart-drop-zone { border: 1px solid rgba(14, 165, 233, 0.16); border-radius: 10px; background: rgba(2, 6, 23, 0.25); }
+
+/* ── the foot, as a player's: the cover and the title, the transport over
+   the seek line in the middle, the output and the volume on the right ── */
+body.win-landscape #converterPanel > #plBar {
+  padding: 10px 18px 9px;
+  grid-template-columns: auto minmax(160px, 1fr) minmax(300px, 540px) minmax(380px, 1fr);
+  grid-template-areas:
+    "art now tr   dev"
+    "art now seek stat";
+  column-gap: 16px;
+  row-gap: 7px;
+}
+/* The top row's parts stand in the foot's own grid. */
+body.win-landscape #plBar > .pl-top,
+body.win-landscape #plBar .pl-left-slot { display: contents; }
+body.win-landscape #plBar .pl-spec-bg { display: none; }
+body.win-landscape #plBar .pl-art-wrap {
+  grid-area: art; position: static; inset: auto; align-self: center;
+  opacity: 1 !important;
+}
+body.win-landscape #plBar .pl-art,
+body.win-landscape #plBar .pl-art-init {
+  width: 56px; height: 56px; border-radius: 7px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+body.win-landscape #plBar .pl-now {
+  grid-area: now; align-self: center; min-width: 0;
+  transform: none !important; pointer-events: auto;
+}
+body.win-landscape #plBar .pl-title { font-size: 14px; color: #f1f5f9; }
+body.win-landscape #plBar .pl-sub { font-size: 11px; margin-top: 3px; }
+body.win-landscape #plBar .pl-transport {
+  grid-area: tr; justify-self: center; gap: 9px;
+  opacity: 1 !important;
+}
+body.win-landscape #plBar .pl-transport button { width: 32px; height: 32px; opacity: 0.8; }
+body.win-landscape #plBar .pl-transport button:hover { opacity: 1; }
+body.win-landscape #plBar .pl-transport button svg { width: 12px; height: 12px; }
+body.win-landscape #plBar .pl-transport .pl-main { width: 42px; height: 42px; opacity: 1; background: rgba(14, 165, 233, 0.22); }
+body.win-landscape #plBar .pl-transport .pl-main svg { width: 18px; height: 18px; }
+body.win-landscape #plBar .pl-transport .pl-repeat svg { width: 16px; height: 16px; }
+body.win-landscape #plBar > .pl-seek { grid-area: seek; align-self: center; margin-right: 108px; }
+body.win-landscape #plBar .pl-time-col { grid-area: seek; justify-self: end; align-self: center; }
+body.win-landscape #plBar .pl-time { font-size: 11px; opacity: 1 !important; }
+body.win-landscape #plBar > .pl-dev { grid-area: dev; justify-self: end; width: min(100%, 520px); }
+body.win-landscape #plBar > .pl-status { grid-area: stat; justify-self: end; min-width: 0; max-width: 100%; }
+
+/* ═══ The third pass (21.11) ════════════════════════════════════════════ */
+
+/* The head reads as two ends: the name and its version on the left; the
+   load, the ! and the ?, the way back and the window's buttons as one
+   quiet group on the right. */
+body.win-landscape #converterPanel > .app-head-bar { padding-left: 0; gap: 8px; }
+body.win-landscape #appVersion {
+  display: flex; align-items: center; gap: 9px;
+  height: auto; min-width: 0;
+  /* The number stands by the name here too (main.js headVersion; Anton
+     23.11: after the name, on its line, it read as far from it): this line
+     keeps only the capsule. */
+  font-size: 0; letter-spacing: 0;
+  color: rgba(125, 211, 252, 0.6); text-shadow: none;
+  white-space: nowrap;
+}
+/* The capsule (perf.css) at the right end, before the switch. */
+body.win-landscape #headCap { order: 9; margin: 0 0 0 auto; }
+body.win-landscape .app-head-bar > .win-orient { order: 2; margin: 0 6px 0 4px; }
+body.win-landscape .app-head-bar > .win-btns { order: 3; }
+
+/* The foot's cover: with no track, or a track without a picture, a
+   stand-in of the album tiles' kind — never an empty outlined square. */
+body.win-landscape #plBar .pl-art-wrap,
+body.win-landscape #plBar .pl-art-wrap.pl-art-hidden {
+  display: flex;
+  width: 56px; height: 56px; flex: none;
+  border-radius: 7px; overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 18V6l10-2v12'/%3E%3Ccircle cx='6.5' cy='18' r='2.5'/%3E%3Ccircle cx='16.5' cy='16' r='2.5'/%3E%3C/svg%3E") center / 24px 24px no-repeat,
+    linear-gradient(150deg, #1e293b, #0b1220);
+}
+body.win-landscape #plBar .pl-art { border: 0; box-shadow: none; }
+body.win-landscape #plBar .pl-art:not([src]),
+body.win-landscape #plBar .pl-art-init { display: none !important; }
+
+/* The volume keeps its length however wide the foot is. */
+body.win-landscape #plBar > .pl-dev { justify-content: flex-end; }
+body.win-landscape #plBar .pl-vol-wrap { flex: 0 1 170px; max-width: 170px; }
+
+/* Queue | Sound: the line between the two shows whichever is on. */
+.ls-tab.on + .ls-tab { border-left: 1px solid rgba(56, 189, 248, 0.55); }
+
+/* The queue's last row: files are added from here (dropzone.js); the empty
+   space under it opens nothing, a drop anywhere still lands in the list. */
+.ls-add-row { display: none; }
+body.win-landscape #dropZone > .ls-add-row {
+  display: flex; align-items: center; gap: 8px;
+  width: calc(100% - 12px); box-sizing: border-box; height: 40px; margin: 6px; padding: 0 12px; flex: none;
+  border: 1px dashed rgba(56, 189, 248, 0.28); border-radius: 8px;
+  background: rgba(14, 165, 233, 0.04);
+  color: #7dd3fc; font: 600 11px 'Segoe UI', Tahoma, Arial, sans-serif; text-align: left;
+  cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+body.win-landscape #dropZone > .ls-add-row:hover { border-color: #38bdf8; background: rgba(14, 165, 233, 0.12); color: #e0f2fe; }
+.ls-add-plus { font-size: 16px; font-weight: 400; line-height: 1; }
+.ls-add-hint { margin-left: auto; color: #64748b; font-weight: 400; font-size: 10.5px; }
+body.win-landscape #dropZone.smart-drop-zone { cursor: default; }
+body.win-landscape #dzEmpty .dz-empty-hint { display: none; }
+/* The rows take the room they need, up to the zone's; the add row follows
+   the last of them. */
+body.win-landscape .ls-queue #dropZone > #fileQueue { height: auto; flex: 0 1 auto; min-height: 0; }
+body.win-landscape #dropZone > .ls-add-row { position: relative; z-index: 1; }
+
+/* The analyzer has its page among the library's tools here. */
+body.win-landscape #plBar #anBtn { display: none; }
+
+/* ═══ The foot's third line (footline.js) ═══════════════════════════════
+   Under the title: the track's conversion (a chip, or the Convert button)
+   and the playlist it plays from. */
+body.win-landscape #plBar .pl-foot {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 5px; min-width: 0; height: 18px;
+}
+/* The line keeps its room with nothing to say: the foot's height stays. */
+.pl-foot > [hidden] { display: none !important; }
+.pl-foot-conv, .pl-foot-from, .pl-foot-batch {
+  flex: none; box-sizing: border-box; height: 18px;
+  display: inline-flex; align-items: center;
+  font: 700 9px 'Segoe UI', Tahoma, Arial, sans-serif; letter-spacing: 0.8px;
+  border-radius: 5px; white-space: nowrap;
+}
+.pl-foot-conv {
+  position: relative; overflow: hidden; padding: 0 7px;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.1); color: #6ee7b7;
+  cursor: default;
+}
+.pl-foot-conv .pl-foot-t { position: relative; }
+.pl-foot-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(16, 185, 129, 0.3); transition: width 0.3s linear; }
+/* The button: the one thing here to press. */
+.pl-foot-conv[data-kind="convert"] {
+  cursor: pointer; text-transform: uppercase;
+  background: rgba(16, 185, 129, 0.16); border-color: rgba(16, 185, 129, 0.6); color: #d1fae5;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pl-foot-conv[data-kind="convert"]::before { content: '\25B8'; margin-right: 4px; font-size: 10px; }
+.pl-foot-conv[data-kind="convert"]:hover { background: rgba(16, 185, 129, 0.34); border-color: #6ee7b7; }
+/* A chip that only tells: CONVERTED solid, the waiting ones quiet. */
+.pl-foot-conv[data-kind="done"] { background: rgba(16, 185, 129, 0.22); border-color: rgba(110, 231, 183, 0.55); }
+.pl-foot-conv[data-kind="done"]::before { content: '\2713'; margin-right: 4px; }
+.pl-foot-conv[data-kind="live"] { color: #cbd5e1; border-color: rgba(148, 163, 184, 0.45); background: transparent; }
+.pl-foot-conv[data-kind="live"]::before { content: '¹3'; margin-right: 4px; color: #6ee7b7; }
+.pl-foot-conv[data-kind="queued"] { color: #94a3b8; border-color: rgba(148, 163, 184, 0.35); background: rgba(148, 163, 184, 0.08); }
+.pl-foot-batch { color: #6ee7b7; opacity: 0.75; font-weight: 600; letter-spacing: 0.4px; }
+.pl-foot-from {
+  flex: 0 1 auto; min-width: 0; gap: 5px; padding: 0 6px;
+  border: 1px solid transparent; background: none; color: #64748b;
+  font-weight: 600; letter-spacing: 0.3px; font-size: 10.5px;
+  cursor: pointer; transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.pl-foot-from svg { flex: none; }
+.pl-foot-from span { overflow: hidden; text-overflow: ellipsis; }
+.pl-foot-from:hover { color: #bae6fd; border-color: rgba(56, 189, 248, 0.35); background: rgba(14, 165, 233, 0.1); }
+
+/* ═══ The fourth pass (21.11): the foot as the players people know ═════════
+   (Roon, Spotify, Apple Music, Tidal, Audirvana agree on it.) Three zones:
+   what plays on the left; in the very middle of the window the transport —
+   always its five buttons — over the seek line, the time heard before the
+   line and the length after it, so the line stands centred under the
+   buttons; on the right the output (the device, the format,
+   BIT-PERFECT) and the volume in one line, the chain's badges under it.
+   The foot's height is the same stopped and playing. */
+body.win-landscape #converterPanel > #plBar {
+  --pl-ctl-h: 28px;
+  height: 114px; box-sizing: border-box; padding: 0 18px;
+  grid-template-columns: minmax(0, 1fr) 40px minmax(200px, 400px) 40px minmax(0, 1fr);
+  /* the seek row holds the track's amplitude (seek-wave.js), 36 px */
+  grid-template-rows: 44px 36px;
+  grid-template-areas:
+    "now tr tr   tr dev"
+    "now ta seek tb stat";
+  align-content: center;
+  column-gap: 10px; row-gap: 12px;
+}
+/* The cover and the lines share the left zone. */
+body.win-landscape #plBar .pl-art-wrap,
+body.win-landscape #plBar .pl-art-wrap.pl-art-hidden { grid-area: now; justify-self: start; width: 62px; height: 62px; }
+body.win-landscape #plBar .pl-art { width: 62px; height: 62px; }
+body.win-landscape #plBar .pl-now { grid-area: now; margin-left: 76px; padding-right: 14px; }
+/* The transport: all five, always — the ones with nothing to do are dim
+   (a stream has no next track; the row's shape stays). */
+body.win-landscape #plBar .pl-transport { grid-area: tr; justify-self: center; align-self: center; gap: 12px; }
+body.win-landscape #plBar .pl-transport button { width: 34px; height: 34px; }
+body.win-landscape #plBar .pl-transport .pl-main { width: 44px; height: 44px; }
+body.win-landscape.pl-stream #plBar #plPrev,
+body.win-landscape.pl-stream #plBar #plNext,
+body.win-landscape.pl-stream #plBar #plRepeat { display: flex !important; opacity: 0.22; pointer-events: none; }
+/* The seek line between its two times. */
+body.win-landscape #plBar > .pl-seek { grid-area: seek; align-self: center; margin: 0; height: 5px; }
+body.win-landscape #plBar > .pl-seek.pl-seek-wave { height: 36px; }
+body.win-landscape #plBar .pl-time-col { display: contents; }
+body.win-landscape #plBar .pl-time { display: none; }
+body.win-landscape #plBar .pl-time-a,
+body.win-landscape #plBar .pl-time-b {
+  display: block; align-self: center; position: relative; z-index: 1;
+  font-size: 11px; color: #94a3b8; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+body.win-landscape #plBar .pl-time-a { grid-area: ta; justify-self: end; }
+body.win-landscape #plBar .pl-time-b { grid-area: tb; justify-self: start; }
+/* The buffer's figure: small, after the length, on the badges' line. */
+body.win-landscape #plBar .pl-buf {
+  grid-area: stat; justify-self: start; align-self: center; position: relative; z-index: 1;
+  font-size: 9.5px; color: #475569; margin-left: 8px; white-space: nowrap;
+}
+
+/* The right zone: one line of quiet capsules of one height. */
+body.win-landscape #plBar > .pl-dev {
+  grid-area: dev; justify-self: end; align-self: center;
+  width: auto; max-width: 100%; gap: 7px; justify-content: flex-end;
+}
+body.win-landscape #plBar .pl-dev .pl-devfmt,
+body.win-landscape #plBar .pl-dev .pl-bp { border-radius: 8px; }
+body.win-landscape #plBar .pl-devfmt {
+  flex: 0 1 auto; min-width: 0;
+  border-color: rgba(56, 189, 248, 0.32); background: rgba(14, 165, 233, 0.07); box-shadow: none;
+}
+body.win-landscape #plBar .pl-devfmt:hover { border-color: rgba(125, 211, 252, 0.65); box-shadow: none; }
+/* The device: its icon alone, as in the compact window (Anton 21.11). */
+body.win-landscape #plBar .pl-dev-pick { flex: none; width: 32px; }
+body.win-landscape #plBar .pl-dev-pick svg { width: 16px; height: 16px; }
+body.win-landscape #plBar .pl-outfmt { flex: none; padding: 0 9px 0 10px; font-size: 10px; border-left-color: rgba(56, 189, 248, 0.25); }
+body.win-landscape #plBar .pl-bp { padding: 0 10px; font-size: 9.5px; }
+/* The volume: its mark, a thin line, the level. */
+body.win-landscape #plBar .pl-vol-ic {
+  display: flex; flex: none; align-items: center; margin-left: 4px; padding-left: 11px; height: 20px;
+  border-left: 1px solid rgba(148, 163, 184, 0.18); color: #94a3b8;
+}
+body.win-landscape #plBar .pl-vol-ic svg { width: 16px; height: 16px; }
+body.win-landscape #plBar .pl-vol-wrap { flex: 0 1 120px; min-width: 60px; max-width: 120px; }
+body.win-landscape #plBar #plVol { height: 4px; border-radius: 2px; }
+body.win-landscape #plBar #plVol::-webkit-slider-thumb { width: 13px; height: 13px; box-shadow: 0 0 0 3px rgba(2, 6, 23, 0.9); }
+body.win-landscape #plBar .pl-vol-text { width: auto; min-width: 43px; white-space: nowrap; margin-left: 0; font-size: 11px; color: #94a3b8; }
+/* The chain's badges under them, to the same edge. */
+body.win-landscape #plBar > .pl-status { grid-area: stat; justify-self: end; align-self: center; }
+
+/* Nothing in the foot is squeezed out of its own width (Anton 22.11: the
+   output capsule was cut to a sliver in a narrow window). The two side zones
+   keep at least what the right one holds — the device and format capsule,
+   BIT-PERFECT, the volume at its shortest — so the transport stays in the
+   window's middle; at the window's smallest width (landscape-core.js MIN_W)
+   the seek line is at its shortest and everything still fits. */
+body.win-landscape #converterPanel > #plBar {
+  grid-template-columns: minmax(370px, 1fr) 40px minmax(200px, 400px) 40px minmax(370px, 1fr);
+}
+body.win-landscape #plBar .pl-devfmt,
+body.win-landscape #plBar .pl-bp { flex: none; }
+body.win-landscape #plBar .pl-vol-wrap { flex: 1 1 56px; min-width: 56px; }
+
+/* ── a window of the app as a page of the centre (centre-page.js) ──────
+   Cue Consistency, Crosstalk Cancel and the Equalizer open over the
+   library, the way the Analyzer page sits in it: Back and the window's
+   name on top, the window's own page in a frame under it. */
+.ls-centre { position: relative; }
+.ls-centre > .ls-page {
+  position: absolute; inset: 0; z-index: 5;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px 20px 10px;
+  background: radial-gradient(circle at 50% 30%, #0B192C 0%, #02060f 100%);
+}
+.ls-centre.ls-paged > .ml { visibility: hidden; }
+.ls-page-bar { display: flex; align-items: center; gap: 14px; min-height: 34px; flex: none; }
+.ls-page-back {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 9px;
+  border-radius: 15px; cursor: pointer;
+  border: 1px solid rgba(56, 189, 248, 0.3); background: rgba(2, 6, 23, 0.5); color: #7dd3fc;
+  font: 500 12px 'Segoe UI', Tahoma, Arial, sans-serif;
+}
+.ls-page-back:hover { border-color: #38bdf8; background: rgba(14, 165, 233, 0.18); color: #fff; }
+.ls-page-title { font-size: 21px; font-weight: 300; letter-spacing: 3px; color: #7dd3fc; text-transform: uppercase; white-space: nowrap; }
+.ls-page-frame {
+  flex: 1 1 auto; min-height: 0; width: 100%;
+  border: 1px solid rgba(56, 189, 248, 0.16); border-radius: 10px;
+  background: transparent;
+}
+
+/* ── Sound in the Library window: rows a finger's height (Anton 22.11) ──
+   Each stage's row taller and its words larger, the SET keys bigger, the
+   strip's cells higher: easy to hit with a mouse or on a touch screen, the
+   app's and the streamer's the same. The compact window keeps its tight
+   rack. */
+.ls-sound .rk-cell { padding-top: 10px; padding-bottom: 11px; }
+.ls-sound .rk-cell.has-sub { padding-top: 6px; padding-bottom: 15px; }
+.ls-sound .rk-v { font-size: 0.92rem; }
+.ls-sound .lab-badge { padding: 7px 8px; gap: 8px; border-radius: 6px; }
+.ls-sound .lab-badge + .lab-badge { margin-top: 4px; }
+.ls-sound .lab-badge .bar { height: 18px; }
+.ls-sound .lab-badge .tok { font-size: 0.56rem; width: 30px; }
+.ls-sound .lab-badge .nm { font-size: 0.74rem; }
+.ls-sound .lab-badge .st { font-size: 0.6rem; }
+.ls-sound .lab-badge .set { height: 24px; min-width: 50px; padding: 0 12px; border-radius: 4px; font-size: 0.6rem; }
+.ls-sound .lab-badge.hpu { padding: 7px 8px 8px; }
+.ls-sound .lab-badge.hpu .bar { left: 8px; top: 7px; bottom: 8px; }

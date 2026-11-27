@@ -1,0 +1,156 @@
+/* The library's Visualizer page (js/medialib/visualizer.js): the picture on
+   top, the scene's words and settings under it, every scene below. The
+   stage goes to the document's body on the full screen, so its rules do not
+   lean on the page around it. */
+
+.ml-vz { display: flex; flex-direction: column; gap: 14px; padding: 2px 4px 18px 2px; min-width: 0; }
+
+/* ── the picture ── */
+.ml-vz-stage {
+    position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: 68vh; flex: none;
+    border-radius: 12px; overflow: hidden;
+    background: radial-gradient(120% 90% at 50% 40%, #0b1220 0%, #020617 70%);
+    border: 1px solid rgba(56, 189, 248, 0.14);
+    color: #cbd5e1; font-size: 12px; text-align: left;
+    user-select: none;
+}
+.ml-vz-stage [hidden] { display: none !important; }
+.ml-vz-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.ml-vz-stage.ml-vz-bad .ml-vz-cv { visibility: hidden; }
+.ml-vz-msg {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 70%;
+    padding: 10px 14px; border-radius: 10px; text-align: center; line-height: 1.45;
+    background: rgba(2, 6, 23, 0.78); border: 1px solid rgba(248, 113, 113, 0.35); color: #fecaca;
+}
+.ml-vz-quiet {
+    position: absolute; left: 16px; bottom: 14px; display: flex; flex-direction: column; gap: 2px;
+    pointer-events: none; opacity: 0.85;
+}
+.ml-vz-quiet b {
+    font: 600 10px var(--lab-mono, ui-monospace, Consolas, monospace); letter-spacing: 1.5px; text-transform: uppercase; color: #94a3b8;
+}
+.ml-vz-quiet span { font-size: 11px; color: #64748b; }
+.ml-vz-cap { display: none; }
+
+/* The buttons over the picture: shown while the pointer is on it (on the
+   full screen: while it moves). */
+.ml-vz-ctl {
+    position: absolute; top: 10px; right: 10px; display: flex; gap: 6px;
+    opacity: 0; transition: opacity 0.2s;
+}
+.ml-vz-stage:hover .ml-vz-ctl, .ml-vz-ctl:focus-within, .ml-vz-stage.ml-vz-bad .ml-vz-ctl { opacity: 1; }
+.ml-vz-cb {
+    height: 28px; padding: 0 11px; border-radius: 14px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    border: 1px solid rgba(148, 163, 184, 0.28); background: rgba(2, 6, 23, 0.62);
+    color: #e2e8f0 !important; font-family: inherit; font-size: 11px;
+    backdrop-filter: blur(6px);
+}
+.ml-vz-cb:hover:not(:disabled) { border-color: #38bdf8; background: rgba(14, 165, 233, 0.25); }
+.ml-vz-cb:disabled { opacity: 0.45; cursor: default; }
+.ml-vz-cb.on { border-color: rgba(74, 222, 128, 0.55); color: #bbf7d0 !important; }
+.ml-vz-cb svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The full screen: over everything. */
+.ml-vz-stage.full {
+    position: fixed; inset: 0; z-index: 2147483000; width: auto; max-height: none; aspect-ratio: auto;
+    border: 0; border-radius: 0; background: #000; cursor: none;
+}
+.ml-vz-stage.full.awake { cursor: default; }
+.ml-vz-stage.full .ml-vz-ctl { opacity: 0; top: 18px; right: 18px; }
+.ml-vz-stage.full.awake .ml-vz-ctl { opacity: 1; }
+.ml-vz-stage.full .ml-vz-cap {
+    display: block; position: absolute; left: 22px; top: 20px; pointer-events: none;
+    font-size: 20px; font-weight: 300; letter-spacing: 2.5px; color: #e0f2fe;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7); opacity: 0; transition: opacity 0.3s;
+}
+.ml-vz-stage.full.awake .ml-vz-cap { opacity: 0.9; }
+.ml-vz-stage.full .ml-vz-quiet { left: 22px; bottom: 20px; }
+
+/* ── the scene: its words, its settings ── */
+.ml-vz-info { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.6fr); gap: 18px; align-items: start; }
+.ml-vz-about { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ml-vz-name { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+.ml-vz-nm { font-size: 20px; font-weight: 300; letter-spacing: 2px; color: #7dd3fc; line-height: 1.2; }
+.ml-vz-badge, .ml-vz-inpl, .ml-vz-ts, .ml-vz-tm {
+    font: 600 9px var(--ml-mono, ui-monospace, Consolas, monospace); letter-spacing: 1px; padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+}
+.ml-vz-badge, .ml-vz-ts { color: #c4b5fd; border: 1px solid rgba(167, 139, 250, 0.45); background: rgba(76, 29, 149, 0.25); }
+.ml-vz-inpl, .ml-vz-tm { color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.45); background: rgba(20, 83, 45, 0.3); }
+.ml-vz-by { font-size: 11px; color: #64748b; }
+.ml-vz-txt { color: #94a3b8; line-height: 1.5; }
+.ml-vz-pack { font-size: 11px; color: #a5b4fc; line-height: 1.45; }
+.ml-vz-pack .ml-lk { margin-left: 0; }
+.ml-vz-acts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+
+.ml-vz-set { min-width: 0; }
+.ml-vz-sh {
+    display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;
+    font: 600 10px var(--ml-mono, ui-monospace, Consolas, monospace); letter-spacing: 1.5px; text-transform: uppercase; color: #64748b;
+}
+.ml-vz-sh .ml-lk { font-family: inherit !important; font-size: 11px !important; font-weight: 400 !important; letter-spacing: 0; text-transform: none; }
+.ml-vz-sh .ml-lk:disabled { color: #334155 !important; cursor: default; }
+.ml-vz-params { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px 18px; }
+.ml-vz-sec { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ml-vz-st { font-size: 11px; color: #cbd5e1; font-weight: 600; margin-bottom: 1px; }
+.ml-vz-p { display: grid; grid-template-columns: minmax(70px, 0.9fr) minmax(90px, 1.4fr) 58px; align-items: center; gap: 8px; min-height: 22px; }
+.ml-vz-pl { font-size: 11px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-vz-p.changed .ml-vz-pl { color: #7dd3fc; }
+.ml-vz-pv { font: 10.5px var(--ml-mono, ui-monospace, Consolas, monospace); color: #64748b; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ml-vz-rg { width: 100%; margin: 0; accent-color: #0ea5e9; height: 14px; cursor: pointer; }
+.ml-vz-sw { justify-self: start; margin: 0; accent-color: #0ea5e9; width: 14px; height: 14px; cursor: pointer; }
+.ml-vz-col { justify-self: start; width: 38px; height: 20px; padding: 0; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 4px; background: none; cursor: pointer; }
+.ml-vz-opts { display: flex; flex-wrap: wrap; gap: 4px; grid-column: 2 / 4; }
+.ml-vz-opts .ml-chip { font-size: 10.5px; padding: 2px 8px; }
+.ml-vz-none { color: #64748b; font-size: 11px; }
+
+/* ── every scene ── */
+.ml-vz-gh { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 4px; border-top: 1px solid rgba(148, 163, 184, 0.1); }
+.ml-vz-gt { font: 600 10px var(--ml-mono, ui-monospace, Consolas, monospace); letter-spacing: 1.5px; text-transform: uppercase; color: #64748b; padding-top: 8px; }
+.ml-vz-gn { font: 10px var(--ml-mono, ui-monospace, Consolas, monospace); color: #475569; padding-top: 8px; }
+.ml-vz-gacts { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; padding-top: 8px; }
+.ml-vz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 12px; }
+.ml-vz-tile {
+    position: relative; display: flex; flex-direction: column; gap: 6px; padding: 0; min-width: 0;
+    border: 0; background: none; cursor: pointer; text-align: left;
+}
+.ml-vz-th {
+    position: relative; display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.14); transition: border-color 0.12s, box-shadow 0.12s;
+}
+.ml-vz-th img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.ml-vz-th img[hidden] { display: none; }
+.ml-vz-ini { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 26px; font-weight: 200; opacity: 0.75; }
+.ml-vz-tile:hover .ml-vz-th { border-color: rgba(56, 189, 248, 0.5); }
+.ml-vz-tile.on .ml-vz-th { border-color: #38bdf8; box-shadow: 0 0 0 1px #38bdf8, 0 0 14px rgba(14, 165, 233, 0.35); }
+.ml-vz-tile.bad .ml-vz-th { opacity: 0.55; }
+.ml-vz-tn { font-size: 12px; color: #cbd5e1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.ml-vz-tile.on .ml-vz-tn { color: #7dd3fc; }
+.ml-vz-tm { position: absolute; left: 6px; top: 6px; background: rgba(2, 6, 23, 0.8); }
+.ml-vz-tm[hidden] { display: none; }
+.ml-vz-ts { position: absolute; right: 6px; top: 6px; background: rgba(2, 6, 23, 0.8); }
+
+/* The gallery's drawing canvas (vis-thumbs.js): off screen, sized. */
+.ml-vz-thumbcv { position: fixed; left: -10000px; top: 0; width: 256px; height: 144px; opacity: 0; pointer-events: none; }
+
+/* A narrow middle: the words over the settings. */
+@media (max-width: 900px) {
+    .ml-vz-info { grid-template-columns: 1fr; }
+}
+
+/* ── the studio inside the page: it takes the page's place while a scene
+   is edited (the page's own picture rests, hidden). ── */
+.ml-vz.editing { height: 100%; box-sizing: border-box; padding: 0 2px 0 0; gap: 0; }
+.ml-vz.editing > :not(.ml-vz-studio) { display: none !important; }
+.ml-vz-studio {
+    flex: 1; min-height: 0; display: flex; flex-direction: column;
+    border: 1px solid rgba(56, 189, 248, 0.18); border-radius: 10px; overflow: hidden; background: #020617;
+}
+.ml-vz-frame { flex: 1; min-height: 0; width: 100%; border: 0; display: block; background: #020617; }
+.ml-vz-sbar { display: flex; align-items: center; gap: 10px; padding: 6px 8px; color: #94a3b8; font-size: 11px; }
+.ml-vz-sbar[hidden] { display: none; }
+
+/* A tile's picture keeps to its column: its height comes from its width
+   alone (an aspect-ratio let the row's height widen it over its neighbour). */
+.ml-vz-th { aspect-ratio: auto; height: 0; padding-top: 56.25%; box-sizing: content-box; flex: none; width: auto; align-self: stretch; }
+.ml-vz-tile { overflow: hidden; }

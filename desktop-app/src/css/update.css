@@ -1,0 +1,281 @@
+/* ── update badge (next to #appVersion) ─────────────────────────────────── */
+
+#upBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+  border-radius: 3px;
+  background: #fff;
+  color: #1a1a2e;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+  /* Glow pulse animation */
+  box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.55);
+  animation: up-badge-pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #upBadge {
+    animation: none;
+    box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.45);
+  }
+}
+
+@keyframes up-badge-pulse {
+  0%, 100% { box-shadow: 0 0 4px 1px rgba(255, 255, 255, 0.50); }
+  50%       { box-shadow: 0 0 8px 3px rgba(255, 255, 255, 0.90); }
+}
+
+/* ── modal overlay ──────────────────────────────────────────────────────── */
+
+#upModal {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.70);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Block drag-to-move so the title bar doesn't respond behind the overlay */
+  -webkit-app-region: no-drag;
+}
+
+#upModal.up-hidden {
+  display: none;
+}
+
+#upDialog {
+  background: #1e1b2e;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 20px 22px 18px;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.60);
+  color: #e8e4f4;
+  font-size: 0.88em;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Never taller than the window: on a short screen the notes give up
+     height (they scroll) and the buttons stay on screen. */
+  max-height: calc(100vh - 24px);
+  box-sizing: border-box;
+}
+#upDialog > * { flex-shrink: 0; }
+
+/* title row */
+#upDialog .up-title {
+  font-size: 0.98em;
+  font-weight: 600;
+  color: #f0ecff;
+  margin: 0;
+}
+
+/* version info line */
+#upDialog .up-versions {
+  color: rgba(224, 216, 255, 0.65);
+  font-size: 0.82em;
+  margin: -6px 0 0;
+}
+
+/* release notes container */
+#upNotes {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.80em;
+  color: rgba(224, 216, 255, 0.80);
+  word-break: break-word;
+  /* Room for both groups at four items each, "and N more" under each,
+     with a few of them wrapping to a second line. */
+  max-height: 300px;
+  overflow-y: auto;
+  line-height: 1.5;
+  margin: 0;
+}
+#upDialog > #upNotes { flex-shrink: 1; min-height: 48px; }
+
+/* plain-text fallback: keep whitespace as before */
+#upNotes.up-notes--plain {
+  white-space: pre-wrap;
+}
+
+/* section heading ("What's new" / "Fixes") */
+.up-notes-section {
+  margin-bottom: 8px;
+}
+.up-notes-section:last-child {
+  margin-bottom: 0;
+}
+.up-notes-section-title {
+  font-size: 0.78em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(200, 190, 255, 0.55);
+  margin-bottom: 4px;
+}
+
+/* individual bullet row */
+.up-notes-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 2px;
+  font-size: 0.95em;
+  color: rgba(224, 216, 255, 0.85);
+}
+.up-notes-section--fixes .up-notes-item {
+  color: rgba(200, 190, 255, 0.62);
+}
+
+/* small version tag before each bullet */
+.up-notes-version {
+  font-size: 0.72em;
+  font-weight: 600;
+  color: rgba(180, 168, 240, 0.45);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+  padding: 0 4px;
+  line-height: 1.6;
+  flex-shrink: 0;
+}
+
+/* "and N more" link */
+.up-notes-more {
+  font-size: 0.80em;
+  margin-top: 3px;
+  color: rgba(180, 168, 240, 0.50);
+}
+.up-notes-more a,
+.up-notes-full-link {
+  color: rgba(167, 139, 250, 0.75);
+  text-decoration: none;
+  cursor: pointer;
+}
+.up-notes-more a:hover,
+.up-notes-full-link:hover {
+  color: rgba(167, 139, 250, 1);
+  text-decoration: underline;
+}
+
+/* progress area (replaces notes + buttons during install) */
+#upProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#upProgressBar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+}
+
+#upProgressFill {
+  height: 100%;
+  border-radius: 2px;
+  background: #a78bfa;
+  width: 0%;
+  transition: width 0.25s linear;
+}
+
+/* indeterminate state */
+#upProgressFill.up-indeterminate {
+  width: 40% !important;
+  animation: up-progress-slide 1.6s ease-in-out infinite;
+  transition: none;
+}
+
+@keyframes up-progress-slide {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(150%); }
+  100% { transform: translateX(150%); }
+}
+
+#upProgressLabel {
+  font-size: 0.82em;
+  color: rgba(224, 216, 255, 0.75);
+}
+
+/* button row */
+#upDialog .up-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+#upDialog button {
+  padding: 6px 14px;
+  border-radius: 5px;
+  border: none;
+  font-size: 0.84em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+#upDialog button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+#upBtnNow {
+  background: #7c3aed;
+  color: #fff;
+}
+
+#upBtnNow:not(:disabled):hover {
+  background: #6d28d9;
+}
+
+#upBtnLater {
+  background: rgba(255, 255, 255, 0.09);
+  color: #d0c8f0;
+}
+
+#upBtnLater:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+#upBtnSkip {
+  background: transparent;
+  color: rgba(200, 190, 240, 0.55);
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+#upBtnSkip:not(:disabled):hover {
+  color: rgba(200, 190, 240, 0.80);
+}
+
+/* error state inside the dialog */
+#upErrorMsg {
+  color: #f87171;
+  font-size: 0.82em;
+  word-break: break-word;
+}
+
+#upBtnOpenPage {
+  background: rgba(255, 255, 255, 0.07);
+  color: #d0c8f0;
+  font-size: 0.82em;
+}
+
+#upBtnClose {
+  background: rgba(255, 255, 255, 0.09);
+  color: #d0c8f0;
+}

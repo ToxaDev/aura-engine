@@ -1,0 +1,70 @@
+/* ══════════════════════════════════════════════════════════════════════
+   The queue's rows in the Library window, the app's and the streamer's the
+   same (Anton 22.11, js/queue-rows.js): numbered, the title and the artist
+   on two lines, the length and the format at the right, ▶ and × a finger's
+   size; the one on the air in green. No convert, M or badges here: the
+   Library converts by album and shows it on the Conversions page.
+   The compact window keeps its own rows (list.css).
+   ══════════════════════════════════════════════════════════════════════ */
+#fileQueue .rm-qt, #fileQueue .rm-qm { display: none; }
+body.win-landscape { --pl-row-h: 58px; }
+/* The rows stand 6 px in from either side of the panel, as the add row under
+   them: 2 px of padding and the 4 px scrollbar on the right (Anton 22.11). */
+body.win-landscape #fileQueue { counter-reset: rmq; padding-left: 6px; padding-right: 2px; }
+body.win-landscape #fileQueue .pl-mem, body.win-landscape #fileQueue .pl-speed,
+body.win-landscape #fileQueue .badge-container, body.win-landscape #fileQueue .file-item-progress { display: none !important; }
+body.win-landscape #fileQueue .file-item.pl-item {
+  counter-increment: rmq; justify-content: center; padding: 0 8px 0 10px; border-radius: 8px;
+  border: 1px solid rgba(56,189,248,0.12); background: rgba(15,23,42,0.55); color: #cbd5e1;
+}
+body.win-landscape #fileQueue .file-item.pl-item:hover { border-color: rgba(56,189,248,0.35); background: rgba(15,23,42,0.8); }
+body.win-landscape #fileQueue .fi-head { height: 100%; gap: 10px; align-items: center; }
+body.win-landscape #fileQueue .fi-head::before {
+  content: counter(rmq); width: 20px; flex: none; text-align: right;
+  font: 11px ui-monospace, Consolas, monospace; color: #64748b; font-variant-numeric: tabular-nums;
+}
+body.win-landscape #fileQueue .file-item-icon { display: none; }
+body.win-landscape #fileQueue .pl-item:has(.rm-qt) .file-item-name,
+body.win-landscape #fileQueue .pl-item:has(.rm-qm) .pl-meta { display: none; }
+body.win-landscape #fileQueue .rm-qt { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+body.win-landscape #fileQueue .rm-qt > span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+body.win-landscape #fileQueue .rm-qt-title { font-size: 15px; line-height: 19px; color: #e2e8f0; }
+body.win-landscape #fileQueue .rm-qt-sub { font-size: 12.5px; line-height: 16px; color: #64748b; }
+body.win-landscape #fileQueue .rm-qt-nosub .rm-qt-sub { display: none; }
+body.win-landscape #fileQueue .rm-qm {
+  flex: none; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 1px;
+  font: 12.5px/16px ui-monospace, Consolas, monospace; color: #94a3b8; font-variant-numeric: tabular-nums;
+}
+body.win-landscape #fileQueue .rm-qm-tag { font-size: 10.5px; color: #64748b; letter-spacing: .3px; }
+body.win-landscape #fileQueue .rm-qm span:empty { display: none; }
+body.win-landscape #fileQueue .pl-btn, body.win-landscape #fileQueue .file-item-close {
+  flex: none; width: 42px; height: 38px; padding: 0; margin: 0; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center; opacity: 0.55; cursor: pointer;
+  transition: opacity .15s, background .15s, border-color .15s, color .15s;
+}
+body.win-landscape #fileQueue .pl-btn svg, body.win-landscape #fileQueue .file-item-close svg { transform: scale(1.25); }
+body.win-landscape #fileQueue .file-item-close { position: static; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.06); color: #fca5a5; }
+body.win-landscape #fileQueue .file-item-close:hover { opacity: 1; border-color: #ef4444; background: rgba(239,68,68,0.2); color: #fee2e2; }
+body.win-landscape #fileQueue .file-item.pl-item:hover .pl-btn, body.win-landscape #fileQueue .file-item.pl-item:hover .file-item-close { opacity: 0.85; }
+body.win-landscape #fileQueue .pl-btn:hover { opacity: 1 !important; }
+body.win-landscape #fileQueue .pl-now .rm-qt-title { color: #fff; }
+body.win-landscape #fileQueue .pl-now .rm-qt-sub { color: #6ee7b7; opacity: .8; }
+body.win-landscape #fileQueue .file-item.pl-item.pl-now, body.win-landscape #fileQueue .file-item.pl-item.pl-now:hover {
+  border-color: rgba(52,211,153,0.55); background: rgba(16,185,129,0.1); color: #fff;
+}
+body.win-landscape #fileQueue .file-item.pl-now .fi-head::before { display: none; }
+body.win-landscape #fileQueue .file-item.pl-now .file-item-icon {
+  display: block; width: 20px; flex: none; text-align: right; color: #34d399; text-shadow: 0 0 6px rgba(52,211,153,0.5); font-size: 12px;
+}
+body.win-landscape #fileQueue .file-item.pl-now .pl-btn { border-color: rgba(52,211,153,0.45); background: rgba(16,185,129,0.12); color: #6ee7b7; opacity: 0.9; }
+/* C: converts this track with the rack (dropzone.js convertEntry); quiet
+   when its version with the rack is there already. */
+body.win-landscape #fileQueue .pl-btn.pl-conv { width: 38px; border: 1px solid rgba(16,185,129,0.35); background: rgba(16,185,129,0.08); color: #6ee7b7; }
+body.win-landscape #fileQueue .pl-btn.pl-conv.pl-conv-done { display: flex; opacity: 0.2 !important; cursor: default; }
+body.win-landscape #fileQueue .pl-btn.pl-conv:hover { background: rgba(16,185,129,0.25); color: #d1fae5; }
+body.win-landscape #fileQueue .pl-btn.pl-conv.pl-conv-done:hover { background: rgba(16,185,129,0.08); color: #6ee7b7; }
+/* × armed: a red tick for two seconds; pressed again, the row goes. */
+body.win-landscape #fileQueue .file-item-close.pl-x-armed { opacity: 1 !important; border-color: #ef4444; background: rgba(239,68,68,0.35); color: #fee2e2; }
+/* The add row: a row's own height and width, a row's gap under the last. */
+body.win-landscape #dropZone > .ls-add-row { height: var(--pl-row-h); margin: 0 6px 6px; width: calc(100% - 12px); padding: 0 12px 0 14px; font-size: 13px; }
+body.win-landscape #dropZone > .ls-add-row .ls-add-hint { font-size: 12px; }

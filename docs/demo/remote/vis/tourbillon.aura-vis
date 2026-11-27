@@ -1,0 +1,178 @@
+// @name     Tourbillon
+// @author   patrickjaillet (Tourbillon), adapted for Aura Engine — https://www.shadertoy.com/view/s3KGDm
+// @about    A whirlpool of glowing dust turning round a bright eye. Every kick sends a wave of light out from the eye through the whirl, the snare and the hats quicker, finer ones; loud parts make the whole whirl glow brighter.
+// @license  CC BY-NC-SA 3.0 (Shadertoy's terms; the code names no other) — adapted from "Tourbillon" by patrickjaillet, https://www.shadertoy.com/view/s3KGDm
+//
+// @section  "Whirl"     "The glowing dust and its spiral"
+// @param    float  spiral      0.5   0.0   0.8   0.01              "Spiral"        "How tightly the dust winds round the eye"
+// @param    float  pattern     0.574 0.52  0.62  0.001             "Pattern"       "The shape of the dust: fine and even, or in bigger, brighter clumps"
+// @param    float  depth       0.845 0.45  1.0   0.01              "Depth"         "How deep into the whirl you see: more dust, more light"
+// @param    float  size        0.744 0.62  0.86  0.01              "Size"          "How much of the picture the whirl fills"
+//
+// @section  "Colour"
+// @param    choice colours     0     "Rainbow|Album cover|App|Custom" "Colours"     "Where the whirl's colours come from"
+// @param    color  colourA     #ff3fa4                             "Custom first"  "With Custom: one colour of the whirl"
+// @param    color  colourB     #36c9ff                             "Custom second" "With Custom: the other colour of the whirl"
+// @param    float  colourSpeed 1.0   0.0   2.0   0.01  x           "Colour speed"  "How fast the colours run round the eye"
+// @param    float  bright      1.0   0.4   2.0   0.01  x           "Brightness"    "How bright the whole picture is"
+//
+// @section  "Waves"     "Light the music sends out from the eye"
+// @param    float  kickWaves   1.0   0.0   2.0   0.01  x           "Kick waves"    "How bright the wave each kick sends out from the eye"
+// @param    float  hitWaves    1.0   0.0   2.0   0.01  x           "Hit waves"     "Quicker, finer waves from the snare and the hats"
+// @param    float  reach       1.0   0.4   2.0   0.01  x           "Reach"         "How far the waves run before they fade"
+// @param    float  waveSpeed   1.0   0.5   2.0   0.01  x           "Wave speed"    "How fast the waves run out to the edges"
+// @param    float  loudGlow    1.0   0.0   2.0   0.01  x           "Loud glow"     "How much brighter the whirl glows in the loud parts"
+//
+// @section  "Motion"    "The whirl's own motion (the music only lights it)"
+// @param    float  turn        1.0   0.0   2.5   0.01  x           "Turn speed"    "How fast the dust turns round the eye"
+// @param    float  drift       1.0   0.0   2.0   0.01  x           "Camera drift"  "How far the view wanders round the eye"
+// @param    float  ripple      1.0   0.0   2.5   0.01  x           "Ripple"        "A slow wave rolling across the picture"
+// @param    float  breath      1.0   0.0   2.0   0.01  x           "Breathing"     "The eye's slow swell and fade"
+//
+// @section  "Layout"
+// @param    float  eyeY        -0.4  -0.7  0.2   0.01              "Eye height"    "Where the eye sits in the player (full screen: the middle)"
+
+// Tourbillon — by patrickjaillet, https://www.shadertoy.com/view/s3KGDm (his page of live sliders for it:
+// https://patrickjaillet.github.io/BS_shadertoy/). Shadertoy's terms: CC BY-NC-SA 3.0.
+// Adapted for Aura Engine: the author's constants are the settings above (1 x = his value); the music only lights
+// the whirl — every hit sends a wave of light out from the eye (at a distance r it shows the hit r / speed seconds
+// ago), loud parts glow brighter. The dust's motion stays the author's own, slowed by nothing and pushed by nothing:
+// no beat moves the picture. His quick throb of the eye (a steady 1.2 a second, off any song's beat) is left out.
+
+// The author's 100 steps of 0.035 into the dust, taken here two at a time (50 of 0.07, each counting double): the
+// same depth and the same whirl for half the work (0.34 ms a frame at 1920 × 1080 on an RTX 4090, was 0.63).
+#define ITERATIONS_MARCHING   50
+#define PAS_MARCHING          0.07
+#define ITERATIONS_FRACTALE   10
+
+vec3 calculerOndeGerstner(vec2 position, float temps) {
+    const float LONGEUR_ONDE = 1.2;
+    const float VITESSE_ONDE = 1.0;
+    const vec2 DIRECTION_ONDE = vec2(1.0, 0.7);
+    float amplitude = 0.02 * ripple;
+    float nombreOnde = 6.28318 / LONGEUR_ONDE;
+    float phase = nombreOnde * (dot(normalize(DIRECTION_ONDE), position) - VITESSE_ONDE * temps);
+
+    return vec3(
+        DIRECTION_ONDE.x * (amplitude * cos(phase)),
+        amplitude * sin(phase),
+        DIRECTION_ONDE.y * (amplitude * cos(phase))
+    );
+}
+
+// ── the music (Aura Engine) ──
+// A wave from the eye: at distance d (the whirl's own measure, 0 at the eye) it shows the part's hit d / speed
+// seconds ago, so each hit lights the eye as it sounds and then runs outwards, fading. Only a hit's start makes a
+// wave (its rise): a held note makes none. x: the front, a thin ring (the hit's first 20th of a second);
+// y: the light behind it (its first quarter second).
+vec2 vague(int part, float d, float speed, float fade) {
+    float t = -d / speed;
+    float h = musicHit(part, t);
+    float front = max(0.0, h - musicHit(part, t - 0.05));
+    float sillage = max(0.0, h - musicHit(part, t - 0.25));
+    return vec2(front, sillage) * exp(-d / fade);
+}
+
+// The whirl's colour at the rainbow's phase a (radians): the author's rainbow, the cover's, the app's or two own.
+vec3 couleurTourbillon(float a) {
+    if (colours == 0) return 0.5 + 0.5 * cos(a + vec3(0.0, 2.094, 4.188));
+    vec3 c = colours == 1 ? auraPalette(a / TAU) : colours == 2 ? auraAppPalette(a / TAU)
+                                                               : mix(colourA, colourB, 0.5 + 0.5 * cos(a));
+    return c / max(max(c.r, max(c.g, c.b)), 0.25) * 0.9;     // as bright as the rainbow: it is light
+}
+
+void mainImage(out vec4 couleurSortie, in vec2 coordonneesPixel) {
+    vec2 resolution = iResolution.xy;
+    vec2 coordonneesTexture = coordonneesPixel / resolution;
+    float temps = iTime;
+    float bande = uFull > 0.5 ? 0.0 : 1.0;                   // 1 in the player's band: the eye sits lower, under the text
+
+    float tCam = temps * 0.4;
+    vec2 decalageCamera = vec2(
+        sin(tCam) * 0.12 + cos(tCam * 0.5) * 0.05,
+        cos(tCam * 0.8) * 0.12 + sin(tCam * 0.3) * 0.05
+    ) * drift * (1.0 - 0.5 * bande);
+
+    float ratioAspect = resolution.y / resolution.x;
+    vec2 aspectCorrection = vec2(1.0, ratioAspect);
+    vec2 uv = (coordonneesTexture - vec2(0.5)) * aspectCorrection + decalageCamera;
+    uv.y -= bande * eyeY * 0.5 * ratioAspect;                // (p units: the eye at p.y = eyeY)
+
+    vec3 decalageOnde = calculerOndeGerstner(uv, temps);
+    uv += decalageOnde.xy;
+
+    float distanceCentre = length(uv) * (1.0 - (size * 2.0 - 1.0));
+
+    float pulsationLumiere = sin(temps) * 0.08 * breath;
+    float facteurTunnel = 1.0 / (distanceCentre * 1.5 + 0.15 + pulsationLumiere);
+
+    float tempsAnimation = temps * 0.6 * turn + facteurTunnel * 0.2;
+    float tempsStructure = tempsAnimation + (5.0 + sin(tempsAnimation)) * 0.11 / (distanceCentre + 1.0 - spiral);
+
+    float angleParallaxe = tempsStructure + distanceCentre * 2.5 + facteurTunnel * 0.5;
+    float sinusAngle = sin(angleParallaxe);
+    float cosinusAngle = cos(angleParallaxe);
+
+    uv *= mat2(cosinusAngle, sinusAngle, -sinusAngle, cosinusAngle);
+
+    float accumulationCouleur1 = 0.0;
+    float accumulationCouleur2 = 0.0;
+    vec3 positionEspace;
+
+    int nombreEchantillonsMax = int(float(ITERATIONS_MARCHING) * depth);
+
+    for (int echantillon = 0; echantillon < ITERATIONS_MARCHING; echantillon++) {
+        if (echantillon > nombreEchantillonsMax) {
+            break;
+        }
+
+        positionEspace = PAS_MARCHING * float(echantillon) * vec3(uv, 1.0);
+        positionEspace += vec3(0.622, 0.3, -1.5 - sin(tempsAnimation * 1.3) * 0.1) + decalageOnde * 0.2;
+
+        for (int iterationPliage = 0; iterationPliage < ITERATIONS_FRACTALE; iterationPliage++) {
+            positionEspace = abs(positionEspace) / dot(positionEspace, positionEspace) - pattern;
+        }
+
+        float intensiteProximite = dot(positionEspace, positionEspace) * 0.0015 * (PAS_MARCHING / 0.035);
+        accumulationCouleur1 += intensiteProximite * (1.8 + sin(distanceCentre * 13.0 + 0.5 - tempsAnimation * 2.0));
+        accumulationCouleur2 += intensiteProximite * (1.5 + sin(distanceCentre * 13.5 + 2.2 - tempsAnimation * 3.0));
+    }
+
+    float facteurAjustementRayon = length(positionEspace.xy) * 0.01;
+
+    accumulationCouleur1 *= smoothstep(0.56 * 0.7, 0.0, distanceCentre);
+    accumulationCouleur2 *= smoothstep(0.51 * 0.7, 0.0, distanceCentre);
+
+    float intensiteTotale = (accumulationCouleur1 + accumulationCouleur2 + facteurAjustementRayon) * 1.2;
+
+    // The music lights the dust: the waves out from the eye — a thin ring of light at the front, the dust glowing
+    // behind it — and a slow glow of the loud parts (the song's slow loudness, carried out at the waves' pace).
+    float front = 0.0;
+    if (uLive > 0.5) {
+        float v = 0.22 * waveSpeed;
+        vec2 vagues = kickWaves * vague(0, distanceCentre, v, 0.16 * reach)
+                    + hitWaves * (0.6 * vague(1, distanceCentre, v * 1.4, 0.11 * reach)
+                                + 0.35 * vague(2, distanceCentre, v * 1.8, 0.07 * reach));
+        float fort = 1.0 + loudGlow * 0.6 * (musicEnergy(-distanceCentre / v) - 0.5);
+        intensiteTotale *= fort * (1.0 + 1.2 * vagues.y);
+        front = vagues.x * smoothstep(0.0, 0.012, distanceCentre);
+    }
+
+    float anglePolaire = atan(uv.y, uv.x);
+    vec3 couleurArcEnCiel = couleurTourbillon(anglePolaire + distanceCentre * 5.0 - temps * 3.5 * colourSpeed);
+
+    vec3 couleurFinale = couleurArcEnCiel * intensiteTotale * bright;
+    // the front: light in the dust's colour turning white, strongest where the dust is
+    couleurFinale += front * (0.3 + 0.7 * smoothstep(0.0, 1.2, intensiteTotale))
+                   * mix(couleurArcEnCiel, vec3(1.0), 0.55) * 0.9 * bright;
+
+    float facteurVignetage = smoothstep(1.5, 0.5, length(coordonneesTexture - 0.5));
+    couleurFinale *= mix(0.6, 1.0, facteurVignetage);
+
+    // Light adds up, then a soft shoulder: the brightest dust and the waves stay colour instead of clipping flat.
+    couleurFinale = 1.0 - exp(-couleurFinale * 1.4);
+    // In the player's band the whirl steps back under the title and the technical lines.
+    couleurFinale *= mix(1.0, 0.35, bande * smoothstep(0.26, 0.5, coordonneesTexture.y));
+
+    couleurSortie = vec4(couleurFinale, 1.0);
+}

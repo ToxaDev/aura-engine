@@ -1,0 +1,224 @@
+// @name     Raindrops
+// @author   Aura Engine
+// @about    Rain on still water: every hit drops a ring, the bass big and slow, the highs small and quick. Each drop is seen falling and lands on its sound.
+// @spec     1
+//
+// @section  "Drops"         "The raindrops and the rings they leave on the water"
+// @param    float  amount     1.0   0.2  2.0  0.05  x     "Amount"          "Only the strongest hits … every small sound"
+// @param    float  size       1.0   0.4  2.0  0.05  x     "Drop size"       "How far a drop's rings spread"
+// @param    float  life       1.0   0.4  1.6  0.05  x     "Ripples' life"   "How long the rings keep spreading before they fade"
+// @param    int    rings      3     1    5    1           "Rings"           "How many rings each drop makes"
+// @param    float  splash     1.0   0.0  2.0  0.05  x     "Splash"          "The flash where a drop lands"
+//
+// @section  "Colour"
+// @param    choice colours    0     "Album cover|App|Custom"    "Colours"   "Where the colours come from"
+// @param    color  colourBass #38bdf8                     "Custom bass"     "With Custom: the colour of the drops from the bass"
+// @param    color  colourMid  #a78bfa                     "Custom middle"   "With Custom: the colour of the drops from the middle"
+// @param    color  colourHigh #f9a8d4                     "Custom highs"    "With Custom: the colour of the drops from the highs"
+// @param    float  bright     1.0   0.3  2.0  0.05  x     "Brightness"      "How bright the rings and the drops are"
+//
+// @section  "Motion"        "How the rain follows the music"
+// @param    float  fall       0.8   0.0  2.0  0.05  s     "Fall time"       "A drop is seen falling this long before it lands on its sound"
+// @param    float  rain       1.0   0.0  2.0  0.05  x     "Falling drops"   "How bright the drops on their way down are"
+// @param    float  wind       0.2   -1.0 1.0  0.05        "Wind"            "Slants the rain and ruffles the water (−: from the right)"
+// @param    float  stereo     1.0   0.0  2.0  0.05  x     "Stereo"          "How far the sound's left–right balance moves where the drops fall"
+//
+// @section  "Water"         "The surface and the light on it"
+// @param    float  dark       0.7   0.0  1.0  0.01        "Darkness"        "How dark the water is (0: the player's background shows through)"
+// @param    float  ruffle     0.6   0.0  1.5  0.05  x     "Glints"          "Small waves catching the light all over the water"
+// @param    float  shine      0.6   0.0  1.5  0.05  x     "Horizon glow"    "The light along the far edge of the water"
+//
+// @section  "Layout"
+// @param    float  horizon    -0.14 -0.6 0.5  0.01        "Horizon"         "Where the water ends in the player, under its text (full screen: a little above the middle)"
+
+// The water is seen from a little above it, looking to the horizon: a point
+// on it at depth Z and across X is drawn at x = X / Z, y = horizon − 1 / Z;
+// a ring there is an ellipse along the screen, R / Z wide and half of R / Z²
+// tall (the view is a narrow one, so near rings are flat ellipses too).
+// Each part of the sound (bass, middle, highs) rains on its own grid of
+// moments on the track's clock: in each short slot at most one drop, at a
+// place of its own, as strong as the hit that began in that slot. So a ring
+// stays with its moment of music: it is born the moment its hit is heard and
+// grows from there. The slots still ahead are drops on their way down.
+
+const float SLOT[3]  = float[3](0.05, 0.05, 0.045);   // seconds a slot (at most one drop each)
+const float LIFE[3]  = float[3](1.5, 1.1, 0.75);      // seconds a ring spreads
+const float SPEED[3] = float[3](0.36, 0.28, 0.2);     // how fast it spreads, water units a second
+const float WAVE[3]  = float[3](0.065, 0.05, 0.035);  // between a drop's rings
+const float DECAY[3] = float[3](0.3, 0.22, 0.15);     // how a hit dies away (as the player measures it)
+
+// Two random numbers 0…1 for a slot (an integer hash: cheap and the same on every card).
+vec2 dropHash(float k, int part) {
+    uint h = uint(max(k, 0.0)) * 1664525u + uint(part) * 1013904223u + 12345u;
+    h ^= h >> 16; h *= 0x7feb352du; h ^= h >> 15; h *= 0x846ca68bu; h ^= h >> 16;
+    return vec2(float(h & 0xffffu), float(h >> 16)) / 65535.0;
+}
+
+const float SQUEEZE = 2.0;                            // how narrow the view is: rings this much flatter
+
+// Where a drop lands, on the screen: spread evenly over the water as seen (in the player's band, over
+// the part of it that is not faded at the seek bar). Its depth is 1 / (yh − y).
+vec2 dropSpot(vec2 h, float aspect, float shift, float yh) {
+    float y = uFull > 0.5 ? yh - mix(yh + 1.02, 0.03, h.y) : mix(-0.8, yh - 0.05, h.y);
+    return vec2((h.x * 2.0 - 1.0) * 0.95 * aspect + shift, y);
+}
+
+// How strong the hit is that began in slot k (0: none).
+float dropStrength(int part, float k, float tt, bool live) {
+    if (!live) return dropHash(k + 91.0, part).x > 0.9 ? 0.7 : 0.0;       // a light rain of its own
+    float slot = SLOT[part];
+    float r0 = k * slot - tt;
+    return musicHit(part, r0 + slot) - musicHit(part, r0) * exp(-slot / DECAY[part]);
+}
+
+vec3 partColour(int part) {
+    if (colours == 2) return part == 0 ? colourBass : part == 1 ? colourMid : colourHigh;   // Custom
+    if (colours == 1) return auraAppPalette(0.02 + float(part) * 0.3);                     // App
+    return auraPalette(float(part) * 0.3);                                                 // Album cover
+}
+
+float segDist(vec2 q, vec2 a, vec2 b) {
+    vec2 ab = b - a;
+    float t = clamp(dot(q - a, ab) / max(dot(ab, ab), 1e-8), 0.0, 1.0);
+    return length(q - a - ab * t);
+}
+
+vec4 scene(vec2 uv, vec2 p) {
+    float aspect = uResolution.x / uResolution.y;
+    float px = 2.0 / uResolution.y;
+    float yh = uFull > 0.5 ? 0.3 : horizon;
+    bool live = uLive > 0.5;
+    float tt = live ? uTrackTime : uTime;                 // the rain's clock: the sound's own
+    // The player's band is small and its text lies over the top: there the rain is heavier, its
+    // rings bigger and brighter, and nothing shines behind the text.
+    bool band = uFull < 0.5;
+    float textSafe = band ? smoothstep(-0.02, -0.16, p.y) : 1.0;
+    float bandK = band ? 2.0 : 1.0;
+    float thr = mix(0.16, 0.01, (amount - 0.2) / 1.8) * (band ? 0.4 : 1.0);
+    float sq = band ? 0.9 : SQUEEZE;                      // the band's water is seen from higher: rounder rings
+    float shift = 0.0;
+    if (live && stereo > 0.0) shift = stereo * 0.25 * aspect * (musicBalance(-0.4) + musicBalance(0.4));
+
+    vec3 light = vec3(0.0);                               // what shines (premultiplied)
+    float water = 0.0;                                    // the water's own cover
+    vec3 glowC = mix(partColour(0), vec3(0.8, 0.85, 1.0), 0.45);
+    float glowK = live ? 0.6 + 0.6 * uLoudness : 0.6;
+    float dy = yh - p.y;
+
+    // The sky's glow over the horizon (a dusk light, strongest in the middle), and its line.
+    float mid = exp(-abs(p.x) / 0.9);
+    light += glowC * shine * glowK * textSafe * (0.15 * exp(-abs(dy) / max(0.012, 1.5 * px))
+                                    + (0.06 + 0.12 * mid) * exp(-abs(dy) / 0.12)
+                                    + (dy < 0.0 ? 0.16 * (0.4 + 0.6 * mid) * exp(dy / (band ? 0.12 : 0.3)) : 0.0));
+
+    if (dy > 0.0) {
+        float Z = 1.0 / dy, X = p.x * Z;
+        water = dark * (0.55 + 0.35 * smoothstep(0.0, 0.6, dy)) * (band ? 0.55 : 1.0);
+        // The sky's light on the water: bright far off, and a path of it from the middle of the
+        // horizon towards you, wider as it nears; small waves break it into glints that drift
+        // with the wind (none finer than a pixel).
+        light += glowC * shine * glowK * 0.16 * exp(-dy / 0.3);
+        float path = exp(-pow(abs(p.x) / (0.06 + 0.45 * dy), 1.5)) * exp(-dy / 1.6) * bandK;
+        // glints: a random one in some cells of the water, twinkling (none finer than a few pixels)
+        vec2 gc = vec2(X * 7.0 + uTime * wind * 0.4, Z * 22.0);
+        vec2 gi = floor(gc), gf = fract(gc) - (vec2(auraHash(gi + 3.1), auraHash(gi + 7.7)) * 0.6 + 0.2);
+        float gh = auraHash(gi);
+        float tw = 0.5 + 0.5 * sin(uTime * (2.0 + 4.0 * gh) + gh * 40.0);
+        float cellH = 1.0 / (22.0 * Z * Z * px);                       // a cell's height in pixels
+        float glint = step(0.5, gh) * exp(-dot(gf * vec2(1.0, 2.5), gf * vec2(1.0, 2.5)) * 45.0) * tw * smoothstep(2.0, 4.0, cellH);
+        light += glowC * glowK * (shine * path * (0.16 + 2.4 * glint)
+                                + ruffle * 0.14 * glint * (0.3 + 0.7 * exp(-dy / 0.35)));
+
+        // The rings of the drops that have landed. A ring on still water is seen as an ellipse
+        // along the screen: as wide as its depth allows, as tall as that times the view's slant
+        // there (flatter far off, rounder near).
+        for (int part = 0; part < 3; part++) {
+            float slot = SLOT[part];
+            float lf = LIFE[part] * life;
+            float sp = SPEED[part] * size * (band ? 1.6 : 1.0);
+            float lam = WAVE[part] * sqrt(size);
+            float reach = lam * float(rings) + 0.02;
+            float kNow = floor(tt / slot);
+            for (int j = 0; j < 48; j++) {
+                float k = kNow - float(j);
+                float age = tt - (k + 0.5) * slot;
+                if (age > lf) break;
+                if (age < 0.0) continue;
+                vec2 h = dropHash(k, part);
+                vec2 C = dropSpot(h, aspect, shift, yh);         // where it landed, on the screen
+                float Zd = 1.0 / (yh - C.y);
+                float R = sp * age;
+                float ext = R + reach + 0.02;
+                // this pixel from there, back in water units
+                vec2 e = (p - C) * vec2(Zd, sq * Zd * Zd);
+                if (abs(e.x) > ext || abs(e.y) > ext) continue;
+                float dist = length(e);
+                float band = dist - R;
+                bool young = age < 0.25 && dist < 0.12;
+                if ((band > 0.02 || band < -reach) && !young) continue;
+                float J = dropStrength(part, k, tt, live);
+                if (J < thr) continue;
+                J = min(J * 1.3, 1.2);
+                // A pixel's size along the ring's radius, in water units.
+                vec2 n = e / max(dist, 1e-4);
+                float fw = px * length(vec2(n.x * Zd, n.y * sq * Zd * Zd));
+                float w = max(fw * 1.1, 0.0015);
+                float fogd = exp(-(Zd - 1.0) / 4.0);
+                float fade = pow(1.0 - age / lf, 1.5) * fogd / (1.0 + 2.0 * R);
+                float c = 0.0;
+                if (lam > 2.5 * fw) {
+                    for (int r = 0; r < 5; r++) {
+                        if (r >= rings) break;
+                        float b = band + float(r) * lam;
+                        float wr = w * (1.0 - 0.12 * float(r));     // the front brightest and widest, thinner inside
+                        c += exp(-b * b / (wr * wr)) * pow(0.6, float(r));
+                    }
+                    c += 0.18 * exp(-band * band / (16.0 * w * w + 0.0004));          // a soft light around the front
+                } else {
+                    c = 0.25 * smoothstep(-reach, 0.0, band) * step(band, 0.0);    // too fine to draw: a soft sheen
+                }
+                // a ring catches the light where it crosses the glow's path
+                float I = 2.2 * c * fade * (1.0 + 2.0 * path) * bandK;
+                if (age < 0.25) I += splash * 2.0 * exp(-dist * dist / (0.0006 + 4.0 * fw * fw)) * pow(1.0 - age / 0.25, 2.0) * fogd;
+                light += partColour(part) * J * bright * I;
+            }
+        }
+    }
+
+    // The drops on their way down (the bass's and the middle's): each lands on its sound.
+    if (fall > 0.0 && rain > 0.0) {
+        for (int part = 0; part < 2; part++) {
+            float slot = SLOT[part];
+            float kNow = floor(tt / slot);
+            for (int j = 0; j < 48; j++) {
+                float k = kNow + float(j);
+                float tau = (k + 0.5) * slot - tt;          // seconds until it lands
+                if (tau > fall) break;
+                if (tau <= 0.0) continue;
+                vec2 h = dropHash(k, part);
+                vec2 C = dropSpot(h, aspect, shift, yh);         // where it will land
+                float dyd = yh - C.y, Zd = 1.0 / dyd;
+                float hgt = 1.3 * tau / fall;               // water units above the surface
+                vec2 head = C + vec2(wind * 0.5, 1.0) * hgt * dyd;
+                vec2 tail = head + vec2(wind * 0.5, 1.0) * (0.09 + 0.06 * float(1 - part)) * dyd;
+                if (abs(p.x - head.x) > 0.12 || p.y < head.y - 0.02 || p.y > tail.y + 0.02) continue;
+                float d = segDist(p, head, tail);
+                if (d > 2.5 * px) continue;
+                float J = dropStrength(part, k, tt, live);
+                if (J < thr) continue;
+                float line = smoothstep(1.5 * px, 0.3 * px, d) * (0.4 + 0.6 * smoothstep(tail.y, head.y, p.y));
+                float appear = smoothstep(fall, fall * 0.6, tau);
+                light += partColour(part) * min(J * 1.3, 1.2) * rain * bright * 1.6 * line * appear * (0.45 + 0.55 * exp(-(Zd - 1.0) / 4.0)) * textSafe;
+            }
+        }
+    }
+
+    light = 1.0 - exp(-1.4 * light);                      // bright light turns whiter, never clips
+    float la = clamp(max(light.r, max(light.g, light.b)), 0.0, 1.0);
+    vec3 waterC = mix(vec3(0.012, 0.024, 0.045), glowC * 0.1, exp(-max(dy, 0.0) / 0.15));
+    // (with a grain of half a step, so the dark gradients show no bands on the screen)
+    float g = (auraHash(floor(uv * uResolution)) - 0.5) / 255.0;
+    vec3 pm = max(waterC * water * (1.0 - la) + light + g, 0.0);
+    float alpha = clamp(water + la * (1.0 - water) + g, 0.0, 1.0);
+    return vec4(pm / max(alpha, 1e-3), alpha);
+}

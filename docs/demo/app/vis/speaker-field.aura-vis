@@ -1,0 +1,361 @@
+// @name     Speaker Field
+// @author   El_Sargo (Sonic test site), adapted for Aura Engine — https://www.shadertoy.com/view/sdsBDn
+// @about    A field of loudspeakers without end, the camera gliding over it. Big and small, each in its own colour, every speaker plays the pitch its size gives it — the biggest the deep bass and the kick, the smallest the top highs — its cone moving out with its sound and punching on each of its notes and hits.
+// @license  CC BY-NC-SA 3.0 (Shadertoy's terms; the code names no other) — adapted from "Sonic test site" by El_Sargo, https://www.shadertoy.com/view/sdsBDn (its distance functions after Inigo Quilez, its hash after Dave Hoskins)
+//
+// @section  "Speakers"  "The cones and how they move"
+// @param    float  push      1.0   0.0   2.0   0.01  x   "Push"          "How far a cone moves out with its sound"
+// @param    float  punch     1.0   0.0   2.0   0.01  x   "Punch"         "How hard a cone jumps on each of its notes and hits"
+// @param    float  bounce    1.0   0.0   2.0   0.01  x   "Bounce"        "How much a cone swings back and forth after a punch"
+// @param    float  bigShare  0.5   0.1   0.9   0.01      "Big ones"      "How many of the speakers are big (low) against small (high)"
+//
+// @section  "Colour"
+// @param    choice colours   0     "Spectrum|Album cover|App" "Colours" "The speakers' colours: from red for the deep bass to violet for the top highs, the cover's or the app's"
+// @param    float  bright    1.0   0.4   1.6   0.01  x   "Brightness"    "How bright the whole picture is"
+//
+// @section  "Camera"
+// @param    float  glide     1.0   0.0   2.5   0.01  x   "Glide speed"   "How fast the camera glides over the field"
+
+// @common
+// Sonic test site — El_Sargo, https://www.shadertoy.com/view/sdsBDn: "Infinite plane of speakers using domain
+// repetition." Shadertoy's terms: CC BY-NC-SA 3.0.
+// Adapted for Aura Engine: the speakers come in many sizes, each in its colour, and each plays the pitch its size
+// gives it — the bigger, the lower (the biggest about 40 Hz, the smallest about 10 kHz). Pass A keeps a cone for
+// each of 32 bands of the spectrum: a spring pulled out by its band's level and punched by every rise of it, so
+// the cones move smoothly and jump on their own notes and hits. Only the cones move: nothing else in the picture
+// follows the music (the author's ground, which flashed with the bass, is steady). One sample a pixel (the author's
+// 2 × 2 made it four times dearer), a bound on the soft shadow's march; the picture pass fills in the lone dark dot
+// of a ray slipping through a cone's thin shell (the author's four samples hid it).
+
+const int BANDS = 32;
+float bandF(float b) { return 0.08 + 0.82 * (b + 0.5) / float(BANDS); }   // log frequency: ~40 Hz … ~10 kHz
+
+// @pass A  iChannel0=A:nearest:clamp
+// The cones of the 32 bands, band b in texels (b, 0 … 1): its push out, its speed, its band's level a frame ago.
+// A big, low cone swings slowly (3 a second), a small, high one fast (9); the music is fed 40 ms ahead, about
+// the time a spring takes to its peak, so a punch lands as its note is heard. Paused, time stands: so do they.
+void mainImage(out vec4 o, in vec2 fc) {
+    ivec2 q = ivec2(fc);
+    if (q.x >= BANDS || q.y > 1) { o = vec4(0.0); return; }
+    vec4 s = texelFetch(iChannel0, ivec2(q.x, 1), 0);
+    float dt = min(uDelta, 0.05);
+    float f = bandF(float(q.x));
+    float lvl, target;
+    if (uLive > 0.5) {
+        lvl = musicSpectrum(f, 0.04);
+        target = push * 0.85 * lvl * lvl;
+    } else {
+        lvl = 0.0;
+        target = 0.06 * (0.5 + 0.5 * sin(uTime * 0.8 + float(q.x) * 1.7));   // nothing plays: a slow breath
+    }
+    s.y += punch * 26.0 * max(0.0, lvl - s.z - 0.015);                        // every rise of its band: a push
+    float w = TAU * mix(3.0, 9.0, (f - 0.08) / 0.82);
+    float z = mix(0.95, 0.2, clamp(bounce * 0.5, 0.0, 1.0));
+    int n = int(ceil(dt / 0.008));
+    float h = dt / float(max(n, 1));
+    for (int i = 0; i < 8; i++) {
+        if (i >= n) break;
+        float a = w * w * (target - s.x) - 2.0 * z * w * s.y;
+        s.y += a * h;
+        s.x += s.y * h;
+    }
+    s.x = clamp(s.x, -0.4, 1.3);
+    s.y = clamp(s.y, -60.0, 60.0);
+    s.z = lvl;
+    o = s;
+}
+
+// @pass B  iChannel0=A:linear:clamp
+const int AA = 1;
+const vec3 sun = normalize(vec3(3.21,1,-0.4));
+const float GROUND = -0.6;                 // the plane the speakers sit in
+
+mat3 rotx(float a) { mat3 rot; rot[0] = vec3(1.0, 0.0, 0.0); rot[1] = vec3(0.0, cos(a), -sin(a)); rot[2] = vec3(0.0, sin(a), cos(a)); return rot; }
+//iq
+float sdCutHollowSphere( vec3 p, float r, float h, float t )
+{
+    vec2 q = vec2( length(p.xz), p.y );
+
+    float w = sqrt(r*r-h*h);
+
+    return ((h*q.x<w*q.y) ? length(q-vec2(w,h)) :
+                            abs(length(q)-r) ) - t;
+}
+
+//iq
+float smin( float a, float b, float k )
+{
+    float h = a-b;
+    return 0.5*( (a+b) - sqrt(h*h+k) );
+}
+
+float sdPlane(vec3 p, float h){
+    return p.y - h;
+}
+//iq
+float opSubtraction( float d1, float d2 ) { return max(-d1,d2); }
+//iq
+float sdTorus( vec3 p, float t, float r)
+{
+  vec2 q = vec2(length(p.xz)- t,p.y);
+  return length(q)- r;
+}
+
+float sdSphere(vec3 p, float r){
+    return length(p) - r;
+}
+
+float sdSpeaker(vec3 p, float amplitude){
+    p -= vec3(0,-0.3,0);
+
+    return
+                smin(
+                    min(
+                        sdCutHollowSphere(p - vec3(0, -1. + amplitude*2., 0.), .4,-.15, 0.01),
+                        sdSphere(p - vec3(0, -1.4 + amplitude*2., 0.), 0.1)
+                        ),
+                    sdTorus(p - vec3(0,-0.30,0.), 0.4, 0.03),
+                    0.01
+                    );
+}
+vec2 localHex(vec2 p){
+    const float z = sqrt(1.-0.25);
+    const vec2 g = vec2(1.5,z);
+    vec2 tile = mod(p+g,2.*g)-g;
+    if (abs(tile.y) > z/0.5*(1.-abs(tile.x))){tile = mod(tile,2.*g)-g;}
+    return tile;
+}
+//https://www.shadertoy.com/view/4djSRW
+float hash12(vec2 p)
+{
+	vec3 p3  = fract(vec3(p.xyx) * .1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+vec3 repeat(vec3 p) {
+    vec2 x = localHex(p.xz*1.5)/1.5;
+    return vec3(x.x, p.y, x.y);
+}
+
+// ── the music (Aura Engine) ──
+// A cell's speaker: its size (0.3 … 1 of the author's) and, from it, its band (the biggest the lowest).
+float speakerSize(vec2 key) {
+    float h = hash12(key * 0.75);
+    return mix(0.3, 1.0, pow(h, mix(2.5, 0.4, bigShare)));
+}
+float sizeBand(float s) { return (1.0 - s) / 0.7 * float(BANDS) - 0.5; }     // 1 → band 0 … 0.3 → band 31
+
+// The cell's speaker now: x its size, y its push (the author's amplitude: 0.35 at rest), z where its band sits
+// (0 lowest … 1 highest). Looked up once for the cell and kept while the march stays in it (the key: the cell's
+// centre on a ¼ grid — the centre itself comes out of the tiling with a little rounding noise).
+vec2 cacheKey = vec2(1e9);
+vec3 cacheState = vec3(0.0);
+vec3 speakerState(vec2 cell) {
+    vec2 key = floor(cell * 4.0 + 0.5);
+    if (key == cacheKey) return cacheState;
+    cacheKey = key;
+    float s = speakerSize(key);
+    float b = clamp(sizeBand(s), 0.0, float(BANDS - 1));
+    float x = texture(iChannel0, vec2((b + 0.5) / iResolution.x, 0.5 / iResolution.y)).x;   // (between two bands' cones)
+    cacheState = vec3(s, 0.35 + 0.15 * x, b / float(BANDS - 1));
+    return cacheState;
+}
+
+float sdScene(vec3 p, float amplitude) {
+        vec3 q = p;
+        p = repeat(p);
+
+        vec2 id = p.xz-q.xz;                             // (minus the cell's centre)
+        vec3 st = speakerState(-id);
+        amplitude = st.y;
+
+        // the author's speaker, made smaller about the point where it meets the ground
+        float s = st.x;
+        vec3 c = vec3(0.0, GROUND, 0.0);
+        vec3 ps = (p - c) / s + c;
+        return smin(
+                    sdSpeaker(ps, amplitude) * s,
+                    opSubtraction(
+                                   sdSphere(ps - vec3(0, -0.5, 0.), 0.47) * s,
+                                   sdPlane(p, GROUND)
+                                  ),
+                    0.001
+                    );
+}
+
+//iq
+vec3 softshadow( in vec3 ro, in vec3 rd, float amplitude, float mint, float maxt, float k )
+{
+    float res = 1.0;
+    float ph = 1e20;
+    float t = mint;
+    for (int i = 0; i < 32; i++)                         // (bounded: the author's march had no end but maxt)
+    {
+        if (t >= maxt) break;
+        float h = sdScene(ro + rd*t, amplitude);
+        if( h<0.001 )
+            return vec3(0.0);
+        float y = h*h/(2.0*ph);
+        float d = sqrt(max(h*h-y*y, 0.0));               // (the cells differ: a step may grow past the last)
+        res = min( res, k*d/max(0.0,t-y) );
+        ph = h;
+        t += h;
+    }
+    return mix(vec3(res),vec3(1.000,0.702,0.602)*res,smoothstep(1.,-.5,abs(0.5-res)));
+}
+
+//iq
+vec3 calcNormal( in vec3 p, float amplitude ) // for function f(p)
+{
+    const float h = 0.0001; // replace by an appropriate value
+    const vec2 k = vec2(1,-1);
+    return normalize( k.xyy*sdScene(p + k.xyy*h, amplitude ) +
+                      k.yyx*sdScene(p + k.yyx*h ,amplitude ) +
+                      k.yxy*sdScene(p + k.yxy*h, amplitude ) +
+                      k.xxx*sdScene(p + k.xxx*h, amplitude ) );
+}
+
+float calcAO(vec3 pos, vec3 nor,float a){
+	float occ = 0.0;
+    float sca = .4;
+    for( int i=0; i<5; i++ )
+    {
+            float h = 0.01 + 0.25*float(i)/4.0;
+        float d = sdScene(pos+h*nor, a);
+        occ += (h-d)*sca;
+        sca *= 0.95;
+    }
+    return clamp( 1.0 - 3.0*occ, 0.0, 1.0 );
+}
+
+vec3 intersection(vec3 ro, vec3 rd){
+
+    vec3 pos = ro;
+    float T = 0.;
+
+    //Colour
+    float h = sdScene(pos,0.);
+
+
+    //The interesting part
+    float omega = 1.;
+    float pom = 1.;
+    float ph = 1e5;
+    vec2 gap = vec2(0.,0.);
+    for (int i = 0; i<40; ++i) {
+
+        //Position and distance estimation
+        vec3 p = ro+T*rd;
+        h = sdScene(p,0.);
+        if (abs(h) < 0.0003) break;                      // (there)
+
+
+        //Overstep recovery
+        float om = (ph+h)/ph;
+        if (om<pom && pom > 1.) { //ph+h<ph*pom
+
+            gap = vec2(h,T);
+            T+=(1.-pom)*ph;
+            pom = 1.;
+
+        } else {
+
+            //Variable updates
+        	T += h * omega;
+            ph = h;
+            pom = omega;
+
+            //Back to the place where the gap opened (foward)
+        	if (T>=gap.y-gap.x && gap.y+gap.x > T) {T = gap.y+gap.x*omega; ph = gap.x;};
+        }
+
+
+        //Dynamic Omega
+        //omega = clamp((omega+om)*.5,1.,3.);
+        omega = clamp(omega+(om-omega)*.6,1.,3.);
+    }
+    return ro+T*rd;;
+}
+
+// A speaker's colour by its band (x: 0 the deep bass … 1 the top highs): the author's red for the biggest, then
+// orange, gold, teal, blue and violet for the smallest — or the cover's or the app's colours along the same line.
+vec3 speakerColour(float x) {
+    vec3 c;
+    if (colours == 1) c = auraPalette(x * 0.85);
+    else if (colours == 2) c = auraAppPalette(x * 0.85);
+    else {
+        const vec3 C0 = vec3(1.0, 0.055, 0.055), C1 = vec3(1.0, 0.38, 0.05), C2 = vec3(1.0, 0.78, 0.12),
+                   C3 = vec3(0.08, 0.85, 0.66), C4 = vec3(0.14, 0.42, 1.0), C5 = vec3(0.62, 0.22, 1.0);
+        float y = x * 5.0;
+        c = y < 1.0 ? mix(C0, C1, y) : y < 2.0 ? mix(C1, C2, y - 1.0) : y < 3.0 ? mix(C2, C3, y - 2.0)
+          : y < 4.0 ? mix(C3, C4, y - 3.0) : mix(C4, C5, y - 4.0);
+    }
+    c /= max(max(c.r, max(c.g, c.b)), 0.2);
+    return c * c;                                        // deeper (the picture's square root lifts them back)
+}
+
+vec3 render(vec2 uv ){
+    vec3 rd = normalize(vec3(uv, .4));
+    rd *= rotx(0.8);
+    vec3 rp = vec3(0.0, 1, iTime * glide);
+
+    rp = intersection(rp,rd);
+
+    vec3 scl = vec3(.99, .9, .8);
+    vec3 amb = vec3(.9, .95, .99);
+    vec3 nor = calcNormal(rp, 0.0);
+    // (the shadow's ray starts a hair off the surface: one sample a pixel shows every false "hit" at its start)
+    vec3 sha = softshadow(rp + nor * 0.003, sun, 0.0, .01, 2.,10.);
+    float occ = calcAO(rp, nor, 0.0);
+    vec3 hvc = normalize(sun-rd);
+    vec2 loc = localHex(rp.xz*1.5)/1.5;
+    vec3 st = speakerState(rp.xz - loc);                 // this cell's speaker
+    float s = st.x;
+    vec3 p = vec3(loc.x, rp.y, loc.y)-vec3(0, GROUND + 0.1 * s, 0);
+    float l = length(loc);
+    vec3 lnr = normalize(-p);
+    vec3 bcl = mix(vec3(uv+vec2(0.5),0.5)*0.95,          // the author's ground (it flashed with the bass: steady now)
+                  vec3(.01),
+                  1.-smoothstep(0.44 * s, 0.456 * s, l));
+    vec3 col = 1.5*bcl * scl * sha * max(0.,dot(nor,sun));
+         col += pow(max(0.,dot(hvc,nor)),100.)*sha*scl;
+         col += .1*bcl*amb*occ;
+
+         col += pow(max(dot(nor, lnr), 0.0), 8.)*speakerColour(st.z)*0.42;    // the author's glow inside the cone
+    return col * bright;
+}
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    vec3 col;
+    float inv = 1./float(AA);
+    for (int x=0;x<AA;x++){
+    for (int y=0;y<AA;y++){
+        vec2 delta = vec2(x,y)*inv-0.5 + 0.5 * inv;
+        vec2 uv = (fragCoord.xy + delta) / iResolution.xy;
+        uv -= vec2(0.5);
+        uv.y /= iResolution.x / iResolution.y;
+
+        col += render(uv)*inv*inv;
+    }}
+
+    col = sqrt(clamp(col, vec3(0.,0.,0.), vec3(1.,1.,1.)));
+    fragColor = vec4(col, 1.0);
+}
+
+// @pass image  iChannel0=B:nearest:clamp
+float luma(vec3 c) { return dot(c, vec3(0.3, 0.59, 0.11)); }
+vec3 at(ivec2 q) { return texelFetch(iChannel0, clamp(q, ivec2(0), ivec2(iResolution.xy) - 1), 0).rgb; }
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
+{
+    ivec2 q = ivec2(fragCoord);
+    vec3 c = at(q);
+    vec3 r = at(q + ivec2(1, 0)), l = at(q - ivec2(1, 0)), u = at(q + ivec2(0, 1)), d = at(q - ivec2(0, 1));
+    // a lone dark dot (much darker than all four neighbours) takes their average
+    if (luma(c) < min(min(luma(r), luma(l)), min(luma(u), luma(d))) - 0.12) c = (r + l + u + d) * 0.25;
+    // the player's band: the picture steps back under the title and the technical lines
+    if (uFull < 0.5) c *= mix(1.0, 0.45, smoothstep(0.36, 0.62, fragCoord.y / iResolution.y));
+    fragColor = vec4(c, 1.0);
+}

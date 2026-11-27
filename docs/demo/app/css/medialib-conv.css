@@ -1,0 +1,134 @@
+/* The library's Conversions page (js/medialib/conversions.js): the space on
+   top, the search and the order under it, then two panes that scroll by
+   themselves — the files on the left, the chosen file's versions on the
+   right. The page takes the browser's whole height. */
+
+.ml-convp {
+    display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; box-sizing: border-box;
+    padding: 2px 4px 0 2px; color: #cbd5e1; font-size: 12px;
+}
+.ml-convp svg { width: 12px; height: 12px; flex: none; fill: currentColor; }
+.ml-convp svg.ln { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ── the space ── */
+.ml-cv-top { display: flex; flex-direction: column; gap: 8px; flex: none; }
+.ml-cv-note { display: flex; flex-direction: column; gap: 4px; padding: 28px 4px; color: #64748b; }
+.ml-cv-note b { color: #cbd5e1; font-size: 14px; font-weight: 600; }
+.ml-cv-sum { display: flex; align-items: center; gap: 8px; color: #94a3b8; }
+.ml-cv-sum span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-cv-bar {
+    display: flex; gap: 2px; height: 12px; border-radius: 6px; overflow: hidden;
+    background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.14);
+}
+.ml-cv-bar i { display: block; min-width: 3px; cursor: pointer; opacity: 0.9; transition: opacity 0.15s; }
+.ml-cv-bar i:hover { opacity: 1; }
+.ml-cv-bar i.dim { opacity: 0.25; }
+.ml-cv-kinds .ml-chip { display: inline-flex; align-items: center; gap: 6px; }
+.ml-cv-kinds .ml-chip i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.ml-cv-kinds .ml-chip small { font-size: 10px; opacity: 0.7; }
+
+/* ── the search, the order, the bulk deletes ── */
+/* One line of one height, whatever the type chosen: the search keeps its
+   place and width at the left, the order after it; the bulk deletes take
+   what is left at the right (their words cut short before anything moves),
+   so the panes under it keep their top and height. */
+.ml-cv-tools { display: flex; align-items: center; gap: 8px; flex: none; flex-wrap: nowrap; height: 30px; min-width: 0; }
+.ml-cv-tools:empty { display: none; }
+.ml-cv-search { flex: none; width: 240px; margin: 0; box-sizing: border-box; }
+.ml-cv-sort { display: flex; gap: 5px; flex: none; }
+.ml-cv-bulk { display: flex; gap: 6px; flex: 1 1 0; min-width: 0; justify-content: flex-end; flex-wrap: nowrap; overflow: hidden; }
+.ml-cv-bulk .ml-btn { flex: 0 1 auto; min-width: 0; height: 28px; min-height: 0; padding: 0 10px; box-shadow: none; }
+.ml-cv-bulk .ml-btn span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-convp .ml-btn { display: inline-flex; align-items: center; gap: 6px; }
+.ml-convp .ml-btn.ml-cv-danger { border-color: rgba(248, 113, 113, 0.4); color: #fecaca !important; }
+.ml-convp .ml-btn.ml-cv-danger:hover:not(:disabled) { background: rgba(220, 38, 38, 0.22); border-color: #f87171; }
+
+.ml-cv-ib {
+    width: 26px; height: 26px; flex: none; border-radius: 6px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(148, 163, 184, 0.22); background: rgba(15, 23, 42, 0.5); color: #94a3b8 !important;
+}
+.ml-cv-ib:hover { border-color: #38bdf8; color: #e2e8f0 !important; background: rgba(14, 165, 233, 0.18); }
+.ml-cv-ib.ml-cv-danger:hover { border-color: #f87171; color: #fecaca !important; background: rgba(220, 38, 38, 0.22); }
+
+/* ── the panes ── */
+.ml-cv-panes { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(210px, 32%) 1fr; gap: 10px; }
+.ml-cv-list, .ml-cv-tree {
+    min-height: 0; overflow-y: auto; overscroll-behavior-y: contain;
+    border: 1px solid rgba(56, 189, 248, 0.12); border-radius: 10px; background: rgba(2, 6, 23, 0.35);
+}
+.ml-cv-list { padding: 4px; display: flex; flex-direction: column; gap: 1px; }
+.ml-cv-tree { padding: 10px 12px 14px; container-type: inline-size; }
+.ml-cv-hint { padding: 22px 10px; color: #64748b; text-align: center; }
+
+.ml-cv-file {
+    display: grid; grid-template-columns: 1fr auto; column-gap: 8px; row-gap: 1px; align-items: baseline;
+    padding: 6px 9px; border-radius: 7px; border: 1px solid transparent; background: none; cursor: pointer;
+    text-align: left; font-family: inherit; color: #e2e8f0 !important; flex: none;
+}
+.ml-cv-file:hover { background: rgba(14, 165, 233, 0.08); }
+.ml-cv-file.on { background: rgba(14, 165, 233, 0.16); border-color: rgba(56, 189, 248, 0.45); }
+.ml-cv-file b { grid-column: 1 / -1; font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ml-cv-file span { grid-column: 1; grid-row: 2; min-width: 0; font-size: 10.5px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.ml-cv-file em { grid-column: 2; grid-row: 2; font-style: normal; font-size: 10.5px; color: #94a3b8; white-space: nowrap; }
+
+/* The source on top of the tree. */
+.ml-cv-src {
+    display: grid; grid-template-columns: 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center;
+    padding-bottom: 10px; margin-bottom: 4px; border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+}
+.ml-cv-src b { font-size: 14px; font-weight: 600; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ml-cv-src span { grid-column: 1; font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ml-cv-src em { grid-column: 1; font-style: normal; font-size: 11px; color: #94a3b8; }
+.ml-cv-src em.gone { color: #fbbf24; }
+.ml-cv-src .ml-cv-ib { grid-column: 2; grid-row: 1 / span 3; }
+
+/* A kind's branch: its line down the left, the versions hanging off it. */
+.ml-cv-branch { position: relative; margin: 12px 0 0 6px; padding-left: 16px; border-left: 1px solid rgba(56, 189, 248, 0.3); }
+.ml-cv-branch.dsd { border-left-color: rgba(167, 139, 250, 0.4); }
+.ml-cv-bh { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.ml-cv-bh b { font: 600 11px var(--lab-mono, ui-monospace, Consolas, monospace); letter-spacing: 1.2px; color: #7dd3fc; }
+.ml-cv-branch.dsd .ml-cv-bh b { color: #c4b5fd; }
+.ml-cv-bh span { font-size: 10.5px; color: #64748b; }
+.ml-cv-ver {
+    position: relative; display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center;
+    padding: 7px 8px; border-radius: 7px; border: 1px solid transparent;
+}
+.ml-cv-ver::before { content: ''; position: absolute; left: -16px; top: 50%; width: 12px; border-top: 1px solid rgba(56, 189, 248, 0.3); }
+.ml-cv-branch.dsd .ml-cv-ver::before { border-top-color: rgba(167, 139, 250, 0.4); }
+.ml-cv-ver:hover { background: rgba(14, 165, 233, 0.07); }
+.ml-cv-ver.playing { background: rgba(20, 83, 45, 0.28); border-color: rgba(74, 222, 128, 0.35); }
+.ml-cv-ver.old .ml-cv-vt b { color: #94a3b8; }
+.ml-cv-vt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ml-cv-vt b { font-size: 12.5px; font-weight: 500; color: #e2e8f0; line-height: 1.35; overflow-wrap: anywhere; }
+.ml-cv-vt span { font-size: 10.5px; color: #64748b; line-height: 1.35; overflow-wrap: anywhere; }
+.ml-cv-vt i {
+    display: inline-block; margin-left: 8px; padding: 1px 5px; border-radius: 4px; vertical-align: 1px;
+    font: 600 8.5px var(--lab-mono, ui-monospace, Consolas, monospace); font-style: normal; letter-spacing: 1px;
+}
+.ml-cv-vt i.pl { color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.45); }
+.ml-cv-vt i.cur { color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.4); }
+.ml-cv-vt i.old { color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.45); }
+.ml-cv-vt i.wr { color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.45); }
+.ml-cv-ver.writing .ml-cv-vt b { color: #94a3b8; }
+.ml-cv-va button:disabled { opacity: 0.4; cursor: default; }
+.ml-cv-vm { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
+.ml-cv-vm b { font-weight: 500; color: #cbd5e1; }
+.ml-cv-vm span { font-size: 10.5px; color: #64748b; }
+.ml-cv-va { display: flex; align-items: center; gap: 5px; }
+
+/* The row's buttons are small: the words about the version get the room. */
+.ml-cv-va .ml-btn { height: 26px; min-height: 0; padding: 0 10px; font-size: 11px; box-shadow: none; }
+.ml-cv-va .ml-btn svg { width: 9px; height: 9px; }
+
+/* The version on the air: its button pauses it and goes on. */
+.ml-cv-va .ml-btn.ml-cv-play { min-width: 72px; justify-content: center; }
+
+/* A narrow tree (the Library window at its smaller sizes): the words about the version keep the row's whole
+   width, its size and buttons go to a line of their own under them. */
+@container (max-width: 400px) {
+    .ml-cv-ver { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; column-gap: 10px; }
+    .ml-cv-ver .ml-cv-vt { grid-column: 1 / -1; }
+    .ml-cv-ver .ml-cv-vm { grid-column: 1; grid-row: 2; flex-direction: row; align-items: baseline; gap: 8px; justify-self: start; }
+    .ml-cv-ver .ml-cv-va { grid-column: 2; grid-row: 2; }
+}

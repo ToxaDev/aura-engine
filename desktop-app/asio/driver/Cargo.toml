@@ -1,0 +1,26 @@
+[package]
+name = "aura-player-asio"
+version = "0.1.0"
+description = "Aura Player ASIO: the ASIO driver other players play into Aura Player through"
+license = "GPL-3.0-only"
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+# The DLL players load; the rlib lets the tests use its ASIO types.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+aura-link = { path = "../link" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Performance",
+    "Win32_Security",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }

@@ -1,0 +1,94 @@
+// @name     Bars
+// @author   Aura Engine
+// @about    The spectrum as bars with falling peak caps; a bar glows a moment before its sound arrives.
+//
+// @section  "Bars"     "The bars themselves"
+// @param    int    count     48    8    128  1               "Count"         "How many bars across"
+// @param    float  gap       0.3   0.0  0.8  0.01            "Gap"           "Space between bars, as a share of a bar"
+// @param    float  height    0.6   0.2  1.0  0.01            "Height"        "The tallest a bar gets, as a share of the picture"
+// @param    float  curve     1.4   0.5  3.0  0.05  x         "Contrast"      "Higher: only the loud bands stand tall"
+// @param    float  rounding  1.0   0.0  1.0  0.05            "Rounded ends"  "0 square … 1 fully round"
+// @param    bool   mirror    0                               "Mirror"        "Grow up and down from a middle line"
+//
+// @section  "Colour"
+// @param    choice colours   0     "Album cover|App|Custom"  "Colours"       "Where the colours come from"
+// @param    color  low       #22d3ee                         "Custom foot"   "With Custom: the colour at a bar's foot"
+// @param    color  high      #f472b6                         "Custom top"    "With Custom: the colour at a bar's top"
+// @param    float  glow      0.6   0.0  2.0  0.05            "Glow"          "Soft light around the bars"
+//
+// @section  "Motion"   "How the bars follow the music"
+// @param    float  fall      5.0   1.0  20.0 0.5   x         "Release"       "How quickly a bar drops after its sound"
+// @param    float  lead      0.15  0.0  0.5  0.01  s         "Anticipation"  "A bar starts to glow this long before its sound"
+//
+// @section  "Peaks"    "Caps that hold the loudest moment, then fall"
+// @param    bool   peaks     1                               "Show peaks"    "Caps above the bars"
+// @param    float  hold      0.3   0.0  1.0  0.05  s         "Hold"          "How long a cap waits before it falls"
+// @param    float  drop      0.8   0.2  3.0  0.05  x         "Fall speed"    "Picture heights a second"
+//
+// @section  "Layout"
+// @param    float  floorY    0.16  0.0  0.5  0.01            "Floor"         "Where the bars stand in the player (full screen: near the bottom)"
+
+vec3 barColour(float y, float x) {
+    if (colours == 2) return mix(low, high, y);                  // Custom
+    if (colours == 1) return auraAppPalette(0.1 + x * 0.45 + y * 0.2);   // App
+    return auraPalette(x * 0.45 + y * 0.2);                      // Album cover
+}
+
+float sdRoundBox(vec2 q, vec2 b, float r) {
+    vec2 d = abs(q) - b + r;
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0) - r;
+}
+
+vec4 scene(vec2 uv, vec2 p) {
+    float n = float(count);
+    float col = floor(uv.x * n);
+    float f = (col + 0.5) / n;                                    // the band this bar shows
+    float px = uResolution.x / n;                                 // a column's width in pixels
+    float base = uFull > 0.5 ? 0.06 : floorY;
+    float room = (1.0 - base) * uResolution.y * height;           // a full bar's height in pixels
+
+    // The bar's level: rises at once, falls at `fall` a second (a look back); idle: a slow breath.
+    float v, pk = 0.0, soon = 0.0;
+    if (uLive > 0.5) {
+        v = 0.0;
+        for (int i = 0; i < 10; i++) {
+            float t = -float(i) * 0.04;
+            v = max(v, musicSpectrum(f, t) * exp(t * fall));
+        }
+        if (peaks) {
+            for (int i = 0; i < 14; i++) {
+                float t = -float(i) * 0.1;
+                pk = max(pk, pow(musicSpectrum(f, t), curve) - drop * max(0.0, -t - hold));
+            }
+        }
+        soon = max(0.0, musicSpectrum(f, lead) - musicSpectrum(f, 0.0));
+    } else {
+        v = 0.18 + 0.12 * sin(uTime * 0.8 + f * 7.0);
+    }
+    v = pow(clamp(v, 0.0, 1.0), curve);
+
+    // Pixel space: x from the column's centre, y up from the floor (or from the middle line when mirrored).
+    vec2 fc = uv * uResolution;
+    float cx = (col + 0.5) * px;
+    float y0 = mirror ? 0.5 * uResolution.y : base * uResolution.y;
+    float y = mirror ? abs(fc.y - y0) : fc.y - y0;
+    float h = max(2.0, v * room * (mirror ? 0.5 : 1.0));
+    float hw = 0.5 * px * (1.0 - gap);
+    float r = hw * rounding;
+    float d = sdRoundBox(vec2(fc.x - cx, y - h * 0.5), vec2(hw, h * 0.5), min(r, h * 0.5));
+
+    float body = clamp(0.5 - d, 0.0, 1.0);
+    float halo = glow * 0.35 * exp(-max(d, 0.0) / (3.0 + 6.0 * glow)) * (0.4 + v);
+    vec3 c = barColour(clamp(y / room, 0.0, 1.0), f);
+    // Glow before the sound: the top of the bar brightens as its note approaches.
+    c += vec3(soon * 2.0) * smoothstep(h - 12.0, h, y);
+
+    float cap = 0.0;
+    if (peaks && uLive > 0.5) {
+        float ph = max(pk, v) * room * (mirror ? 0.5 : 1.0) + 4.0;
+        cap = clamp(1.5 - abs(y - ph) , 0.0, 1.0) * step(abs(fc.x - cx), hw);
+    }
+    float a = clamp(body + halo + cap, 0.0, 1.0);
+    vec3 rgb = c * (body + halo) + barColour(1.0, f) * cap * 1.2;
+    return vec4(rgb / max(a, 1e-3), a);
+}

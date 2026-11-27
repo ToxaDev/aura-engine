@@ -1,0 +1,58 @@
+/* The app's name in the head: the lens intro and the echo of the aura
+   (js/head-title.js; Anton 23.11, mock aura-title-intro3, 3a). */
+
+#converterPanel > h2.ht-on { text-shadow: none; }
+.ht { position: relative; display: inline-block; }
+.ht-l { display: inline-block; position: relative; white-space: pre; }
+.ht-main { position: relative; z-index: 3; color: #bae6fd;
+           text-shadow: 0 0 9px rgba(56, 189, 248, 0.6), 0 0 22px rgba(14, 165, 233, 0.25); }
+
+/* the echo: copies falling below, cyan going to violet, softer with the distance */
+.ht-e { position: absolute; left: 0; top: 0; z-index: 1; white-space: nowrap; pointer-events: none;
+        color: hsl(calc(199 + var(--k) * 18) 90% 62%);
+        opacity: calc(0.5 - var(--k) * 0.1);
+        filter: blur(calc(var(--k) * 0.3px));
+        transform: translateY(calc(var(--k) * 0.16em));
+        will-change: transform; }
+.ht-halo { position: absolute; left: -8%; right: -8%; top: 15%; bottom: -35%; z-index: 0;
+           border-radius: 50%; pointer-events: none; opacity: 0.45; transform: scale(0.94);
+           background: radial-gradient(ellipse at 50% 45%, rgba(56, 189, 248, 0.28) 0%, rgba(124, 58, 237, 0.14) 45%, transparent 72%);
+           will-change: transform, opacity; }
+
+/* breathing: only while music plays, never in a hidden window */
+h2.ht-on:not(.ht-in) .ht-e    { animation: htFall 3.6s ease-in-out infinite alternate paused; }
+h2.ht-on:not(.ht-in) .ht-halo { animation: htHalo 3.6s ease-in-out infinite alternate paused; }
+body.ht-play:not(.ht-hidden) h2.ht-on .ht-e,
+body.ht-play:not(.ht-hidden) h2.ht-on .ht-halo { animation-play-state: running; }
+@keyframes htFall { from { transform: translateY(calc(var(--k) * 0.16em)); } to { transform: translateY(calc(var(--k) * 0.27em)); } }
+@keyframes htHalo { from { opacity: 0.45; transform: scale(0.94); } to { opacity: 1; transform: scale(1.04); } }
+
+/* the lens: each letter's cyan and violet selves (name and version alike) */
+.ht-main .ht-l::before, .ht-main .ht-l::after,
+.hd-ver .ht-l::before, .hd-ver .ht-l::after {
+  content: attr(data-c); position: absolute; left: 0; top: 0; opacity: 0;
+  mix-blend-mode: screen; pointer-events: none; text-shadow: none; }
+.ht-main .ht-l::before, .hd-ver .ht-l::before { color: #22d3ee; }
+.ht-main .ht-l::after,  .hd-ver .ht-l::after  { color: #8b5cf6; }
+.hd-ver .ht-l::before { color: #67e8f9; }
+.hd-ver .ht-l::after  { color: #a78bfa; }
+.hd-ver { --sp: 0.6em; }
+
+/* the intro: letter by letter, the version on the same wave, then the echo grows and the halo lights */
+h2.ht-in .ht-main .ht-l, h2.ht-in .hd-ver .ht-l { animation: htLetter 0.35s calc(var(--i) * 65ms + 0.45s) both; }
+h2.ht-in .ht-main .ht-l::before, h2.ht-in .hd-ver .ht-l::before { animation: htCy 0.85s calc(var(--i) * 65ms) cubic-bezier(.2, .7, .2, 1) both; }
+h2.ht-in .ht-main .ht-l::after,  h2.ht-in .hd-ver .ht-l::after  { animation: htVi 0.85s calc(var(--i) * 65ms) cubic-bezier(.2, .7, .2, 1) both; }
+h2.ht-in .ht-e    { animation: htEchoIn 0.8s calc(1.45s + var(--k) * 0.08s) cubic-bezier(.2, .7, .2, 1) both; }
+h2.ht-in .ht-halo { animation: htHaloIn 1s 1.3s ease-out both; }
+/* (the letter's own colour, not its opacity: its lens selves live inside it and must show while it is still clear) */
+@keyframes htLetter { from { color: transparent; text-shadow: 0 0 0 transparent; } }
+@keyframes htCy { 0% { opacity: 0; transform: translate(calc(var(--sp, 0.3em) * -1), calc(var(--sp, 0.3em) * -0.4)); }
+                  30% { opacity: 0.95; } 70% { opacity: 0.95; transform: translate(0, 0); } 100% { opacity: 0; transform: translate(0, 0); } }
+@keyframes htVi { 0% { opacity: 0; transform: translate(var(--sp, 0.3em), calc(var(--sp, 0.3em) * 0.4)); }
+                  30% { opacity: 0.95; } 70% { opacity: 0.95; transform: translate(0, 0); } 100% { opacity: 0; transform: translate(0, 0); } }
+@keyframes htEchoIn { from { opacity: 0; transform: translateY(0); } to { opacity: calc(0.5 - var(--k) * 0.1); transform: translateY(calc(var(--k) * 0.16em)); } }
+@keyframes htHaloIn { from { opacity: 0; transform: scale(0.7); } to { opacity: 0.45; transform: scale(0.94); } }
+
+@media (prefers-reduced-motion: reduce) {
+  h2.ht-on .ht-e, h2.ht-on .ht-halo, h2.ht-on .ht-l, h2.ht-on .ht-l::before, h2.ht-on .ht-l::after { animation: none !important; }
+}

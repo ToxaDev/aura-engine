@@ -1,0 +1,708 @@
+// @name     Diamond Dust
+// @author   Tonny Espeset (Diamond Dust Mk II), adapted for Aura Engine — https://www.shadertoy.com/view/7Xy3WW
+// @about    Glitter riding a slow river of paint, seen through a lens. Every hit starts a ring where it sounds — the kick in the middle, the snare to its left, the hats to its right — and the rings run out to the edges, tilting the flakes as they pass, so their glints sweep outwards; kicks splash fresh paint, the highs make the dust sparkle.
+// @license  CC BY-NC-SA 3.0 — adapted from "Diamond Dust Mk II" by Tonny Espeset, https://www.shadertoy.com/view/7Xy3WW ("Feel free to use this code, but please keep this credit and link.")
+//
+// @section  "Glitter"   "The flakes of dust"
+// @param    float  sparkle   0.5   0.0  1.0  0.01              "Sparkle"       "Sharper, brighter glints that twinkle faster"
+// @param    float  highs     1.0   0.0  2.0  0.01  x           "Highs"         "How much the highs make the glitter flash"
+// @param    float  flakeSize 1.0   0.6  1.8  0.01  x           "Flake size"    "How big the flakes are"
+// @param    float  spin      1.0   0.0  2.5  0.01  x           "Spin"          "How fast the flakes turn by themselves"
+//
+// @section  "Waves"     "Rings the hits send out through the dust"
+// @param    float  swell     1.0   0.0  2.0  0.01  x           "Kick rings"    "How strong the rings each kick sends out from the middle"
+// @param    float  ripples   1.0   0.0  2.0  0.01  x           "Hit rings"     "How strong the rings of the snare (left) and the hats (right)"
+// @param    float  reach     1.0   0.4  2.0  0.01  x           "Reach"         "How far the rings run before they fade"
+// @param    float  speed     1.0   0.5  2.0  0.01  x           "Ring speed"    "How fast the rings run out to the edges"
+//
+// @section  "Paint"     "The river of paint under the glitter"
+// @param    float  flow      1.0   0.0  2.0  0.01  x           "Flow"          "How fast the paint flows"
+// @param    float  wells     1.0   0.0  2.0  0.01  x           "Paint wells"   "How strongly the wells keep feeding colour, more on loud parts"
+// @param    float  splash    1.0   0.0  2.0  0.01  x           "Splashes"      "Fresh paint each kick splashes in the middle, where its rings start"
+// @param    float  fade      45.0  10.0 90.0 1.0   s           "Fade"          "Seconds before spent paint sinks back into the dark"
+//
+// @section  "Colour"
+// @param    choice colours   0     "Diamond|Album cover|App|Custom" "Colours" "Where the paint's colours come from"
+// @param    color  paintA    #1f7a4d                           "Custom first"  "With Custom: one colour of the paint"
+// @param    color  paintB    #c8912e                           "Custom second" "With Custom: the other colour of the paint"
+// @param    float  bright    1.0   0.4  2.0  0.01  x           "Brightness"    "How bright the whole picture is"
+//
+// @section  "Lens"      "The camera's glass"
+// @param    float  focus     1.0   0.7  1.4  0.01  x           "Focus"         "Where the sharp band lies: nearer or further"
+// @param    float  aperture  1.0   0.0  2.0  0.01  x           "Blur"          "How soft the near and far glitter is"
+// @param    float  bloomAmt  1.0   0.0  2.0  0.01  x           "Bloom"         "The glow around the brightest glints"
+// @param    float  aberr     1.0   0.0  2.0  0.01  x           "Colour fringes" "Red and blue edges towards the corners, as a real lens"
+// @param    float  grainAmt  1.0   0.0  2.0  0.01  x           "Film grain"    "The fine grain of film"
+
+// @common
+/*
+
+Created by Tonny Espeset, 2026
+https://www.shadertoy.com/view/7Xy3WW
+
+Diamond Dust Mk II
+
+Feel free to use this code, but please keep this credit and link.
+
+Check my other shaders at
+
+https://www.shadertoy.com/user/Espeset
+
+*/
+// Adapted for Aura Engine: the words are gone; the player's music moves the dust — every hit starts a ring where it
+// sounds (the kick in the middle, the snare to its left, the hats to its right) that runs out to the edges; kicks
+// splash paint; the highs sparkle.
+
+// seconds each fluid pattern holds, then seconds it takes to warp into the next
+const float FLOW_HOLD=10.;
+const float FLOW_MORPH=10.;
+const float PI=3.14159265;
+const float TAU=PI*2.;
+// 0, but opaque to the D3D compiler, so the loops it starts stay rolled and compile fast
+#define NO_UNROLL min(iFrame,0)
+// the camera, looking down at the sheet the fluid runs on
+const vec3 EYE=vec3(1.18042237,1.29199219,-1.99625719);
+const vec3 CAM_RIGHT=vec3(.83681515,.00101071,.54745445);
+const vec3 CAM_UP=vec3(-.32270351,.80872536,.49171886);
+const vec3 CAM_FORWARD=vec3(-.44223273,-.58815312,.67708296);
+const float CAM_ZOOM=2.41421342;
+const float SHEET_Y=.04;
+// the flow patterns are laid out facing the camera: its right, straight away from it, and the middle of the view
+const vec2 FLOW_RIGHT=vec2(.83682,.54745);
+const vec2 FLOW_AWAY=vec2(-.54686,.83723);
+const vec2 FLOW_CENTER=vec2(.24,-.55);
+float quintic(float x){
+    x=clamp(x,0.,1.);
+    return x*x*x*(x*(x*6.-15.)+10.);
+}
+uint hashU(uint v){
+    v^=0xa3c59ac3u;v*=0x9e3779b9u;
+    v^=v>>16u;v*=0x9e3779b9u;
+    v^=v>>16u;v*=0x9e3779b9u;
+    return v;
+}
+float hash1(uint v){return float(hashU(v))*(1./4294967296.);}
+uint hashCell(ivec2 c,uint salt){return hashU(uint(c.x)*0x8da6b343u^uint(c.y)*0xd8163841u^salt);}
+vec2 screenPos(vec2 fragCoord,vec2 res){return (2.*fragCoord-res)/res.y;}
+vec2 screenUv(vec2 s,vec2 res){return (s*res.y+res)*.5/res;}
+vec3 viewRay(vec2 s){return normalize(CAM_RIGHT*s.x+CAM_UP*s.y+CAM_FORWARD*CAM_ZOOM);}
+vec2 sheetPoint(vec2 s){
+    vec3 d=viewRay(s);
+    return (EYE+d*((SHEET_Y-EYE.y)/d.y)).xz;
+}
+vec2 sheetScreen(vec2 q){
+    vec3 v=vec3(q.x,SHEET_Y,q.y)-EYE;
+    return vec2(dot(v,CAM_RIGHT),dot(v,CAM_UP))*CAM_ZOOM/dot(v,CAM_FORWARD);
+}
+// Buffer B keeps a signed lens blur in alpha, negative in front of the focus, so one value gives both the blur radius and the depth order
+float blurRadius(float lens){return clamp(abs(lens),.0001,.12)*.3;}
+// a neighbour nearer than this pixel and sharper than it only counts as much as it is blurred
+float dofWeight(float centerBlur,float centerLens,float blur,float lens){
+    float weight=lens<centerLens?blur*41.:1.;
+    if(!(centerBlur>blur+.00627451))weight=1.;
+    return clamp(weight,0.,1.);
+}
+vec2 wave(vec2 p,vec2 k,float a,float phase){return a*cos(dot(k,p)+phase)*vec2(k.y,-k.x);}
+// updraft, silk crosswind, falling silk and gentle turbulence, each a drift plus two or three travelling waves (wave number, amplitude, rate, start phase), then three waves of fine detail under them all; all divergence free
+const vec2 PRESET_DRIFT[4]=vec2[4](vec2(0.,.13),vec2(.12,0.),vec2(0.,-.12),vec2(.03,.02));
+const vec4 PRESET_WAVE[12]=vec4[12](vec4(2.1,.3,.045,.21),vec4(-.9,1.5,.05,-.17),vec4(.4,2.4,.05,.19),vec4(1.3,-.8,.04,-.23),vec4(1.9,-.4,.05,-.2),vec4(.8,1.6,.045,.16),vec4(1.2,.7,.09,.13),vec4(-.6,1.3,.085,-.11),vec4(1.5,-1.1,.06,.17),vec4(4.3,1.9,.009,.31),vec4(-2.2,4.1,.009,-.27),vec4(3.1,-3.6,.007,.23));
+const float PRESET_PHASE[12]=float[12](0.,1.,2.,0.,3.,0.,0.,2.,4.,0.,1.3,2.7);
+vec2 flowCoordinates(vec2 q){return vec2(dot(q-FLOW_CENTER,FLOW_RIGHT),dot(q-FLOW_CENTER,FLOW_AWAY));}
+vec2 worldFlow(vec2 v){return flow*(v.x*FLOW_RIGHT+v.y*FLOW_AWAY);}
+// each pattern holds, then warps into the next
+vec2 baseFlow(vec2 p,float t){
+    float span=FLOW_HOLD+FLOW_MORPH,c=mod(t,4.*span),i=floor(c/span),m=quintic((c-i*span-FLOW_HOLD)/FLOW_MORPH);
+    int now=int(i),next=(now+1)%4,a=now==3?3:2,waves=3+a+(m>0.?(next==3?3:2):0);
+    vec2 v=(1.-m)*PRESET_DRIFT[now]+m*PRESET_DRIFT[next];
+    for(int k=0;k<waves;k++){
+        int j=k<3?9+k:(k<3+a?2*now+k-3:2*next+k-3-a);
+        vec4 w=PRESET_WAVE[j];
+        v+=(k<3?1.:(k<3+a?1.-m:m))*wave(p,w.xy,w.z,PRESET_PHASE[j]+w.w*t);
+    }
+    return v;
+}
+// sheet velocity in world units per second (the flow's own clock stops with the music)
+vec2 sheetFlow(vec2 q,float t){return worldFlow(baseFlow(flowCoordinates(q),t));}
+
+// ── the music (Aura Engine) ──
+// Where the hits start their rings, a drum kit standing in the river: the kick (the bass's hits) in the middle, the
+// snare (the mids') to its left, the hats (the highs') to its right. In the player's band the kit sits lower, under
+// the player's text.
+vec2 hitSpot(int part){
+    vec2 s=part==0?vec2(0.,-.05):(part==1?vec2(-.42,-.14):vec2(.46,-.1));
+    s.x*=min(iResolution.x/iResolution.y,2.2)*.55;
+    if(uFull<.5)s.y=s.y*.6-.42;
+    return sheetPoint(s);
+}
+vec2 ringCentre(){return hitSpot(0);}
+float ringSpeed(){return .5*speed;}
+// One spot's rings at sheet point q: at distance r a ring shows its part's hit r / speed seconds ago, so each hit
+// leaves the spot and runs out to the edges, fading as it widens. Only the hit's start makes a ring (its rise over
+// the fifth of a second before): a held bass makes none, each new hit one short train of crests. Only where a ring
+// passes do the flakes tilt: nothing moves the whole picture at once.
+// The sheet's rise, its slope (x, z) and the ring's light.
+vec4 ringsFrom(vec2 q,int part,float size,float amount){
+    vec2 d=q-hitSpot(part);
+    float r=length(d),v=ringSpeed()*(part==2?1.4:1.),t=-r/v;
+    float on=max(0.,musicHit(part,t)-musicHit(part,t-.18));
+    float a=amount*min(on*1.6,1.)*exp(-r/(.75*size*reach))*smoothstep(0.,.04,r);
+    if(a<1e-4)return vec4(0.);
+    float k=TAU/(.045*size),ph=k*(r-v*uTrackTime);
+    float slope=.4*a;
+    float crest=.5+.5*sin(ph);
+    return vec4(slope/k*sin(ph),slope*cos(ph)*d/max(r,1e-4),a*(.45+.55*crest*crest));
+}
+vec4 rings(vec2 q){
+    if(uLive<.5)return vec4(0.);
+    return ringsFrom(q,0,1.6,swell)+ringsFrom(q,1,1.,.8*ripples)+ringsFrom(q,2,.45,.6*ripples*highs);
+}
+
+// @pass A  iChannel0=A:linear:clamp
+/*
+
+Created by Tonny Espeset, 2026
+https://www.shadertoy.com/view/7Xy3WW
+
+Diamond Dust Mk II
+
+Feel free to use this code, but please keep this credit and link.
+
+Check my other shaders at
+
+https://www.shadertoy.com/user/Espeset
+
+*/
+// The paint: carried by the flow, fed by the wells (more on loud parts), splashed in a ring by each kick.
+
+const vec3 DEEP=vec3(.025,.035,.06);
+// greens, teal, gold and a pale sheen
+const vec3 PAINTS[6]=vec3[6](vec3(.12,.3,.1),vec3(.05,.24,.2),vec3(.26,.3,.1),vec3(.32,.2,.06),vec3(.1,.28,.14),vec3(.26,.32,.24));
+// the paint's colours by the Colours setting, at the original's strength
+vec3 paintOf(int i){
+    if(colours==0)return PAINTS[i%6];
+    vec3 c;
+    float x=float(i%6)/6.;
+    if(colours==1)c=auraPalette(x);
+    else if(colours==2)c=auraAppPalette(x);
+    else c=mix(paintA,paintB,float(i%3)/2.);
+    return c*.3/max(max(c.r,max(c.g,c.b)),.05);
+}
+float lattice(ivec2 p){return float(hashCell(p+32768,0u))*(1./4294967296.);}
+// value noise with its slope
+vec3 noiseSlope(vec2 p){
+    ivec2 i=ivec2(floor(p));
+    vec2 f=fract(p),u=f*f*(3.-2.*f),du=6.*f*(1.-f);
+    float a=lattice(i),b=lattice(i+ivec2(1,0)),c=lattice(i+ivec2(0,1)),d=lattice(i+ivec2(1));
+    return vec3(a+(b-a)*u.x+(c-a)*u.y+(a-b-c+d)*u.x*u.y,du*(vec2(b-a,c-a)+(a-b-c+d)*u.yx));
+}
+// the multicolor whirlpool the pigment opens with: streams of paint wound along the level lines of a slow noise, softly marbled, with copper streaks, blue edges and a per-texel speckle
+vec3 opening(vec2 q){
+    vec2 p=q*.7;
+    for(int i=NO_UNROLL;i<8;i++){
+        vec3 n=noiseSlope(p+vec2(3.1,8.3));
+        p+=.2*vec2(n.z,-n.y)/max(.35,length(n.yz));
+    }
+    const float NOISE_SCALE[6]=float[6](.9,.55,1.6,1.3,2.4,.8),NOISE_SHIFT[6]=float[6](23.1,11.7,2.9,4.7,7.7,31.7);
+    float n[6];
+    for(int i=NO_UNROLL;i<6;i++)n[i]=noiseSlope(p*NOISE_SCALE[i]+NOISE_SHIFT[i]).x;
+    float hue=n[0]*6.,stream=smoothstep(.56,.78,n[1]*.8+n[2]*.2);
+    float layer=p.y*7.+n[3]*4.,stripe=smoothstep(.15,.5,fract(layer))*smoothstep(1.,.65,fract(layer));
+    int k=int(floor(hue));
+    vec3 color=mix(paintOf(k),paintOf(k+1),smoothstep(.3,.7,fract(hue)))*(.6+.9*n[4]);
+    color=mix(color,vec3(.34,.11,.04),stripe*smoothstep(.6,.76,n[5]))*stream*(.65+.35*stripe);
+    color+=vec3(.02,.04,.18)*smoothstep(0.,.04,stream)*smoothstep(.1,.04,stream);
+    uint cell=hashCell(ivec2(floor(q*80.))+4096,0u);
+    return DEEP+color*(.75+.5*vec3(hash1(cell),hash1(cell^1u),hash1(cell^2u)));
+}
+// Catmull-Rom from nine bilinear taps, clamped to the nearest texels so it cannot ring
+vec4 sharpSample(vec2 uv,vec2 res){
+    vec2 p=uv*res-.5,f=fract(p),base=floor(p)+.5;
+    vec2 w0=f*(-.5+f*(1.-.5*f)),w1=1.+f*f*(-2.5+1.5*f),w2=f*(.5+f*(2.-1.5*f)),w3=f*f*(-.5+.5*f),w12=w1+w2;
+    vec2 t0=(base-1.)/res,t3=(base+2.)/res,t12=(base+w2/w12)/res;
+    vec4 value=(texture(iChannel0,vec2(t0.x,t0.y))*w0.x+texture(iChannel0,vec2(t12.x,t0.y))*w12.x+texture(iChannel0,vec2(t3.x,t0.y))*w3.x)*w0.y;
+    value+=(texture(iChannel0,vec2(t0.x,t12.y))*w0.x+texture(iChannel0,vec2(t12.x,t12.y))*w12.x+texture(iChannel0,vec2(t3.x,t12.y))*w3.x)*w12.y;
+    value+=(texture(iChannel0,vec2(t0.x,t3.y))*w0.x+texture(iChannel0,vec2(t12.x,t3.y))*w12.x+texture(iChannel0,vec2(t3.x,t3.y))*w3.x)*w3.y;
+    ivec2 c=ivec2(floor(p));
+    vec4 a=texelFetch(iChannel0,c,0),b=texelFetch(iChannel0,c+ivec2(1,0),0),d=texelFetch(iChannel0,c+ivec2(0,1),0),e=texelFetch(iChannel0,c+ivec2(1),0);
+    return clamp(value,min(min(a,b),min(d,e)),max(max(a,b),max(d,e)));
+}
+void mainImage(out vec4 fragColor,in vec2 fragCoord){
+    vec2 res=iResolution.xy,s=screenPos(fragCoord,res),q=sheetPoint(s);
+    float t=iTime,dt=clamp(iTimeDelta,0.,.05);
+    // one midpoint step back along the flow to where this texel's colour was a frame ago
+    vec2 from=q;
+    for(int k=NO_UNROLL;k<2;k++)from=q-(k==0?.5:1.)*dt*sheetFlow(from,t);
+    vec2 uv=screenUv(sheetScreen(from),res);
+    // an empty texel (the first frame, a new size) starts over from the opening
+    bool start=iFrame==0||texelFetch(iChannel0,ivec2(fragCoord),0)==vec4(0.);
+    vec4 last;
+    if(!start&&all(greaterThan(uv,vec2(0.)))&&all(lessThan(uv,vec2(1.))))last=sharpSample(uv,res);
+    // colour from outside the view is more of the opening, drifting in
+    else last=vec4(opening(start?q:from-vec2(.031,.019)*t),0.);
+    if(start){
+        fragColor=last;
+        return;
+    }
+    vec3 excess=last.rgb-DEEP;
+    float peak=max(excess.r,max(excess.g,excess.b));
+    if(peak>.3)excess*=max(exp(-dt/1.5),.3/peak);
+    vec3 color=DEEP+excess*exp(-3.*dt/fade);
+    float fresh=last.a*exp(-dt/1.2);
+    // ink wells on a 1.2 grid, three in five of them live, each pulsing and changing paint every 47 s; the music
+    // feeds them: more paint on loud parts
+    float feed=wells*(uLive>.5?.35+1.3*musicEnergy(0.):.6);
+    ivec2 home=ivec2(floor(q/1.2));
+    for(int k=NO_UNROLL;k<9;k++){
+        ivec2 c=home+ivec2(k%3-1,k/3-1);
+        uint h=hashCell(c+4096,0u);
+        if(hash1(h)>.6)continue;
+        vec2 well=(vec2(c)+.2+.6*vec2(hash1(h^1u),hash1(h^2u)))*1.2;
+        float radius=mix(.1,.22,hash1(h^3u)),d=distance(q,well);
+        if(d>radius)continue;
+        vec3 ink=.8*paintOf(int(hashU(h^uint(floor(t/47.+hash1(h^4u))))%6u));
+        float pulse=.6+.4*sin(.3*t+6.3*hash1(h^5u));
+        color=mix(color,ink,(1.-exp(-2.5*feed*pulse*dt))*smoothstep(radius,.3*radius,d));
+    }
+    // a kick splashes fresh paint where the rings land, in a few arcs (its colour changes beat by beat); the flow
+    // then carries it away, so the river keeps the beat's colours for a while
+    if(uLive>.5&&splash>0.){
+        float rise=max(0.,musicHit(0,0.)-musicHit(0,-dt-.02));
+        if(rise>.05){
+            float beat=floor((uTrackTime-uBeatRef)*max(uBpm,60.)/60.);
+            uint bh=uint(beat+1000.)*0x9e3779b9u;
+            vec2 d=q-ringCentre();
+            float r=length(d),a=atan(d.y,d.x);
+            float R=.1+.1*hash1(bh);
+            float arcs=smoothstep(-.2,.6,sin(a*3.+6.28*hash1(bh^7u)))*(.6+.4*sin(a*7.+beat));
+            float ring=exp(-pow((r-R)/.035,2.))*arcs;
+            float amount=1.-exp(-1.4*splash*rise*ring);
+            vec3 hue=paintOf(int(mod(beat,6.)));
+            color=mix(color,.55*hue/max(max(hue.r,max(hue.g,hue.b)),.05),amount);
+            fresh=1.-(1.-fresh)*(1.-.7*amount);
+        }
+    }
+    fragColor=vec4(color,fresh);
+}
+
+// @pass B  iChannel0=A:linear:clamp
+/*
+
+Created by Tonny Espeset, 2026
+https://www.shadertoy.com/view/7Xy3WW
+
+Diamond Dust Mk II
+
+Feel free to use this code, but please keep this credit and link.
+
+Check my other shaders at
+
+https://www.shadertoy.com/user/Espeset
+
+*/
+// The glitter. The hits' rings lift the flakes and tilt them as they pass; the highs sharpen their glints.
+
+// glow and extra shine where fresh paint has just been dropped in
+const float FRESH_SHINE=1.;
+// distance in focus, in world units from the eye
+const float FOCUS=3.56;
+// lens opening, larger blurs the near and far glitter more
+const float APERTURE=.059;
+// the glitter is scattered over a 10x10 floor in a 512x512 grid of cells, four flakes to a cell
+const float CELL=10./512.;
+// a new generation of glitter is scattered every 3 s and rides the flow for 9 s; each flake shows for 6 of them, growing in and out over FADE seconds
+const float GENERATION=3.;
+const float FADE=.6;
+// GGX single-bounce energy by the cosine to the eye, at the lowest and highest roughness
+const vec2 BRDF_ENERGY[32]=vec2[32](vec2(.963485579,.935543537),vec2(.927107471,.856176674),vec2(.900337964,.797831237),vec2(.883154088,.749926031),vec2(.874827313,.709445238),vec2(.872618822,.674226046),vec2(.874337569,.643178701),vec2(.878454942,.61544776),vec2(.884102723,.59042716),vec2(.890457196,.567594469),vec2(.897530086,.546785951),vec2(.904364995,.527685225),vec2(.911172523,.509999931),vec2(.917560591,.49359557),vec2(.92333964,.478318483),vec2(.928835802,.464052081),vec2(.933787648,.45069164),vec2(.93809043,.438145876),vec2(.942026013,.426344514),vec2(.945628572,.415208369),vec2(.94875777,.40469411),vec2(.951823748,.394740194),vec2(.954590956,.385292202),vec2(.956919742,.37631771),vec2(.959003824,.367791981),vec2(.960959041,.359659016),vec2(.962808697,.351913631),vec2(.964451634,.344512403),vec2(.965854815,.337443024),vec2(.967271737,.330670536),vec2(.968507921,.324181944),vec2(.969594822,.317962229));
+// the music at this pixel: the sheet's rise and slope (the rings passing) and their light, the sparkle now
+vec4 gRings;
+float gSparkle;
+// the centre ray's nearest flake so far; a ray that meets none keeps its floor distance
+struct Hit{
+    float t;
+    vec2 centre;
+    uint seed;
+    int layer;
+};
+// the same for the four corner rays of a pixel, a quarter pixel off its centre, side by side in vec4 lanes
+struct Corners{
+    vec4 t,cx,cz,layer;
+    uvec4 seed;
+};
+// what shading needs of a flake apart from the ray: normal, paint, roughness squared, blend between the energy columns, shine
+struct Look{
+    vec3 n,albedo;
+    float a2,blend,shine;
+};
+// two numbers in [0,1) from a flake's seed; the seed is already well mixed, so one multiply and shift per lane is enough
+vec2 rnd2(uint seed,uint lane){
+    uint h=(seed^lane*0x9e3779b9u)*0x85ebca6bu;
+    h^=h>>16;
+    return vec2(h&0xffffu,h>>16)/65536.;
+}
+mat3 rotation(float angle,vec3 axis){
+    float c=cos(angle),s=sin(angle),t=1.-c;
+    vec3 n=normalize(axis);
+    return mat3(t*n.x*n.x+c,t*n.x*n.y+s*n.z,t*n.x*n.z-s*n.y,t*n.x*n.y-s*n.z,t*n.y*n.y+c,t*n.y*n.z+s*n.x,t*n.x*n.z+s*n.y,t*n.y*n.z-s*n.x,t*n.z*n.z+c);
+}
+// layer 0 spins fast and glints, layer 1 carries the pigment color
+mat3 flakeRotation(uint seed,int layer){
+    vec2 rate=layer==0?vec2(.0392,.0196):vec2(.0118,.0039),a=rnd2(seed,3u);
+    // a steady spin: the angle is rate × time, so a rate following the music would make every flake jump at once
+    float spinRate=(a.y*rate.y+rate.x)*15.*spin*(rnd2(seed,2u).y<.5?-1.:1.)*(layer==0?1.+.5*sparkle:1.);
+    return rotation(mod((a.x*2.-1.)*2.*TAU+spinRate*iTime,TAU),vec3(rnd2(seed,4u),rnd2(seed,5u).x));
+}
+// a flake sits on the sheet where the rings have lifted it
+vec3 flakeOffset(uint seed,int layer,vec2 centre){
+    return vec3(centre.x,(rnd2(seed,2u).x-.5)*.05+(layer==0?.0394:.0359)+gRings.x,centre.y)-EYE;
+}
+// GGX from one light, with the energy single scattering loses added back
+vec3 light(vec3 l,float power,vec3 v,vec3 n,vec3 albedo,float a2,float energy){
+    vec3 h=normalize(l+v);
+    float NoL=clamp(dot(n,l),0.,1.),NoV=clamp(dot(n,v),0.,1.),NoH=dot(n,h);
+    vec3 f=albedo+(1.-albedo)*pow(max(1.-dot(h,v),0.),5.);
+    float d=NoH*NoH*(a2-1.)+1.;
+    float smith=.5/max(NoL*sqrt(NoV*NoV*(1.-a2)+a2)+NoV*sqrt(NoL*NoL*(1.-a2)+a2),.0001);
+    return f*(1.+albedo*(1.-energy)/energy)*a2/(PI*d*d)*smith*NoL*power;
+}
+// the flow for tracing the glitter back: the patterns without the three waves of fine detail (too small to change a
+// flake's path, and the most costly part of the flow)
+vec2 coarseFlow(vec2 q,float t){
+    vec2 p=flowCoordinates(q);
+    float span=FLOW_HOLD+FLOW_MORPH,c=mod(t,4.*span),i=floor(c/span),m=quintic((c-i*span-FLOW_HOLD)/FLOW_MORPH);
+    int now=int(i),next=(now+1)%4,a=now==3?3:2,waves=a+(m>0.?(next==3?3:2):0);
+    vec2 v=(1.-m)*PRESET_DRIFT[now]+m*PRESET_DRIFT[next];
+    for(int k=0;k<waves;k++){
+        int j=k<a?2*now+k:2*next+k-a;
+        vec4 w=PRESET_WAVE[j];
+        v+=(k<a?1.-m:m)*wave(p,w.xy,w.z,PRESET_PHASE[j]+w.w*t);
+    }
+    return worldFlow(v);
+}
+// where sheet point q sat when each of the three living generations was scattered: three midpoint steps a generation
+void generationOrigins(vec2 q,float t,out vec2 newest,out vec2 middle,out vec2 oldest){
+    float born=floor(t/GENERATION)*GENERATION,tau=t,h=(t-born)/3.;
+    for(int g=0;g<3;g++){
+        for(int i=NO_UNROLL;i<3;i++){
+            vec2 mid=q-.5*h*coarseFlow(q,tau);
+            q-=h*coarseFlow(mid,tau-.5*h);
+            tau-=h;
+        }
+        if(g==0)newest=q;else if(g==1)middle=q;else oldest=q;
+        tau=born-float(g)*GENERATION;h=GENERATION/3.;
+    }
+}
+// a flake is about a pixel wide, so its square projects to the screen as a parallelogram; the five sample points of the pixel at s keep it if they fall inside and it is the nearest yet
+void touch(vec3 oc,float dist,mat3 r,vec2 centre,float halfSize,uint seed,int layer,vec2 s,float quarter,inout Hit h0,inout Corners c){
+    float z=dot(oc,CAM_FORWARD);
+    vec2 sc=vec2(dot(oc,CAM_RIGHT),dot(oc,CAM_UP))*CAM_ZOOM/z;
+    vec3 jx=(CAM_RIGHT*CAM_ZOOM-sc.x*CAM_FORWARD)/z,jy=(CAM_UP*CAM_ZOOM-sc.y*CAM_FORWARD)/z;
+    vec2 a=vec2(dot(jx,r[0]),dot(jy,r[0]))*halfSize,b=vec2(dot(jx,r[1]),dot(jy,r[1]))*halfSize;
+    float det=a.x*b.y-a.y*b.x;
+    if(abs(det)<1e-20)return;
+    // the pixel centre in the square's own coordinates, then how they move towards the corners
+    vec2 d=(s-sc)/det,du=vec2(b.y,-b.x)*quarter/det,dv=vec2(-a.y,a.x)*quarter/det;
+    float u=b.y*d.x-b.x*d.y,v=a.x*d.y-a.y*d.x;
+    if(max(abs(u),abs(v))<=1.&&dist<h0.t)h0=Hit(dist,centre,seed,layer);
+    const vec4 SX=vec4(-1.,1.,-1.,1.),SY=vec4(-1.,-1.,1.,1.);
+    vec4 cu=u+SX*du.x+SY*du.y,cv=v+SX*dv.x+SY*dv.y;
+    bvec4 hit=bvec4(vec4(lessThanEqual(max(abs(cu),abs(cv)),vec4(1.)))*vec4(lessThan(vec4(dist),c.t)));
+    c.t=mix(c.t,vec4(dist),hit);
+    c.cx=mix(c.cx,vec4(centre.x),hit);
+    c.cz=mix(c.cz,vec4(centre.y),hit);
+    c.layer=mix(c.layer,vec4(layer),hit);
+    c.seed+=uvec4(hit)*(uvec4(seed)-c.seed);
+}
+// one flake, carried by the flow from its place at birth, tested against all five rays
+void flake(ivec2 cell,uint seed,int layer,float age,vec2 origin,mat2 toWorld,vec2 sheet,vec3 d0,vec2 s,float quarter,float spread,inout Hit h0,inout Corners corners){
+    vec2 r=rnd2(seed,0u);
+    float shown=r.x*GENERATION,grow=smoothstep(shown,shown+FADE,age)*(1.-smoothstep(shown+2.*GENERATION-FADE,shown+2.*GENERATION,age));
+    if(grow<=0.)return;
+    vec2 xz=sheet+toWorld*((vec2(cell)+rnd2(seed,1u))*CELL-5.-origin);
+    vec3 oc=flakeOffset(seed,layer,xz);
+    float halfSize=(r.y*.0157+.0314)*.1*grow*flakeSize;
+    // cheap reject before the rotation: the flake must pass within reach of the centre ray, spread covering the corners
+    vec3 miss=cross(oc,d0);
+    float dist=length(oc),reach=1.5*halfSize+spread*dist;
+    if(dot(miss,miss)>reach*reach)return;
+    touch(oc,dist,flakeRotation(seed,layer),xz,halfSize,seed,layer,s,quarter,h0,corners);
+}
+// walks the cells this generation's flakes were born in, along the centre ray's path through the glitter layer mapped back to birth
+void traceFlakes(vec3 d0,vec2 s,float quarter,float spread,int generation,float age,vec2 origin,mat2 toBirth,vec2 sheet,inout Hit h0,inout Corners corners){
+    float top=.07+gRings.x,bottom=.005+gRings.x;
+    float enter=(top-EYE.y)/d0.y,leave=(bottom-EYE.y)/d0.y;
+    mat2 toWorld=inverse(toBirth);
+    vec2 along=toBirth*d0.xz,p0=(origin+toBirth*(EYE.xz+d0.xz*enter-sheet)+5.)/CELL,direction=sign(along);
+    ivec2 cell=ivec2(floor(p0));
+    vec2 safeRay=vec2(abs(along.x)<1e-9?(along.x<0.?-1e-9:1e-9):along.x,abs(along.y)<1e-9?(along.y<0.?-1e-9:1e-9):along.y);
+    vec2 delta=abs(vec2(CELL)/safeRay),next=(vec2(cell)+max(direction,vec2(0.))-p0)*CELL/safeRay;
+    next=mix(next,vec2(1e30),equal(direction,vec2(0.)));
+    uint generationHash=hashU(uint(generation)*0x2c1b3c6du^0xcb1ab31fu);
+    for(int step=NO_UNROLL;step<48;step++){
+        // one full hash per cell; a multiply gives each of its four flakes its own seed
+        uint cellHash=hashCell(cell,generationHash);
+        for(int k=NO_UNROLL;k<4;k++)flake(cell,(cellHash^uint(k+1)*0x632be59bu)*0x7feb352du,k>>1,age,origin,toWorld,sheet,d0,s,quarter,spread,h0,corners);
+        float boundary=enter+min(next.x,next.y);
+        // done past the glitter layer, or once every ray has met a flake nearer than any cell still ahead
+        if(boundary>=leave||max(h0.t,max(max(corners.t.x,corners.t.y),max(corners.t.z,corners.t.w)))<=boundary)break;
+        if(next.x<next.y){next.x+=delta.x;cell.x+=int(direction.x);}
+        else{next.y+=delta.y;cell.y+=int(direction.y);}
+    }
+}
+Look flakeLook(Hit hit){
+    vec3 n=flakeRotation(hit.seed,hit.layer)[2];
+    n=dot(flakeOffset(hit.seed,hit.layer,hit.centre),n)>0.?-n:n;
+    // the rings tilt the flakes with the sheet: their glints sweep outwards as a ring passes
+    n=normalize(n+vec3(-gRings.y,0.,-gRings.z)*1.4);
+    vec4 pigment=textureLod(iChannel0,screenUv(sheetScreen(hit.centre),iResolution.xy),0.);
+    // each flake keeps its own slight tint of the pigment under it
+    vec3 albedo=2.49*pigment.rgb*(.75+.5*vec3(rnd2(hit.seed,6u),rnd2(hit.seed,7u).x));
+    float s=gSparkle;
+    float roughness=1.-.2*s;
+    if(hit.layer==0){
+        vec2 glint=rnd2(hit.seed,8u);
+        if(glint.y<.5)albedo=.8*vec3(1.,.47,.27)*glint.x*glint.x*glint.x;
+        albedo*=1.+.8*s;
+        roughness=.3-.08*s;
+    }
+    roughness*=roughness;
+    return Look(n,albedo,roughness*roughness,clamp((roughness-.1537870049980777)/.8462129950019223,0.,1.),(1.+FRESH_SHINE*pigment.a)*(1.+5.*gRings.w));
+}
+vec3 shade(Look f,vec3 rd){
+    // the energy table depends on the eye, not the light, so both lights share one lookup
+    float x=clamp(clamp(dot(f.n,-rd),0.,1.)*32.-.5,0.,31.);
+    vec2 table=mix(BRDF_ENERGY[int(x)],BRDF_ENERGY[min(int(x)+1,31)],fract(x));
+    float energy=mix(table.x,table.y,f.blend);
+    vec3 lit=light(vec3(.50373936,.69598544,-.51169336),10.,-rd,f.n,f.albedo,f.a2,energy)+light(vec3(.04815805,-.39421037,-.91776264),4.5,-rd,f.n,f.albedo,f.a2,energy);
+    return lit*f.shine;
+}
+void mainImage(out vec4 fragColor,in vec2 fragCoord){
+    vec2 res=iResolution.xy,s=screenPos(fragCoord,res),sheet=sheetPoint(s);
+    // the music here (one look for the whole pixel: the rings change slowly across it)
+    gRings=rings(sheet);
+    // the light of rings crossing under a soft ceiling
+    gRings.w=1.-exp(-1.2*gRings.w);
+    // the highs over the last quarter second: the glints brighten with them and never flicker
+    float tre=0.;
+    if(uLive>.5)for(int i=NO_UNROLL;i<4;i++)tre+=.25*musicTreble(-.08*float(i));
+    gSparkle=clamp(sparkle*(uLive>.5?.7+highs*.45*tre:.8),0.,1.2);
+    vec2 newest,middle,oldest;
+    generationOrigins(sheet,iTime,newest,middle,oldest);
+    // the flow is smooth across a pixel, so neighbouring pixels give the local map from the sheet to each generation's birth places
+    mat2 fromSheet=inverse(mat2(dFdx(sheet),dFdy(sheet)));
+    mat2 birth0=mat2(dFdx(newest),dFdy(newest))*fromSheet,birth1=mat2(dFdx(middle),dFdy(middle))*fromSheet,birth2=mat2(dFdx(oldest),dFdy(oldest))*fromSheet;
+    vec3 d0=viewRay(s);
+    const vec4 SX=vec4(-1.,1.,-1.,1.),SY=vec4(-1.,-1.,1.,1.);
+    float quarter=.5/res.y;
+    vec4 sx=s.x+SX*quarter,sy=s.y+SY*quarter;
+    vec4 dx=CAM_RIGHT.x*sx+CAM_UP.x*sy+CAM_FORWARD.x*CAM_ZOOM,dy=CAM_RIGHT.y*sx+CAM_UP.y*sy+CAM_FORWARD.y*CAM_ZOOM,dz=CAM_RIGHT.z*sx+CAM_UP.z*sy+CAM_FORWARD.z*CAM_ZOOM;
+    Hit h0=Hit(-EYE.y/d0.y,vec2(0.),0u,-1);
+    Corners corners=Corners(-EYE.y/(dy*inversesqrt(dx*dx+dy*dy+dz*dz)),vec4(0.),vec4(0.),vec4(-1.),uvec4(0u));
+    float born=floor(iTime/GENERATION),spread=1./(res.y*CAM_ZOOM);
+    for(int g=NO_UNROLL;g<3;g++)traceFlakes(d0,s,quarter,spread,int(born)-g,iTime-(born-float(g))*GENERATION,g==0?newest:(g==1?middle:oldest),g==0?birth0:(g==1?birth1:birth2),sheet,h0,corners);
+    // each ray shows the opaque flake it hits or the sheet beneath; the centre ray also sets the depth
+    vec4 pigment=textureLod(iChannel0,screenUv(sheetScreen(EYE.xz-EYE.y/d0.y*d0.xz),res),0.);
+    vec3 ground=pigment.rgb*(vec3(1.,.498,1.)+FRESH_SHINE*pigment.a)*(1.+3.*gRings.w),colour=vec3(0.);
+    Look look=Look(vec3(0.),vec3(0.),0.,0.,0.);
+    Hit last=Hit(0.,vec2(0.),0u,-1);
+    vec3 lastLit=vec3(0.);
+    for(int k=NO_UNROLL;k<5;k++){
+        Hit hit=h0;
+        vec3 rd=d0;
+        if(k>0){
+            // lane k-1 of the corners, picked with a one-hot mask
+            vec4 e=vec4(equal(ivec4(1,2,3,4),ivec4(k)));
+            uvec4 u=uvec4(e);
+            rd=viewRay(s+quarter*vec2(dot(SX,e),dot(SY,e)));
+            hit=Hit(dot(corners.t,e),vec2(dot(corners.cx,e),dot(corners.cz,e)),corners.seed.x*u.x+corners.seed.y*u.y+corners.seed.z*u.z+corners.seed.w*u.w,int(dot(corners.layer,e)));
+        }
+        if(hit.layer<0){
+            colour+=.2*ground;
+            continue;
+        }
+        // neighbouring rays often meet the same flake, which only needs looking up and lighting once
+        if(hit.seed!=last.seed||hit.layer!=last.layer){
+            look=flakeLook(hit);
+            last=hit;
+            lastLit=shade(look,rd);
+        }
+        colour+=.2*lastLit;
+    }
+    // the lens blur of the centre ray's depth, measured from one unit behind the eye
+    float away=1.+dot(d0*h0.t,CAM_FORWARD);
+    float fz=FOCUS*focus,ap=APERTURE*aperture;
+    fragColor=vec4(colour,.2*(away-fz)/away*(ap/max(fz-ap,.01))/.024);
+}
+
+// @pass C  iChannel0=B:mipmap:clamp
+/*
+
+Created by Tonny Espeset, 2026
+https://www.shadertoy.com/view/7Xy3WW
+
+Diamond Dust Mk II
+
+Feel free to use this code, but please keep this credit and link.
+
+Check my other shaders at
+
+https://www.shadertoy.com/user/Espeset
+
+*/
+
+// Shirley's concentric map from the unit square to the lens disk
+vec2 disk(vec2 coordinate){
+    float x=2.*coordinate.x-1.,y=2.*coordinate.y-1.,radius=y,angle;
+    if(x*x>y*y){radius=x;angle=PI*.25*y/x;}
+    else angle=PI*.25*x/y+PI*.5;
+    return vec2(cos(angle)/(iResolution.x/iResolution.y),sin(angle))*radius;
+}
+void mainImage(out vec4 fragColor,in vec2 fragCoord){
+    vec2 uv=fragCoord/iResolution.xy;
+    float centerLens=textureLod(iChannel0,uv,0.).a,centerBlur=blurRadius(centerLens),totalWeight=0.;
+    vec4 total=vec4(0.);
+    // 8x8 lens samples; alpha carries the blur radius on to the refine pass
+    for(int row=0;row<8;row++)for(int column=0;column<8;column++){
+        vec2 coordinate=uv+disk((vec2(column,row)+.5)/8.)*centerBlur;
+        if(any(lessThan(coordinate,vec2(0.)))||any(greaterThan(coordinate,vec2(1.))))continue;
+        float lens=textureLod(iChannel0,coordinate,0.).a,blur=blurRadius(lens),weight=dofWeight(centerBlur,centerLens,blur,lens);
+        total+=vec4(textureLod(iChannel0,coordinate,.9).rgb,blur)*weight;
+        totalWeight+=weight;
+    }
+    fragColor=total/max(totalWeight,1e-8);
+}
+
+// @pass D  iChannel0=C:linear:clamp  iChannel1=B:linear:clamp
+/*
+
+Created by Tonny Espeset, 2026
+https://www.shadertoy.com/view/7Xy3WW
+
+Diamond Dust Mk II
+
+Feel free to use this code, but please keep this credit and link.
+
+Check my other shaders at
+
+https://www.shadertoy.com/user/Espeset
+
+*/
+
+// the bokeh refine: a 3x3 gather sized by the blur radius, weighted against depth so edges stay clean
+void mainImage(out vec4 fragColor,in vec2 fragCoord){
+    vec2 uv=fragCoord/iResolution.xy;
+    vec4 center=textureLod(iChannel0,uv,0.),total=vec4(0.);
+    float centerLens=textureLod(iChannel1,uv,0.).a,totalWeight=0.;
+    for(int k=NO_UNROLL;k<9;k++){
+        vec2 coordinate=uv+vec2(float(k%3-1)/(iResolution.x/iResolution.y),float(k/3-1))*.085*center.a;
+        vec4 neighbour=textureLod(iChannel0,coordinate,0.);
+        float weight=dofWeight(center.a,centerLens,neighbour.a,textureLod(iChannel1,coordinate,0.).a);
+        total+=neighbour*weight;
+        totalWeight+=weight;
+    }
+    vec3 colour=total.rgb/max(totalWeight,1e-8);
+    // alpha keeps only what rises above the bloom threshold
+    fragColor=vec4(colour,dot(colour*vec3(greaterThan(colour,vec3(.239))),vec3(.2126,.7152,.0722)));
+}
+
+// @pass image  iChannel0=D:mipmap:clamp
+/*
+
+Created by Tonny Espeset, 2026
+https://www.shadertoy.com/view/7Xy3WW
+
+Diamond Dust Mk II
+
+Feel free to use this code, but please keep this credit and link.
+
+Check my other shaders at
+
+https://www.shadertoy.com/user/Espeset
+
+
+A sequel to Diamond Dust
+
+https://www.shadertoy.com/view/ffKXRw
+
+*/
+
+// chromatic aberration: red and blue smeared radially in opposite directions, 18 taps each
+vec4 chromatic(vec2 uv){
+    vec2 towardCenter=vec2(.5)-uv;
+    vec4 result=textureLod(iChannel0,uv,0.);
+    float red=0.,blue=0.;
+    // the taps are a fraction of a pixel apart, so each bilinear fetch between two of them stands for both
+    for(int index=NO_UNROLL;index<9;index++){
+        float displacement=(float(index)*2.+.5)*.000235294122*aberr;
+        red+=textureLod(iChannel0,uv-towardCenter*displacement,0.).r;
+        blue+=textureLod(iChannel0,uv+towardCenter*displacement,0.).b;
+    }
+    result.r=red/9.;
+    result.b=blue/9.;
+    return result;
+}
+// blooms only the light above the threshold, tinted by the colour around it: a 7x7 binomial blur of a small mip, the two outer taps on each side merged into one bilinear fetch
+vec3 bloom(vec2 uv){
+    vec2 stepUv=.02352941185*vec2(1.,iResolution.x/iResolution.y);
+    const float AT[5]=float[5](-15./7.,-1.,0.,1.,15./7.),WEIGHT[5]=float[5](7.,15.,20.,15.,7.);
+    vec4 total=vec4(0.);
+    for(int k=NO_UNROLL;k<25;k++)total+=textureLod(iChannel0,uv+vec2(AT[k%5],AT[k/5])*stepUv,5.)*WEIGHT[k%5]*WEIGHT[k/5];
+    return total.rgb/max(dot(total.rgb,vec3(.2126,.7152,.0722)),1e-6)*total.a/4096.;
+}
+vec3 aces(vec3 color){
+    color=max(color,vec3(0.));
+    vec3 a=vec3(dot(vec3(.59719,.35458,.04823),color),dot(vec3(.076,.90834,.01566),color),dot(vec3(.0284,.13383,.83777),color));
+    vec3 mapped=(a*(a+.0245786)-.000090537)/(a*(.983729*a+.432951)+.238081);
+    return clamp(vec3(dot(vec3(1.60475,-.53108,-.07367),mapped),dot(vec3(-.10208,1.10813,-.00605),mapped),dot(vec3(-.00327,-.07276,1.07602),mapped)),0.,1.);
+}
+// the grade, a fitted curve per channel
+vec3 gradeCurve(vec3 color){
+    vec3 value=vec3(28.2009178,-4.47737138,20.4365427);
+    value=value*color+vec3(-101.437163,13.6101229,-63.9569408);
+    value=value*color+vec3(136.645712,-16.442739,79.084147);
+    value=value*color+vec3(-88.0052381,9.97617983,-48.5028081);
+    value=value*color+vec3(29.3367147,-3.05535481,15.0955054);
+    value=value*color+vec3(-4.0966274,1.35431496,-1.50459414);
+    value=value*color+vec3(.351631336,.0282354678,.293262509);
+    return clamp(value*color+vec3(-.00198259751,.00569606752,.0057168624),0.,1.);
+}
+vec3 toSrgb(vec3 color){return mix(1.055*pow(color,vec3(1./2.4))-.055,color*12.92,lessThanEqual(color,vec3(.0031308)));}
+vec4 random4(vec2 coordinate){
+    float value=sin(dot(coordinate,vec2(12.9898,78.233)))*43758.5453;
+    return fract(value*vec4(1.,1.2154,1.3453,1.3647))*2.-1.;
+}
+float noise3(vec3 coordinate){
+    vec3 grid=floor(coordinate)/256.+.5/256.,local=fract(coordinate),u=vec3(quintic(local.x),quintic(local.y),quintic(local.z));
+    float total=0.;
+    for(int k=NO_UNROLL;k<8;k++){
+        vec3 corner=vec3(k>>2,(k>>1)&1,k&1),weight=mix(1.-u,u,corner);
+        vec3 gradient=random4(vec2(random4(grid.xy+corner.xy/256.).w,grid.z+corner.z/256.)).xyz*4.-1.;
+        total+=dot(gradient,local-corner)*weight.x*weight.y*weight.z;
+    }
+    return total;
+}
+vec2 rotateUv(vec2 coordinate,float angle){
+    float aspect=iResolution.x/iResolution.y,c=cos(angle),s=sin(angle);
+    coordinate.x*=aspect;
+    coordinate=vec2(c*coordinate.x-s*coordinate.y,s*coordinate.x+c*coordinate.y);
+    coordinate.x/=aspect;
+    return coordinate;
+}
+// film grain: still gradient noise under two pixels across, one rotated layer per channel, strongest in the mid tones
+vec3 grain(vec3 color,vec2 uv){
+    vec2 frequency=iResolution.xy/1.79019609,nativeUv=vec2(uv.x,1.-uv.y);
+    vec3 noise;
+    for(int c=NO_UNROLL;c<3;c++)noise[c]=noise3(vec3(rotateUv(nativeUv,c==0?1.425:(c==1?3.892:5.835))*frequency,float(c)));
+    noise=mix(vec3(noise.r),noise,.501960813999176);
+    float luminance=dot(color,vec3(.3,.587,.114))*.556862771511078,reverse=clamp((luminance-.2)/-.2,0.,1.);
+    reverse=reverse*reverse*(3.-2.*reverse);
+    return color+noise*(1.-pow(reverse+luminance,4.))*.0372549027204514*grainAmt;
+}
+void mainImage(out vec4 fragColor,in vec2 fragCoord){
+    vec2 uv=fragCoord/iResolution.xy;
+    vec3 lit=chromatic(uv).rgb+bloom(uv)*bloomAmt;
+    vec3 color=toSrgb(gradeCurve(grain(aces(lit*bright),uv)));
+    // in the player's band the title and the technical lines sit over the upper half: the picture steps back there
+    if(uFull<.5)color*=mix(1.,.5,smoothstep(.38,.64,uv.y));
+    fragColor=vec4(color,1.);
+}
